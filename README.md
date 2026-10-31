@@ -58,17 +58,32 @@ Versão `0.1.0`. Papel implementado: **desktop** (Linux x86_64 e macOS). Os pap�
 referência: CI em Ubuntu 24.04 e macOS, com o tenant fictício `tenants/exemplo`, que é também o ponto de
 partida de um usuário novo.
 
-## Uso rápido (host zerado)
+## Instalação em um comando (host zerado)
 
 ```sh
-git clone <este repositório> ~/DEV/jarvis-os
+curl -fsSL https://raw.githubusercontent.com/whitebeardit/jarvis-os/main/install.sh | sh
+```
+
+O `install.sh` garante git e curl (no macOS instala as Command Line Tools), clona o kernel em
+`~/DEV/jarvis-os` e roda o `bootstrap.sh` com o tenant de exemplo. Opções passam direto:
+`| sh -s -- --with-hermes`. Tenant real: `JARVIS_TENANT=/caminho/jarvis.yaml` antes do comando.
+
+Enquanto o repositório for **privado**, o `curl` anônimo não alcança o arquivo. Com a chave SSH cadastrada
+no GitHub, o equivalente é:
+
+```sh
+git clone git@github.com:whitebeardit/jarvis-os.git ~/DEV/jarvis-os && ~/DEV/jarvis-os/install.sh
+```
+
+Passo a passo, sem o instalador:
+
+```sh
 cd ~/DEV/jarvis-os
 ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run   # só valida e mostra o plano
 ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml             # instala o papel desktop
 ```
 
-Com um tenant real: `./bootstrap.sh --tenant /caminho/do/pacote-tenant/jarvis.yaml`. Opções em
-`./bootstrap.sh --help` (`--with-hermes`, `--skip`, `--home`).
+Opções em `./bootstrap.sh --help` (`--with-hermes`, `--skip`, `--home`).
 
 O bootstrap é idempotente e só escreve dentro de `$HOME`:
 

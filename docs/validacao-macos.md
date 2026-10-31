@@ -5,23 +5,26 @@ o tenant de exemplo. O que falhar aqui é bug do kernel, não da máquina.
 
 ## 1. Antes de começar
 
-- macOS atualizado, usuário comum (não root).
-- Terminal: `xcode-select --install` (traz `git` e `python3`). Nada mais. Não instale Homebrew, Node,
-  Python nem Docker antes: o ponto é começar do zero.
-- Acesso ao repositório: `gh auth login` ou chave SSH no GitHub. Só isso.
+- macOS atualizado, usuário comum (não root). Não instale Homebrew, Node, Python nem Docker antes: o ponto
+  é começar do zero. As Command Line Tools (git, python3) o instalador pede sozinho.
+- Enquanto o repositório for privado: chave SSH cadastrada no GitHub (`ssh-keygen -t ed25519` e colar a
+  pública em github.com/settings/keys). Só isso.
 
 ## 2. Instalar
 
+Um comando:
+
 ```sh
-git clone git@github.com:whitebeardit/jarvis-os.git ~/DEV/jarvis-os
-cd ~/DEV/jarvis-os
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml
+git clone git@github.com:whitebeardit/jarvis-os.git ~/DEV/jarvis-os && ~/DEV/jarvis-os/install.sh
 ```
 
-Esperado: nenhuma pergunta interativa; termina com o bloco `---- resumo ----` mostrando uv, node, claude,
-1 skill instalada (`exemplo-ola`), 2 MCPs (`exemplo_knowledge`, `exemplo_ferramentas`), 0 segredos
-obrigatórios faltando.
+Se o `git` ainda não existir, o macOS abre o diálogo das Command Line Tools na primeira chamada; confirme,
+espere terminar e repita o comando. Quando o repositório for público, o mesmo passa a ser
+`curl -fsSL https://raw.githubusercontent.com/whitebeardit/jarvis-os/main/install.sh | sh`.
+
+Esperado: nenhuma pergunta interativa além do diálogo das Command Line Tools; termina com o bloco
+`---- resumo ----` mostrando uv, node, claude, 1 skill instalada (`exemplo-ola`), 2 MCPs
+(`exemplo_knowledge`, `exemplo_ferramentas`), 0 segredos obrigatórios faltando.
 
 ## 3. Conferir
 

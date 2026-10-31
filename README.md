@@ -27,12 +27,16 @@ Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o pa
 
 | Papel | Componentes | Precisa de |
 | --- | --- | --- |
-| **desktop** | Claude Code, skills, clientes MCP, app JARVIS (Electron), Hermes CLI | só `$HOME` |
+| **desktop** | Claude Code, skills, clientes MCP, JARVIS Web (UI no browser, servida localmente), Hermes CLI | só `$HOME` |
 | **core** | Hermes (gateway Telegram + crons), Paperclip (Node + Postgres embutido) | host sempre ligado |
 | **knowledge** | GBrain (MCP + ingestão do vault), pgvector, Ollama (embeddings), em Docker Compose | Docker (Linux) ou Docker Desktop/OrbStack (macOS) |
 
 O mesmo `bootstrap.sh` instala qualquer combinação: `--role desktop,core,knowledge`. Um papel em outra
 máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do tenant apontam para lá.
+
+A interface gráfica do produto é **uma só: JARVIS Web**, servida pelo próprio host e aberta no browser
+(`http://localhost:8017`; na LAN ou no celular com TLS local). Não há app Electron no produto: mesma UI, sem
+empacotamento nem assinatura por sistema operacional.
 
 ## Estado
 
@@ -96,6 +100,7 @@ exemplo em `tenants/exemplo/jarvis.yaml`.
 | Paperclip | MIT | npm, versão fixa (papel core, próxima versão) |
 | GBrain | MIT | compose (papel knowledge, próxima versão) |
 | Claude Code | proprietário (Anthropic) | instalador oficial; cada usuário usa a própria conta |
+| FFmpeg (série 9.0, com filtro Whisper) | LGPL/GPL conforme o build | build estático por SO/arquitetura baixado na instalação (0.2); câmera, áudio e transcrição |
 | Modelos (Anthropic, OpenAI, outros) | contas do usuário | chaves e logins só em `secrets.env` e OAuth local |
 
 ## Regras do repositório

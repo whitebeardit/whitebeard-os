@@ -20,11 +20,26 @@ Três camadas:
 | **packs** | mecanismo opcional, instalável | `packs/` (futuro) | CRM genérico, domínio fiscal BR, Instagram |
 | **tenant** | identidade e dados | repositório privado do usuário | `jarvis.yaml`, skills de negócio, segredos |
 
+## O pacote e onde cada parte roda
+
+O pacote completo tem três papéis, e **por padrão os três são instalados na mesma máquina** (tudo-em-um).
+Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o padrão.
+
+| Papel | Componentes | Precisa de |
+| --- | --- | --- |
+| **desktop** | Claude Code, skills, clientes MCP, app JARVIS (Electron), Hermes CLI | só `$HOME` |
+| **core** | Hermes (gateway Telegram + crons), Paperclip (Node + Postgres embutido) | host sempre ligado |
+| **knowledge** | GBrain (MCP + ingestão do vault), pgvector, Ollama (embeddings), em Docker Compose | Docker (Linux) ou Docker Desktop/OrbStack (macOS) |
+
+O mesmo `bootstrap.sh` instala qualquer combinação: `--role desktop,core,knowledge`. Um papel em outra
+máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do tenant apontam para lá.
+
 ## Estado
 
-Versão `0.1.0`. Papel implementado: **desktop** (Linux x86_64 e macOS). Papéis `core`, `satelite` e
-`knowledge` vêm nas próximas versões (compose). Validação de referência: CI em Ubuntu 24.04 e macOS, com o
-tenant fictício `tenants/exemplo`, que é também o ponto de partida de um usuário novo.
+Versão `0.1.0`. Papel implementado: **desktop** (Linux x86_64 e macOS). Os papéis `core` e `knowledge`
+(mesmo host, compose) vêm na `0.2`; `satelite` (Hermes perfil + MCP em outra máquina) depois. Validação de
+referência: CI em Ubuntu 24.04 e macOS, com o tenant fictício `tenants/exemplo`, que é também o ponto de
+partida de um usuário novo.
 
 ## Uso rápido (host zerado)
 

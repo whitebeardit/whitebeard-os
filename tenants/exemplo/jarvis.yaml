@@ -52,6 +52,8 @@ crons:
 
 servicos_monitorados: []
 
+# Onde cada papel roda. Padrão do produto: tudo-em-um (os três papéis no mesmo host).
+# Para dividir, declare outros hosts, ex.: {host: servidor, papeis: [core, knowledge]}.
 nos:
-  - papel: core
-  - papel: desktop
+  - host: local
+    papeis: [desktop, core, knowledge]

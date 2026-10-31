@@ -131,13 +131,15 @@
     },
     "nos": {
       "type": "array",
+      "description": "onde cada papel roda. Sem `nos`, ou com um único host `local` com todos os papéis, a instalação é tudo-em-um",
       "items": {
         "type": "object",
-        "required": ["papel"],
         "additionalProperties": false,
+        "anyOf": [{ "required": ["papel"] }, { "required": ["papeis"] }],
         "properties": {
+          "host": { "type": "string", "description": "`local` (padrão) ou nome/endereço de outra máquina" },
           "papel": { "$ref": "#/$defs/papel" },
-          "host": { "type": "string" }
+          "papeis": { "$ref": "#/$defs/papeis" }
         }
       }
     }

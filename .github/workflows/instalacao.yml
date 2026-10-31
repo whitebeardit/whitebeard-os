@@ -2,7 +2,9 @@ name: instalacao-zerada
 
 on:
   push:
+    paths-ignore: ["**.md"]
   pull_request:
+    paths-ignore: ["**.md"]
   workflow_dispatch:
     inputs:
       with_hermes:

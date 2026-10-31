@@ -131,6 +131,14 @@ exemplo em `tenants/exemplo/jarvis.yaml`.
 | FFmpeg (série 9.0, com filtro Whisper) | LGPL/GPL conforme o build | build estático por SO/arquitetura baixado na instalação (0.2); câmera, áudio e transcrição |
 | Modelos (Anthropic, OpenAI, outros) | contas do usuário | chaves e logins só em `secrets.env` e OAuth local |
 
+## Licenciamento do produto
+
+Modelo decidido em 31/10/2026: **licença única, para baixar e usar**. Pagamento único por chave; a chave dá
+direito a baixar e instalar o kernel e suas atualizações, sem prazo, nas máquinas do próprio comprador. Sem
+assinatura, sem SLA de suporte, sem redistribuição do kernel. Hermes, Paperclip e GBrain continuam sob as
+licenças MIT do upstream e não fazem parte da licença. O texto legal dos termos de uso ainda será
+redigido; enquanto o repositório é privado, o acesso é por convite de leitura.
+
 ## Regras do repositório
 
 - Nenhum caminho absoluto de usuário, nome de cliente, chat id, conta de nuvem ou token no kernel.

@@ -176,16 +176,17 @@ def main() -> int:
         for m in servers:
             name = m["name"]
             mcp.append(f"claude mcp remove --scope user {sq(name)} >/dev/null 2>&1 || true")
-            cmd = ["claude", "mcp", "add", "--scope", "user", "--transport", m["transport"]]
+            # Ordem importa: --env e --header são variádicos (engolem o que vier depois até a próxima
+            # opção ou "--"), então vêm depois dos posicionais nome/url e antes de "--".
+            cmd = ["claude", "mcp", "add", "--scope", "user", "--transport", m["transport"], sq(name)]
+            if m["transport"] != "stdio":
+                cmd.append(sq(m["url"]))
             for k, v in (m.get("headers") or {}).items():
                 cmd += ["--header", dq(f"{k}: {v}")]
             for k, v in (m.get("env") or {}).items():
                 cmd += ["--env", dq(f"{k}={v}")]
-            cmd.append(sq(name))
             if m["transport"] == "stdio":
                 cmd += ["--", sq(m["command"])] + [sq(a) for a in m.get("args", []) or []]
-            else:
-                cmd.append(sq(m["url"]))
             mcp.append(" ".join(cmd))
             mcp.append(f"printf '[jarvis-os] mcp %s registrado\\n' {sq(name)}")
         w.write(home / "render" / "claude-mcp.sh", "\n".join(mcp) + "\n", mode=0o700)

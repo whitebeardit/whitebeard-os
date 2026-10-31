@@ -29,6 +29,11 @@
       "description": "identificador curto, minúsculo; vira $JARVIS_TENANT"
     },
     "idioma": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+    "aceleracao": {
+      "enum": ["auto", "cpu", "cuda", "metal", "vulkan"],
+      "default": "auto",
+      "description": "GPU é opcional e nunca obrigatória. `auto` detecta na instalação (CUDA em Linux/NVIDIA, Metal em Apple Silicon, Vulkan genérico) e cai para CPU se não houver"
+    },
     "vault": {
       "type": "object",
       "additionalProperties": false,

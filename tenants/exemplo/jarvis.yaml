@@ -2,6 +2,7 @@
 # copie esta pasta para um repositório privado seu e troque os valores.
 tenant: exemplo
 idioma: pt-BR
+aceleracao: auto # GPU se houver (CUDA, Metal, Vulkan); CPU sempre funciona
 
 vault:
   repo: git@github.com:exemplo/second-brain.git

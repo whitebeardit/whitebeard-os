@@ -1,4 +1,4 @@
-# JARVIS OS — kernel instalável
+# Whitebeard OS — kernel instalável
 
 Instala a arquitetura do JARVIS (Claude Code, skills, clientes MCP, Hermes) num host **zerado**, a partir de
 uma declaração de tenant (`jarvis.yaml`), **sem carregar conhecimento nem dado privado de nenhuma empresa**.
@@ -61,24 +61,24 @@ partida de um usuário novo.
 ## Instalação em um comando (host zerado)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/whitebeardit/jarvis-os/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
 ```
 
 O `install.sh` garante git e curl (no macOS instala as Command Line Tools), clona o kernel em
-`~/DEV/jarvis-os` e roda o `bootstrap.sh` com o tenant de exemplo. Opções passam direto:
+`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant de exemplo. Opções passam direto:
 `| sh -s -- --with-hermes`. Tenant real: `JARVIS_TENANT=/caminho/jarvis.yaml` antes do comando.
 
 Enquanto o repositório for **privado**, o `curl` anônimo não alcança o arquivo. Com a chave SSH cadastrada
 no GitHub, o equivalente é:
 
 ```sh
-git clone git@github.com:whitebeardit/jarvis-os.git ~/DEV/jarvis-os && ~/DEV/jarvis-os/install.sh
+git clone git@github.com:whitebeardit/whitebeard-os.git ~/DEV/whitebeard-os && ~/DEV/whitebeard-os/install.sh
 ```
 
 Passo a passo, sem o instalador:
 
 ```sh
-cd ~/DEV/jarvis-os
+cd ~/DEV/whitebeard-os
 ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run   # só valida e mostra o plano
 ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml             # instala o papel desktop
 ```

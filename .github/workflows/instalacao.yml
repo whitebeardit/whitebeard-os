@@ -58,10 +58,10 @@ jobs:
         run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop
       - name: "instalador de uma linha (modo curl | sh, clona e roda o bootstrap)"
         env:
-          JARVIS_OS_DIR: ${{ runner.temp }}/jarvis-os-oneline
-          JARVIS_OS_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          JARVIS_OS_REF: ${{ github.ref_name }}
+          WHITEBEARD_OS_DIR: ${{ runner.temp }}/whitebeard-os-oneline
+          WHITEBEARD_OS_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          WHITEBEARD_OS_REF: ${{ github.ref_name }}
         run: |
           cat install.sh | sh -s --
-          test -f "$JARVIS_OS_DIR/bootstrap.sh"
-          test "$(cat "$HOME/.jarvis/tenant.path")" = "$JARVIS_OS_DIR/tenants/exemplo/jarvis.yaml"
+          test -f "$WHITEBEARD_OS_DIR/bootstrap.sh"
+          test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/exemplo/jarvis.yaml"

@@ -3,7 +3,7 @@
 # requires-python = ">=3.10"
 # dependencies = ["pyyaml>=6,<7", "jsonschema>=4,<5"]
 # ///
-"""Renderiza a instalação de um tenant do JARVIS OS a partir do jarvis.yaml.
+"""Renderiza a instalação de um tenant do Whitebeard OS a partir do jarvis.yaml.
 
 Entrada: jarvis.yaml (declaração do tenant), manifesto de segredos do kernel, papel do nó.
 Saída em $JARVIS_HOME: jarvis.yaml (cópia), secrets.env (modo 600), profile.sh,
@@ -121,7 +121,7 @@ def main() -> int:
 
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     lines = [
-        "# secrets.env gerado pelo jarvis-os. Modo 600. Nunca commitar, nunca copiar entre máquinas.",
+        "# secrets.env gerado pelo whitebeard-os. Modo 600. Nunca commitar, nunca copiar entre máquinas.",
         f"# tenant={tenant} papel={role} gerado_em={stamp}",
         "# Preencha os valores vazios e rode o bootstrap de novo para aplicar.",
     ]
@@ -146,7 +146,7 @@ def main() -> int:
     if vault.get("path"):
         vault_path = str(user_home / vault["path"])
     profile = [
-        f"# gerado pelo jarvis-os para o tenant {tenant}; não editar (re-rode o bootstrap)",
+        f"# gerado pelo whitebeard-os para o tenant {tenant}; não editar (re-rode o bootstrap)",
         f"export JARVIS_HOME={sq(str(home))}",
         f"export JARVIS_TENANT={sq(tenant)}",
         f"export JARVIS_ROLE={sq(role)}",
@@ -166,7 +166,7 @@ def main() -> int:
     if servers:
         mcp = [
             "#!/bin/sh",
-            f"# gerado pelo jarvis-os a partir de {tenant_path}; idempotente",
+            f"# gerado pelo whitebeard-os a partir de {tenant_path}; idempotente",
             "set -eu",
             "set -a",
             f". {sq(str(secrets_path))}",
@@ -188,7 +188,7 @@ def main() -> int:
             if m["transport"] == "stdio":
                 cmd += ["--", sq(m["command"])] + [sq(a) for a in m.get("args", []) or []]
             mcp.append(" ".join(cmd))
-            mcp.append(f"printf '[jarvis-os] mcp %s registrado\\n' {sq(name)}")
+            mcp.append(f"printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}")
         w.write(home / "render" / "claude-mcp.sh", "\n".join(mcp) + "\n", mode=0o700)
 
     # ---- skills: kernel + packs do tenant → $JARVIS_HOME/skills, linkadas em ~/.claude/skills
@@ -228,18 +228,18 @@ def main() -> int:
 
     # ---- resumo
     summary = [
-        f"[jarvis-os] tenant: {tenant} | papel: {role} | fonte: {tenant_path}",
-        f"[jarvis-os] skills instaladas ({len(installed)}): {', '.join(installed) or '-'}",
-        f"[jarvis-os] mcp ({len(servers)}): {', '.join(m['name'] for m in servers) or '-'}",
-        f"[jarvis-os] segredos: {len(entries)} esperados, {len(empty)} vazios"
+        f"[whitebeard-os] tenant: {tenant} | papel: {role} | fonte: {tenant_path}",
+        f"[whitebeard-os] skills instaladas ({len(installed)}): {', '.join(installed) or '-'}",
+        f"[whitebeard-os] mcp ({len(servers)}): {', '.join(m['name'] for m in servers) or '-'}",
+        f"[whitebeard-os] segredos: {len(entries)} esperados, {len(empty)} vazios"
         + (f"; OBRIGATÓRIOS faltando: {', '.join(missing)}" if missing else ""),
     ]
     if vault_path:
-        summary.append(f"[jarvis-os] vault: {vault_path}" + ("" if Path(vault_path).exists() else " (ainda não clonado)"))
+        summary.append(f"[whitebeard-os] vault: {vault_path}" + ("" if Path(vault_path).exists() else " (ainda não clonado)"))
     if not_linked:
-        summary.append(f"[jarvis-os] aviso: não linkei (destino existe e não é link): {', '.join(not_linked)}")
+        summary.append(f"[whitebeard-os] aviso: não linkei (destino existe e não é link): {', '.join(not_linked)}")
     if missing:
-        summary.append(f"[jarvis-os] preencha {secrets_path} e rode o bootstrap de novo")
+        summary.append(f"[whitebeard-os] preencha {secrets_path} e rode o bootstrap de novo")
     w.write(home / "render" / "summary.txt", "\n".join(summary) + "\n")
     print("\n".join(summary))
     return 0

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://jarvis-os.invalid/schema/jarvis.schema.json",
-  "title": "jarvis.yaml — declaração de tenant do JARVIS OS",
+  "$id": "https://whitebeard-os.invalid/schema/jarvis.schema.json",
+  "title": "jarvis.yaml — declaração de tenant do Whitebeard OS",
   "description": "Tudo que é identidade do tenant entra aqui. Segredos nunca entram como valor: use ${NOME} e declare em `segredos`.",
   "type": "object",
   "required": ["tenant", "idioma"],

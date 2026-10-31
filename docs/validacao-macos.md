@@ -15,12 +15,12 @@ o tenant de exemplo. O que falhar aqui é bug do kernel, não da máquina.
 Um comando:
 
 ```sh
-git clone git@github.com:whitebeardit/jarvis-os.git ~/DEV/jarvis-os && ~/DEV/jarvis-os/install.sh
+git clone git@github.com:whitebeardit/whitebeard-os.git ~/DEV/whitebeard-os && ~/DEV/whitebeard-os/install.sh
 ```
 
 Se o `git` ainda não existir, o macOS abre o diálogo das Command Line Tools na primeira chamada; confirme,
 espere terminar e repita o comando. Quando o repositório for público, o mesmo passa a ser
-`curl -fsSL https://raw.githubusercontent.com/whitebeardit/jarvis-os/main/install.sh | sh`.
+`curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh`.
 
 Esperado: nenhuma pergunta interativa além do diálogo das Command Line Tools; termina com o bloco
 `---- resumo ----` mostrando uv, node, claude, 1 skill instalada (`exemplo-ola`), 2 MCPs

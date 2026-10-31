@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.10"
 # ///
-"""Lint de privacidade do kernel do JARVIS OS.
+"""Lint de privacidade do kernel do Whitebeard OS.
 
 Falha (saída 1) se encontrar, nos caminhos indicados, identidade de tenant, caminho absoluto de usuário,
 chat id, conta de nuvem, e-mail ou segredo. Um pacote de tenant pode passar a própria lista de termos

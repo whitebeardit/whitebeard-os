@@ -1,5 +1,5 @@
 #!/bin/sh
-# bootstrap.sh — instala um papel do JARVIS OS num host zerado (Linux x86_64 ou macOS).
+# bootstrap.sh — instala um papel do Whitebeard OS num host zerado (Linux x86_64 ou macOS).
 # Idempotente: pode rodar de novo a qualquer momento. Só escreve dentro de $HOME.
 # Papel desta versão: desktop (Claude Code + skills + clientes MCP + Hermes opcional).
 set -eu
@@ -45,8 +45,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-log() { printf '[jarvis-os] %s\n' "$*"; }
-die() { printf '[jarvis-os] ERRO: %s\n' "$*" >&2; exit 1; }
+log() { printf '[whitebeard-os] %s\n' "$*"; }
+die() { printf '[whitebeard-os] ERRO: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 skipped() { case "$SKIP" in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 run() {
@@ -99,7 +99,7 @@ install_node() {
     run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh' | env PROFILE=/dev/null NVM_DIR='$NVM_DIR' bash"
   fi
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] nvm install %s\n' "$NODE_VERSION"; return 0; fi
-  bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && nvm install '$NODE_VERSION' >/dev/null && nvm alias default '$NODE_VERSION' >/dev/null && printf '[jarvis-os] node %s pronto\n' \"\$(node -v)\""
+  bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && nvm install '$NODE_VERSION' >/dev/null && nvm alias default '$NODE_VERSION' >/dev/null && printf '[whitebeard-os] node %s pronto\n' \"\$(node -v)\""
 }
 
 install_claude() {
@@ -145,14 +145,14 @@ apply_mcp() {
 
 install_rc() {
   skipped rc && { log "rc: pulado"; return 0; }
-  line=". \"$JARVIS_HOME/profile.sh\" # jarvis-os"
+  line=". \"$JARVIS_HOME/profile.sh\" # whitebeard-os"
   case "${SHELL:-/bin/sh}" in */zsh) rc="$HOME/.zshrc" ;; *) rc="$HOME/.bashrc" ;; esac
   seen=" "
   for f in "$rc" "$HOME/.zshrc" "$HOME/.bashrc"; do
     case "$seen" in *" $f "*) continue ;; esac
     seen="$seen$f "
     [ "$f" = "$rc" ] || [ -f "$f" ] || continue
-    if [ -f "$f" ] && grep -qF '# jarvis-os' "$f"; then continue; fi
+    if [ -f "$f" ] && grep -qF '# whitebeard-os' "$f"; then continue; fi
     if [ "$DRY_RUN" = 1 ]; then log "rc: adicionaria a $f"; continue; fi
     printf '\n%s\n' "$line" >> "$f"
     log "rc: $f atualizado"
@@ -172,7 +172,7 @@ doctor() {
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
 }
 
-log "jarvis-os $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo dev) | $OS/$ARCH | papel $ROLE$( [ "$DRY_RUN" = 1 ] && printf ' | dry-run' )"
+log "whitebeard-os $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo dev) | $OS/$ARCH | papel $ROLE$( [ "$DRY_RUN" = 1 ] && printf ' | dry-run' )"
 check_prereqs
 install_uv
 install_node

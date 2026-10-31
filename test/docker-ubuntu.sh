@@ -10,8 +10,8 @@ docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c '
   useradd -m -s /bin/bash t
   su - t -c "
     set -e
-    cp -r /src ~/jarvis-os
-    cd ~/jarvis-os
+    cp -r /src ~/whitebeard-os
+    cd ~/whitebeard-os
     ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run
     ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml
     ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml
@@ -23,7 +23,7 @@ docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c '
     test \"\$(stat -c %a ~/.jarvis/secrets.env)\" = 600
     claude mcp get exemplo_knowledge
     claude mcp get exemplo_ferramentas
-    grep -c \"# jarvis-os\" ~/.bashrc | grep -qx 1
+    grep -c \"# whitebeard-os\" ~/.bashrc | grep -qx 1
     echo OK-ubuntu-24.04
   "
 '

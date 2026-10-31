@@ -25,6 +25,13 @@ skills:
   packs:
     - skills # relativo a este arquivo
 
+# Camada de decisão (rotear, classificar, guardrails). `regras` e `llm` não dependem de terceiros;
+# `jev` usa a API da TypeSafe AI e exige TYPESAFE_API_KEY em secrets.env.
+decisoes:
+  provider: regras
+  limiar_confianca: 0.85
+  perfis_excluidos: [cliente-exemplo] # conteúdo desses perfis nunca sai para provedor externo
+
 segredos:
   - name: EXEMPLO_TOKEN
     description: Token fictício; mostra como um tenant declara os próprios segredos.

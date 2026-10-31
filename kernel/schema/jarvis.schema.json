@@ -64,6 +64,16 @@
         ]
       }
     },
+    "decisoes": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "camada de decisão do kernel (rotear, classificar, guardrails). O provedor é escolha do tenant; `regras` e `llm` funcionam sem terceiros",
+      "properties": {
+        "provider": { "enum": ["regras", "llm", "jev"], "default": "regras" },
+        "limiar_confianca": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.85, "description": "abaixo disso a decisão escala para o LLM ou para o humano" },
+        "perfis_excluidos": { "type": "array", "items": { "type": "string" }, "description": "perfis cujo conteúdo nunca é enviado a provedor externo" }
+      }
+    },
     "skills": {
       "type": "object",
       "additionalProperties": false,

@@ -34,6 +34,13 @@ Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o pa
 O mesmo `bootstrap.sh` instala qualquer combinação: `--role desktop,core,knowledge`. Um papel em outra
 máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do tenant apontam para lá.
 
+**Camada de decisão com provedor plugável.** Rotear mensagens, classificar intents e aplicar guardrails são
+perguntas fechadas, e o kernel as trata por uma abstração própria: perguntas tipadas versionadas, limiar de
+confiança e escalada para o LLM ou para o humano. O tenant escolhe o provedor em `decisoes.provider`:
+`regras` (determinístico, padrão), `llm` (modelos já configurados) ou `jev` (modelo de decisão da TypeSafe
+AI, por API, com `TYPESAFE_API_KEY`). Nenhum provedor externo é obrigatório, e `perfis_excluidos` impede
+que conteúdo de certos perfis saia da máquina.
+
 **GPU é opcional, nunca obrigatória.** `aceleracao: auto` no `jarvis.yaml` detecta CUDA (Linux/NVIDIA),
 Metal (Apple Silicon) ou Vulkan na instalação e cai para CPU se não houver. Onde a GPU entra: transcrição
 (Whisper), embeddings e modelos locais (Ollama), vídeo das câmeras (hwaccel do FFmpeg). No Linux, o papel

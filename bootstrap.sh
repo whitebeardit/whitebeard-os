@@ -4,7 +4,7 @@
 # Papel desta versão: desktop (Claude Code + skills + clientes MCP + Hermes opcional).
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 KERNEL_DIR="$SCRIPT_DIR/kernel"
 # shellcheck source=kernel/versions.env
 . "$KERNEL_DIR/versions.env"

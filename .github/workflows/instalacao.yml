@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck
-        run: shellcheck -s sh bootstrap.sh test/docker-ubuntu.sh
+        run: shellcheck -x -s sh bootstrap.sh test/docker-ubuntu.sh
       - name: uv (versão do lockfile)
         run: |
           . kernel/versions.env

@@ -22,7 +22,8 @@ jobs:
           . kernel/versions.env
           curl -LsSf "https://astral.sh/uv/$UV_VERSION/install.sh" | env UV_INSTALL_DIR="$HOME/.local/bin" UV_NO_MODIFY_PATH=1 sh
       - name: lint de privacidade
-        run: "$HOME/.local/bin/uv" run --quiet kernel/bin/privacy_lint.py
+        run: |
+          "$HOME/.local/bin/uv" run --quiet kernel/bin/privacy_lint.py
       - name: esquema e tenant de exemplo (dry-run)
         run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run
 

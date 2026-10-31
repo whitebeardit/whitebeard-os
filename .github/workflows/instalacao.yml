@@ -1,0 +1,55 @@
+name: instalacao-zerada
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      with_hermes:
+        description: "Instalar também o Hermes upstream (lento)"
+        type: boolean
+        default: false
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -s sh bootstrap.sh test/docker-ubuntu.sh
+      - name: uv (versão do lockfile)
+        run: |
+          . kernel/versions.env
+          curl -LsSf "https://astral.sh/uv/$UV_VERSION/install.sh" | env UV_INSTALL_DIR="$HOME/.local/bin" UV_NO_MODIFY_PATH=1 sh
+      - name: lint de privacidade
+        run: "$HOME/.local/bin/uv" run --quiet kernel/bin/privacy_lint.py
+      - name: esquema e tenant de exemplo (dry-run)
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run
+
+  instala:
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: instalação zerada (papel desktop)
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop ${{ inputs.with_hermes && '--with-hermes' || '' }}
+      - name: verificação
+        run: |
+          . "$HOME/.jarvis/profile.sh"
+          test "$JARVIS_TENANT" = exemplo
+          node -v | grep -q '^v22.22.2$'
+          uv --version
+          claude --version
+          test -L "$HOME/.claude/skills/exemplo-ola"
+          test -f "$HOME/.jarvis/skills/exemplo-ola/SKILL.md"
+          perm=$(stat -c %a "$HOME/.jarvis/secrets.env" 2>/dev/null || stat -f %Lp "$HOME/.jarvis/secrets.env")
+          test "$perm" = 600
+          claude mcp get exemplo_knowledge
+          claude mcp get exemplo_ferramentas
+          cat "$HOME/.jarvis/render/summary.txt"
+      - name: idempotência (segunda execução)
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop

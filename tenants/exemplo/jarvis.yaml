@@ -1,0 +1,57 @@
+# Tenant de exemplo, fictício. Valida o instalador sem dado real e serve de ponto de partida:
+# copie esta pasta para um repositório privado seu e troque os valores.
+tenant: exemplo
+idioma: pt-BR
+
+vault:
+  repo: git@github.com:exemplo/second-brain.git
+  path: DEV/OBSIDIAN/SecondBrainExemplo # relativo a $HOME
+
+mcp:
+  - name: exemplo_knowledge
+    transport: http
+    url: https://knowledge.exemplo.test/mcp
+    roles: [desktop, core, satelite]
+  - name: exemplo_ferramentas
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-everything"]
+    env:
+      EXEMPLO_TOKEN: "${EXEMPLO_TOKEN}"
+    roles: [desktop]
+
+skills:
+  packs:
+    - skills # relativo a este arquivo
+
+segredos:
+  - name: EXEMPLO_TOKEN
+    description: Token fictício; mostra como um tenant declara os próprios segredos.
+    required: false
+    obtain: não existe; deixe vazio
+
+hermes:
+  provider: anthropic
+  model: claude-sonnet-5-5
+  fallback: anthropic/claude-haiku-5-5
+
+telegram:
+  bot: "@exemplo_bot"
+  home_chat: "${TELEGRAM_HOME_CHANNEL}"
+
+perfis:
+  - nome: cliente-exemplo
+    tipo: grupo-cliente
+    chat_id: "${EXEMPLO_CLIENTE_CHAT_ID}"
+    skills: [exemplo-ola]
+
+crons:
+  - nome: diario
+    agenda: "30 23 * * *"
+    prompt: "Resuma o dia e registre no vault."
+
+servicos_monitorados: []
+
+nos:
+  - papel: core
+  - papel: desktop

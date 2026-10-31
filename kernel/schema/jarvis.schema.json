@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jarvis-os.invalid/schema/jarvis.schema.json",
+  "title": "jarvis.yaml — declaração de tenant do JARVIS OS",
+  "description": "Tudo que é identidade do tenant entra aqui. Segredos nunca entram como valor: use ${NOME} e declare em `segredos`.",
+  "type": "object",
+  "required": ["tenant", "idioma"],
+  "additionalProperties": false,
+  "$defs": {
+    "papel": { "enum": ["desktop", "core", "satelite", "knowledge"] },
+    "papeis": { "type": "array", "items": { "$ref": "#/$defs/papel" }, "uniqueItems": true },
+    "segredo": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean", "default": false },
+        "obtain": { "type": "string" },
+        "roles": { "$ref": "#/$defs/papeis" }
+      }
+    }
+  },
+  "properties": {
+    "tenant": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,30}$",
+      "description": "identificador curto, minúsculo; vira $JARVIS_TENANT"
+    },
+    "idioma": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+    "vault": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repo": { "type": "string", "description": "remoto git do second brain" },
+        "path": { "type": "string", "description": "pasta local, relativa a $HOME" }
+      }
+    },
+    "mcp": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "transport"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
+          "transport": { "enum": ["http", "sse", "stdio"] },
+          "url": { "type": "string" },
+          "command": { "type": "string" },
+          "args": { "type": "array", "items": { "type": "string" } },
+          "env": { "type": "object", "additionalProperties": { "type": "string" } },
+          "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+          "roles": { "$ref": "#/$defs/papeis" }
+        },
+        "allOf": [
+          { "if": { "properties": { "transport": { "enum": ["http", "sse"] } } }, "then": { "required": ["url"] } },
+          { "if": { "properties": { "transport": { "const": "stdio" } } }, "then": { "required": ["command"] } }
+        ]
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "packs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "pastas com skills (cada uma com SKILL.md), relativas ao jarvis.yaml"
+        }
+      }
+    },
+    "segredos": { "type": "array", "items": { "$ref": "#/$defs/segredo" } },
+    "hermes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "fallback": { "type": "string" }
+      }
+    },
+    "telegram": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bot": { "type": "string", "pattern": "^@[A-Za-z0-9_]+$" },
+        "home_chat": { "type": "string", "pattern": "^\\$\\{[A-Z][A-Z0-9_]*\\}$", "description": "sempre por variável" }
+      }
+    },
+    "perfis": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["nome", "tipo"],
+        "additionalProperties": false,
+        "properties": {
+          "nome": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "tipo": { "enum": ["pessoal", "grupo-cliente", "grupo-interno", "servico"] },
+          "chat_id": { "type": "string", "pattern": "^\\$\\{[A-Z][A-Z0-9_]*\\}$", "description": "sempre por variável" },
+          "skills": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "crons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["nome", "agenda"],
+        "additionalProperties": false,
+        "properties": {
+          "nome": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "agenda": { "type": "string", "description": "expressão cron de 5 campos" },
+          "prompt": { "type": "string" },
+          "perfil": { "type": "string" }
+        }
+      }
+    },
+    "servicos_monitorados": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "skill": { "type": "string" },
+          "aws_profile": { "type": "string" }
+        }
+      }
+    },
+    "nos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["papel"],
+        "additionalProperties": false,
+        "properties": {
+          "papel": { "$ref": "#/$defs/papel" },
+          "host": { "type": "string" }
+        }
+      }
+    }
+  }
+}

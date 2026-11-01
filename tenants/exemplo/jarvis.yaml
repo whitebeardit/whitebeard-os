@@ -25,6 +25,12 @@ skills:
   packs:
     - skills # relativo a este arquivo
 
+# Plugins do Claude Code que o tenant usa (papel desktop). O bootstrap registra o marketplace e instala o
+# plugin se faltarem; o uninstall desinstala só o que ele instalou. O exemplo não precisa de nenhum.
+# claude:
+#   marketplaces: [whitebeardit/claude-plugins]
+#   plugins: [sherlock-holmes@whitebeard-plugins]   # usado pelo módulo rastreamento
+
 # Camada de decisão (rotear, classificar, guardrails). `regras` e `llm` não dependem de terceiros;
 # `jev` usa a API da TypeSafe AI e exige TYPESAFE_API_KEY em secrets.env.
 decisoes:

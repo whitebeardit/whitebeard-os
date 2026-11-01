@@ -52,6 +52,9 @@ if have claude; then
   for n in $(cat "$JARVIS_HOME/render/claude-mcp.names" 2>/dev/null); do
     claude mcp remove --scope user "$n" >/dev/null 2>&1 && log "claude: mcp $n removido" || true
   done
+  for n in $(cat "$JARVIS_HOME/render/claude-plugins.names" 2>/dev/null); do
+    claude plugin uninstall "$n" </dev/null >/dev/null 2>&1 && log "claude: plugin $n desinstalado" || true
+  done
 fi
 for d in "$JARVIS_HOME"/skills/*/; do
   [ -d "$d" ] || continue

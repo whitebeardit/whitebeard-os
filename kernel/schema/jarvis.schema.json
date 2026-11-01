@@ -412,6 +412,29 @@
           }
         }
       }
+    },
+    "claude": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Claude Code do papel desktop: marketplaces e plugins que o tenant usa (aplicados pelo bootstrap, idempotente)",
+      "properties": {
+        "marketplaces": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "marketplaces de plugins: repositório GitHub (owner/nome), URL ou pasta"
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+$"
+          },
+          "description": "plugins a instalar, como nome@marketplace (ex.: sherlock-holmes@whitebeard-plugins)"
+        }
+      }
     }
   }
 }

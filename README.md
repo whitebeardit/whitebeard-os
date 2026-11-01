@@ -122,6 +122,7 @@ O bootstrap é idempotente e só escreve dentro de `$HOME`:
 | `~/.jarvis/tls/` | certificado autoassinado do JARVIS Web (SAN: localhost, host, IPs); o serviço sobe em HTTPS | desktop |
 | `~/.nvm/` | Node na versão do lockfile; `paperclipai` instalado nele | todos / core |
 | `~/.claude/skills/<nome>`, `~/.hermes/skills/<nome>`, `~/.claude.json` | links para as skills (Claude Code e Hermes); servidores MCP do tenant e o `knowledge` local | desktop / core |
+| `~/.claude/plugins/` | marketplaces e plugins do Claude Code declarados em `claude:` do tenant (ex.: `sherlock-holmes@whitebeard-plugins` para o módulo rastreamento) | desktop |
 | `~/.hermes/` | Hermes upstream (tag fixa); `config.yaml` inicial e `.env` do tenant, sem sobrescrever | core (ou `--with-hermes`) |
 | `~/.paperclip/` | instância do Paperclip (Postgres embutido); no tudo-em-um fica só nesta máquina, sem login, com empresa, conexão Claude e agente CEO criados na instalação | core |
 | `~/.gbrain/` + LaunchAgents `dev.whitebeard.{ollama,gbrain,vault-sync}` | macOS: cérebro PGLite, Ollama nativo e a sincronização do second brain | knowledge |

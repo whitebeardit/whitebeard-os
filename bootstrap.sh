@@ -43,7 +43,7 @@ uso: $0 --tenant <jarvis.yaml> [opções]
   --with-hermes        instala o Hermes upstream (tag $HERMES_TAG); padrão: sim no papel core, não no desktop
   --without-hermes     não instala o Hermes
   --no-start           instala e renderiza, mas não sobe serviços nem containers
-  --skip a,b           pula etapas: uv, node, claude, ffmpeg, hermes, paperclip, render, mcp, web, knowledge, services, rc
+  --skip a,b           pula etapas: uv, node, claude, ffmpeg, hermes, paperclip, render, mcp, plugins, web, knowledge, services, rc
   --dry-run            valida o jarvis.yaml e mostra o que faria; não escreve nada
   --no-prompt          não pergunta segredos no terminal (CI); deixa vazios em secrets.env
   --telegram           liga o Telegram: pede o token do bot e reconhece o seu chat pela primeira mensagem
@@ -513,6 +513,17 @@ PY
     done < "$JARVIS_HOME/render/hermes/env"
     log "hermes: variáveis do tenant mescladas em $HERMES_HOME/.env (sem sobrescrever)"
   fi
+}
+
+# Plugins do Claude Code que o tenant declara em `claude:` (marketplaces e plugins), só no papel desktop.
+apply_claude_plugins() {
+  has_role desktop || return 0
+  skipped plugins && { log "plugins: pulados"; return 0; }
+  script="$JARVIS_HOME/render/claude-plugins.sh"
+  if [ "$DRY_RUN" = 1 ]; then log "plugins: aplicaria $script, se o tenant declarar claude.plugins"; return 0; fi
+  [ -f "$script" ] || return 0
+  have claude || { log "plugins: claude ausente; pulei"; return 0; }
+  sh "$script"
 }
 
 # Configuração do tenant que precisa entrar num config.yaml do Hermes já existente (apply_hermes_config só
@@ -1241,6 +1252,7 @@ install_paperclip
 render_tenant
 ensure_vault
 apply_mcp
+apply_claude_plugins
 apply_hermes_config
 apply_hermes_tenant
 install_knowledge

@@ -243,6 +243,50 @@ def main() -> int:
         w.write(home / "render" / "claude-mcp.sh", "\n".join(mcp) + "\n", mode=0o700)
         w.write(names_file, "\n".join(m["name"] for m in servers) + "\n")
 
+    # ---- plugins do Claude Code (papel desktop): marketplaces e plugins que o tenant declara em `claude:`.
+    # Script idempotente: só adiciona o que falta. Os nomes aplicados ficam em claude-plugins.names (o
+    # uninstall desinstala só esses).
+    claude_cfg = data.get("claude") or {}
+    marketplaces = list(claude_cfg.get("marketplaces") or []) if "desktop" in roles else []
+    plugins = list(claude_cfg.get("plugins") or []) if "desktop" in roles else []
+    if marketplaces or plugins:
+        lines = [
+            "#!/bin/sh",
+            f"# gerado pelo whitebeard-os a partir de {tenant_path}; idempotente",
+            "set -u",
+            "has_mp() { claude plugin marketplace list --json 2>/dev/null | python3 -c '",
+            "import json, sys",
+            "w = sys.argv[1].strip().lower().removesuffix(\".git\")",
+            "for m in json.load(sys.stdin) or []:",
+            "    vals = {str(m.get(k, \"\")).lower().removesuffix(\".git\") for k in (\"name\", \"repo\", \"url\", \"path\", \"installLocation\")}",
+            "    if w in vals or any(v.endswith(\"/\" + w) or v.endswith(\":\" + w) for v in vals if v):",
+            "        sys.exit(0)",
+            "sys.exit(1)' \"$1\"; }",
+            "has_plugin() { claude plugin list --json 2>/dev/null | python3 -c '",
+            "import json, sys",
+            "w = sys.argv[1].strip().lower(); name = w.split(\"@\")[0]",
+            "for p in json.load(sys.stdin) or []:",
+            "    vals = {str(v).lower() for v in p.values() if isinstance(v, str)}",
+            "    if w in vals or name in vals or any(v.startswith(name + \"@\") for v in vals):",
+            "        sys.exit(0)",
+            "sys.exit(1)' \"$1\"; }",
+            "yes_flag=''; claude plugin install --help 2>/dev/null | grep -q -- '-y, --yes' && yes_flag='-y'",
+        ]
+        for m in marketplaces:
+            lines += [
+                f"if has_mp {sq(m)}; then printf '[whitebeard-os] marketplace %s já registrado\\n' {sq(m)};",
+                f"elif claude plugin marketplace add {sq(m)} </dev/null >/dev/null 2>&1; then printf '[whitebeard-os] marketplace %s registrado\\n' {sq(m)};",
+                f"else printf '[whitebeard-os] aviso: não consegui registrar o marketplace %s\\n' {sq(m)}; fi",
+            ]
+        for pl in plugins:
+            lines += [
+                f"if has_plugin {sq(pl)}; then printf '[whitebeard-os] plugin %s já instalado\\n' {sq(pl)};",
+                f"elif claude plugin install $yes_flag {sq(pl)} </dev/null >/dev/null 2>&1; then printf '[whitebeard-os] plugin %s instalado\\n' {sq(pl)};",
+                f"else printf '[whitebeard-os] aviso: não consegui instalar o plugin %s (rode: claude plugin install %s)\\n' {sq(pl)} {sq(pl)}; fi",
+            ]
+        w.write(home / "render" / "claude-plugins.sh", "\n".join(lines) + "\n", mode=0o700)
+        w.write(home / "render" / "claude-plugins.names", "\n".join(plugins) + "\n")
+
     # ---- papel core: Hermes (config inicial e variáveis), aplicados pelo bootstrap sem sobrescrever
     hermes_cfg = data.get("hermes") or {}
     if "core" in roles or hermes_cfg:
@@ -373,6 +417,7 @@ def main() -> int:
         f"[whitebeard-os] tenant: {tenant} | papéis: {role_label} | fonte: {tenant_path}",
         f"[whitebeard-os] skills instaladas ({len(installed)}): {', '.join(installed) or '-'}",
         f"[whitebeard-os] mcp ({len(servers)}): {', '.join(m['name'] for m in servers) or '-'}",
+        f"[whitebeard-os] plugins ({len(plugins)}): {', '.join(plugins) or '-'}",
         f"[whitebeard-os] segredos: {len(entries)} esperados, {len(empty)} vazios"
         + (f", {len(generated)} gerados ({', '.join(generated)})" if generated else "")
         + (f"; OBRIGATÓRIOS faltando: {', '.join(missing)}" if missing else ""),

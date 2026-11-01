@@ -265,7 +265,16 @@ install_hermes() {
   if [ "$WITH_HERMES" != 1 ] || skipped hermes; then log "hermes: não instalado (--with-hermes para incluir)"; return 0; fi
   if have hermes || [ -x "$HERMES_HOME/bin/hermes" ]; then log "hermes já presente ($HERMES_HOME)"; return 0; fi
   log "instalando Hermes upstream $HERMES_TAG em $HERMES_HOME"
-  run "curl -fsSL 'https://raw.githubusercontent.com/NousResearch/hermes-agent/$HERMES_TAG/setup-hermes.sh' | bash"
+  # O setup-hermes.sh upstream trabalha relativo à própria pasta (venv/, uv sync): precisa rodar de dentro
+  # de um checkout do hermes-agent, nunca do kernel. As duas perguntas dele (ripgrep, assistente de
+  # configuração) recebem "n": o tenant já traz a configuração e o assistente é interativo.
+  dir="$HERMES_HOME/hermes-agent"
+  if [ ! -d "$dir/.git" ]; then
+    mkdir -p "$HERMES_HOME"
+    git clone -q --depth 1 --branch "$HERMES_TAG" https://github.com/NousResearch/hermes-agent.git "$dir" || die "hermes: clone do hermes-agent falhou"
+  fi
+  (cd "$dir" && printf 'nn' | bash setup-hermes.sh) || die "hermes: instalador upstream falhou (veja a saída acima)"
+  have hermes || [ -x "$HOME/.local/bin/hermes" ] || die "hermes: comando não encontrado depois da instalação"
 }
 
 install_paperclip() {

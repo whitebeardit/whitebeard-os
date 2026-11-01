@@ -1,0 +1,61 @@
+name: ffmpeg-whisper
+
+# Compila o FFmpeg com o filtro Whisper (whisper.cpp) a partir do ffmpeg-build-script fixado por tag,
+# e publica o binário estático como release do kernel. Manual, porque leva mais de uma hora.
+# Linux x86_64 em CPU (roda em qualquer host). macOS/Metal e CUDA ficam para builds dedicados.
+on:
+  workflow_dispatch:
+    inputs:
+      script_tag:
+        description: "Tag do markus-perl/ffmpeg-build-script"
+        default: "v9.0.4"
+      backend:
+        description: "Backend do whisper.cpp (cpu | vulkan)"
+        default: "cpu"
+
+permissions:
+  contents: write
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: dependências de build
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential curl tar xz-utils file python3 python3-pip meson ninja-build cargo libx11-dev libxext-dev gzip diffutils findutils >/dev/null
+      - name: ffmpeg-build-script ${{ inputs.script_tag }}
+        run: git clone --depth 1 --branch "${{ inputs.script_tag }}" https://github.com/markus-perl/ffmpeg-build-script.git "$RUNNER_TEMP/fbs"
+      - name: compilar (estático, LGPL, whisper=${{ inputs.backend }})
+        working-directory: ${{ runner.temp }}/fbs
+        run: SKIPINSTALL=yes ./build-ffmpeg --build --full-static --whisper=${{ inputs.backend }}
+      - name: verificar filtro whisper e empacotar
+        working-directory: ${{ runner.temp }}/fbs
+        run: |
+          ./workspace/bin/ffmpeg -version | head -n 1
+          ./workspace/bin/ffmpeg -hide_banner -filters | grep -i whisper
+          v=$(./workspace/bin/ffmpeg -version | head -n 1 | awk '{print $3}')
+          name="ffmpeg-whisper-${{ inputs.backend }}-${v}-linux-x86_64"
+          mkdir -p "$RUNNER_TEMP/out/$name"
+          cp workspace/bin/ffmpeg workspace/bin/ffprobe "$RUNNER_TEMP/out/$name/"
+          cp LICENSE "$RUNNER_TEMP/out/$name/LICENSE-build-script" 2>/dev/null || true
+          tar -C "$RUNNER_TEMP/out" -cJf "$RUNNER_TEMP/out/$name.tar.xz" "$name"
+          (cd "$RUNNER_TEMP/out" && sha256sum "$name.tar.xz" > "$name.tar.xz.sha256")
+          echo "ASSET=$RUNNER_TEMP/out/$name.tar.xz" >> "$GITHUB_ENV"
+          echo "ASSET_NAME=$name" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
+          retention-days: 90
+      - name: publicar como release do kernel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ffmpeg-whisper-${{ inputs.backend }}-linux-x86_64"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "FFmpeg com Whisper (${{ inputs.backend }}, Linux x86_64)" --notes "Build estático LGPL via ffmpeg-build-script ${{ inputs.script_tag }}, whisper.cpp backend ${{ inputs.backend }}. Verificado: filtro whisper presente."
+          gh release upload "$tag" "$ASSET" "$ASSET.sha256" --clobber

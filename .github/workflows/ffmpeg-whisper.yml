@@ -3,6 +3,11 @@ name: ffmpeg-whisper
 # Compila o FFmpeg com o filtro Whisper (whisper.cpp) a partir do ffmpeg-build-script fixado por tag,
 # e publica o binário estático como release do kernel. Manual, porque leva mais de uma hora.
 # Linux x86_64 em CPU (roda em qualquer host). macOS/Metal e CUDA ficam para builds dedicados.
+#
+# As bibliotecas já compiladas (workspace/ e os marcadores packages/*.done) ficam em cache por tag do
+# script e backend, inclusive quando o job falha: uma nova tentativa só refaz o que faltou.
+# rav1e (encoder AV1 em Rust) fica desligado: o runner tem cargo, o script tenta compilá-lo e o
+# configure do FFmpeg não o encontra pelo pkg-config; dav1d e SVT-AV1 já cobrem AV1.
 on:
   workflow_dispatch:
     inputs:
@@ -25,12 +30,30 @@ jobs:
       - name: dependências de build
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential curl tar xz-utils file python3 python3-pip meson ninja-build cargo libx11-dev libxext-dev gzip diffutils findutils >/dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential curl tar xz-utils file python3 python3-pip python-is-python3 meson ninja-build libx11-dev libxext-dev gzip diffutils findutils >/dev/null
       - name: ffmpeg-build-script ${{ inputs.script_tag }}
         run: git clone --depth 1 --branch "${{ inputs.script_tag }}" https://github.com/markus-perl/ffmpeg-build-script.git "$RUNNER_TEMP/fbs"
-      - name: compilar (estático, LGPL, whisper=${{ inputs.backend }})
+      - name: restaurar bibliotecas já compiladas
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/fbs/workspace
+            ${{ runner.temp }}/fbs/packages/*.done
+          key: fbs-${{ inputs.script_tag }}-whisper-${{ inputs.backend }}-${{ runner.os }}-${{ runner.arch }}-v1
+          restore-keys: |
+            fbs-${{ inputs.script_tag }}-whisper-${{ inputs.backend }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: compilar (estático, LGPL, whisper=${{ inputs.backend }}, sem rav1e)
         working-directory: ${{ runner.temp }}/fbs
-        run: SKIPINSTALL=yes ./build-ffmpeg --build --full-static --whisper=${{ inputs.backend }}
+        run: SKIPINSTALL=yes ./build-ffmpeg --build --full-static --whisper=${{ inputs.backend }} --disable=rav1e
+      - name: guardar bibliotecas compiladas (mesmo se falhou)
+        if: always() && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/fbs/workspace
+            ${{ runner.temp }}/fbs/packages/*.done
+          key: ${{ steps.cache.outputs.cache-primary-key }}
       - name: verificar filtro whisper e empacotar
         working-directory: ${{ runner.temp }}/fbs
         run: |

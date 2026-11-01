@@ -238,8 +238,8 @@ def main() -> int:
                 cmd += ["--env", dq(f"{k}={v}")]
             if m["transport"] == "stdio":
                 cmd += ["--", sq(m["command"])] + [sq(a) for a in m.get("args", []) or []]
-            mcp.append(" ".join(cmd))
-            mcp.append(f"printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}")
+            mcp.append(" ".join(cmd) + f" >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}"
+                       f" || printf '[whitebeard-os] aviso: não consegui registrar o mcp %s no Claude Code\\n' {sq(name)}")
         w.write(home / "render" / "claude-mcp.sh", "\n".join(mcp) + "\n", mode=0o700)
         w.write(names_file, "\n".join(m["name"] for m in servers) + "\n")
 

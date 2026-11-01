@@ -73,8 +73,8 @@ Versão `0.2.0-dev`. Os três papéis instalam a partir do mesmo bootstrap:
   ensinam os dois a consultar e a documentar nele.
 
 `satelite` (Hermes perfil + MCP em outra máquina) vem a seguir; o JARVIS Web já entra no papel desktop,
-com TLS local, a partir do branch do app fixado no lockfile. Validação de
-referência: tenant fictício `tenants/exemplo`, que é também o ponto de partida de um usuário novo.
+com TLS local, a partir do branch do app fixado no lockfile. Tenants no kernel: `pessoal`
+(padrão de instalação) e `exemplo` (fictício, com todos os campos; usado no CI).
 
 ## Instalação em um comando (host zerado)
 
@@ -83,15 +83,18 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 ```
 
 O `install.sh` garante git e curl (no macOS instala as Command Line Tools), clona o kernel em
-`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant de exemplo, tudo-em-um. O que a pessoa faz:
+`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant `pessoal` (uma pessoa, um computador, tudo-em-um).
+O que a pessoa faz:
 
 1. roda o comando acima num terminal;
 2. entra na conta Claude quando o navegador abrir (único passo interativo: Hermes e Paperclip usam esse login);
-3. abre o JARVIS Web no endereço que o resumo mostra.
+3. responde se quer o JARVIS no Telegram (pode dizer não e ligar depois);
+4. no fim, o JARVIS Web abre sozinho no navegador.
 
-Nada de chaves, convites ou arquivos para editar. Telegram é opcional: `./install.sh --telegram` pede o token
-do bot e reconhece o seu chat pela primeira mensagem. Tenant real: `JARVIS_TENANT=<nome, pasta ou
-/caminho/jarvis.yaml>` antes do comando. Para refazer a instalação, rode o mesmo comando de novo: é idempotente.
+Nada de chaves, convites ou arquivos para editar. O que não é nosso (npm, instalador do Hermes, Paperclip)
+não aparece na tela: fica em `~/.jarvis/logs/`. Tenant de uma empresa: `JARVIS_TENANT=<nome, pasta ou
+/caminho/jarvis.yaml>` antes do comando (`tenants/exemplo` mostra todos os campos). Para refazer a
+instalação, rode o mesmo comando de novo: é idempotente.
 
 Para desinstalar: `~/DEV/whitebeard-os/uninstall.sh` remove serviços e programas e **mantém** o second brain e o
 `secrets.env` (com `--tudo`, remove também os dois). O Claude Code e o seu login nunca são tocados.

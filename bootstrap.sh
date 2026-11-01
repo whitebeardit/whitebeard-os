@@ -171,11 +171,13 @@ install_node() {
   skipped node && { log "node: pulado"; return 0; }
   if [ ! -s "$NVM_DIR/nvm.sh" ]; then
     log "instalando nvm $NVM_VERSION em $NVM_DIR"
-    run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh' | env PROFILE=/dev/null NVM_DIR='$NVM_DIR' bash"
+    mkdir -p "$JARVIS_HOME/logs"
+    run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh' | env PROFILE=/dev/null NVM_DIR='$NVM_DIR' bash >>'$JARVIS_HOME/logs/instalacao-node.log' 2>&1"
     [ "$DRY_RUN" = 1 ] || { mkdir -p "$JARVIS_HOME"; : > "$JARVIS_HOME/.nvm-instalado-pelo-kernel"; }
   fi
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] nvm install %s\n' "$NODE_VERSION"; return 0; fi
-  with_node "nvm install '$NODE_VERSION' >/dev/null && nvm alias default '$NODE_VERSION' >/dev/null && printf '[whitebeard-os] node %s pronto\n' \"\$(node -v)\""
+  mkdir -p "$JARVIS_HOME/logs"
+  with_node "nvm install '$NODE_VERSION' >>'$JARVIS_HOME/logs/instalacao-node.log' 2>&1 && nvm alias default '$NODE_VERSION' >/dev/null 2>&1 && printf '[whitebeard-os] node %s pronto\n' \"\$(node -v)\""
 }
 
 install_claude() {
@@ -288,9 +290,14 @@ install_hermes() {
   dir="$HERMES_HOME/hermes-agent"
   if [ ! -d "$dir/.git" ]; then
     mkdir -p "$HERMES_HOME"
-    git clone -q --depth 1 --branch "$HERMES_TAG" https://github.com/NousResearch/hermes-agent.git "$dir" || die "hermes: clone do hermes-agent falhou"
+    mkdir -p "$JARVIS_HOME/logs"
+    git -c advice.detachedHead=false clone -q --depth 1 --branch "$HERMES_TAG" https://github.com/NousResearch/hermes-agent.git "$dir" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 \
+      || die "hermes: clone do hermes-agent falhou"
   fi
-  (cd "$dir" && printf 'nn' | bash setup-hermes.sh) || die "hermes: instalador upstream falhou (veja a saída acima)"
+  mkdir -p "$JARVIS_HOME/logs"
+  log "hermes: instalando (alguns minutos; detalhes em $JARVIS_HOME/logs/instalacao-hermes.log)"
+  (cd "$dir" && printf 'nn' | bash setup-hermes.sh) >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 \
+    || die "hermes: instalador upstream falhou (veja $JARVIS_HOME/logs/instalacao-hermes.log)"
   have hermes || [ -x "$HOME/.local/bin/hermes" ] || die "hermes: comando não encontrado depois da instalação"
 }
 
@@ -311,7 +318,7 @@ ensure_hermes_voice() {
   # mesmo isolamento do setup-hermes.sh upstream: o lock vale com o pyproject do checkout, sem config do usuário
   cfg=$(mktemp -d)
   (cd "$dir" && unset UV_NO_CONFIG UV_CONFIG_FILE && XDG_CONFIG_HOME="$cfg" XDG_CONFIG_DIRS="$cfg" \
-    UV_PROJECT_ENVIRONMENT="$dir/venv" uv sync --locked --inexact --extra voice --extra edge-tts) \
+    UV_PROJECT_ENVIRONMENT="$dir/venv" uv sync --locked --inexact --extra voice --extra edge-tts) >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 \
     || log "aviso: não consegui instalar a voz no venv do Hermes; o JARVIS Web segue sem STT"
   rmdir "$cfg" 2>/dev/null || true
 }
@@ -377,8 +384,15 @@ can_prompt() { [ "$NO_PROMPT" != 1 ] && ( : </dev/tty ) 2>/dev/null; }
 telegram_setup() {
   has_role core || return 1
   s="$JARVIS_HOME/secrets.env"
+  if [ "$WITH_TELEGRAM" != 1 ] && ! grep -q '^TELEGRAM_BOT_TOKEN=.' "$s" 2>/dev/null; then
+    # sem token e sem --telegram: pergunta uma vez (a resposta fica guardada); "não" nunca pergunta de novo
+    [ -f "$JARVIS_HOME/telegram.decisao" ] && return 1
+    can_prompt || return 1
+    printf '\n  Quer falar com o JARVIS pelo Telegram? Pode ligar depois com ./install.sh --telegram. [s/N] ' >/dev/tty
+    IFS= read -r resp </dev/tty
+    case "$resp" in s|S|sim|Sim|SIM|y|Y) WITH_TELEGRAM=1 ;; *) printf 'nao\n' >"$JARVIS_HOME/telegram.decisao"; log "telegram: desligado (para ligar: ./install.sh --telegram)"; return 1 ;; esac
+  fi
   if [ "$WITH_TELEGRAM" != 1 ]; then
-    grep -q '^TELEGRAM_BOT_TOKEN=.' "$s" 2>/dev/null || return 1
     grep -q '^TELEGRAM_HOME_CHANNEL=.' "$s" 2>/dev/null && return 1
   fi
   if ! can_prompt; then
@@ -754,7 +768,8 @@ install_knowledge_native() {
   if [ ! -f "$gb_dir/.ok" ]; then
     log "knowledge: instalando GBrain $GBRAIN_REF"
     rm -rf "$gb_dir"
-    git clone -q --depth 1 --branch "$GBRAIN_REF" https://github.com/garrytan/gbrain.git "$gb_dir" || die "knowledge: clone do GBrain falhou"
+    git -c advice.detachedHead=false clone -q --depth 1 --branch "$GBRAIN_REF" https://github.com/garrytan/gbrain.git "$gb_dir" >>"$JARVIS_HOME/logs/instalacao-gbrain.log" 2>&1 \
+      || die "knowledge: clone do GBrain falhou"
     # os scripts do GBrain (postinstall) chamam `bun` pelo PATH
     (cd "$gb_dir" && PATH="$bun_dir:$PATH" bun install --frozen-lockfile --silent) || die "knowledge: bun install do GBrain falhou"
     : > "$gb_dir/.ok"
@@ -797,8 +812,8 @@ for f in glob.glob(os.path.join(os.path.dirname(vault), ".gbrain-owner-*.json"))
         pass
 PY
     env "$gb_env" "$HOME/.local/bin/gbrain" init --pglite --non-interactive \
-      --embedding-model "ollama:$EMBED_MODEL" --embedding-dimensions 1024 >/dev/null \
-      || die "knowledge: gbrain init falhou"
+      --embedding-model "ollama:$EMBED_MODEL" --embedding-dimensions 1024 >>"$JARVIS_HOME/logs/instalacao-gbrain.log" 2>&1 \
+      || die "knowledge: gbrain init falhou (veja $JARVIS_HOME/logs/instalacao-gbrain.log)"
     log "knowledge: cérebro criado (PGLite em ~/.gbrain)"
   fi
   # a versão do GBrain é fixada pelo kernel: o aviso de self-upgrade em cada comando só confundiria
@@ -809,8 +824,8 @@ su = c.setdefault("self_upgrade", {})
 if su.get("mode") != "off":
     su.update({"mode": "off", "mode_prompted": True}); json.dump(c, open(p, "w", encoding="utf-8"), indent=2)
 PY
-  env "$gb_env" "$HOME/.local/bin/gbrain" apply-migrations --yes --no-autopilot-install >/dev/null \
-    || die "knowledge: migrações do GBrain falharam"
+  env "$gb_env" "$HOME/.local/bin/gbrain" apply-migrations --yes --no-autopilot-install >>"$JARVIS_HOME/logs/instalacao-gbrain.log" 2>&1 \
+    || die "knowledge: migrações do GBrain falharam (veja $JARVIS_HOME/logs/instalacao-gbrain.log)"
   # token do MCP (uma vez; só com o serve parado o CLI abre o banco). Nunca vai para o log.
   tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
   if [ -z "$tok" ] || ! env "$gb_env" "$HOME/.local/bin/gbrain" auth list 2>/dev/null | grep whitebeard-os | grep -qv REVOKED; then
@@ -996,7 +1011,9 @@ install_services() {
   pc_config="$HOME/.paperclip/instances/default/config.json"
   if [ ! -f "$pc_config" ]; then
     log "paperclip: primeira configuração ($( [ "$bind" = loopback ] && echo 'só esta máquina, sem login' || echo 'rede local, autenticado' )) e serviço de usuário"
-    with_node "$onboard </dev/null"
+    mkdir -p "$JARVIS_HOME/logs"
+    with_node "$onboard </dev/null >>'$JARVIS_HOME/logs/instalacao-paperclip.log' 2>&1" \
+      || log "aviso: a primeira configuração do Paperclip falhou (veja $JARVIS_HOME/logs/instalacao-paperclip.log)"
   else
     if [ "$bind" = loopback ] && [ "$PAPERCLIP_LOCAL" = 1 ] && paperclip_to_loopback "$pc_config"; then
       log "paperclip: instância migrada para só esta máquina, sem login (local_trusted)"
@@ -1020,7 +1037,7 @@ install_services() {
         Linux) systemctl --user is-enabled hermes-gateway.service >/dev/null 2>&1 && gw_present=1 ;;
       esac
       if [ "$gw_present" = 0 ]; then
-        hermes gateway install --start-on-login --start-now && log "hermes: gateway instalado como serviço"
+        hermes gateway install --start-on-login --start-now >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 && log "hermes: gateway instalado como serviço"
       elif [ "${TELEGRAM_CHANGED:-0}" = 1 ] || [ "$HERMES_RESTART" = 1 ]; then
         hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true
         log "hermes: gateway reiniciado (configuração mudou)"
@@ -1237,6 +1254,35 @@ doctor() {
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
   [ "$KNOWLEDGE_ADIADO" = 1 ] && log "knowledge: adiado (sem Docker). Instale Docker e rode o bootstrap de novo"
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
+  finalizar
+}
+
+# O que a pessoa precisa saber, em linguagem simples, e o JARVIS aberto no navegador.
+finalizar() {
+  [ "$DRY_RUN" = 1 ] || [ "$NO_START" = 1 ] && return 0
+  has_role desktop || return 0
+  data=$(sed -n 's/^JARVIS_DATA=//p' "$JARVIS_HOME/profile.env" 2>/dev/null)
+  tok=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$data/jarvis-web.json" 2>/dev/null)
+  [ -n "$tok" ] || return 0
+  proto=http; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && proto=https
+  url="$proto://localhost:$JARVIS_WEB_PORT/?token=$tok"
+  printf '\n'
+  printf '  Pronto! O JARVIS está no seu navegador:\n'
+  printf '    %s\n' "$url"
+  printf '  (se não abriu sozinho, copie o endereço acima; o aviso de "não seguro" é do certificado local)\n'
+  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then
+    printf '  Telegram: ligado. Mande uma mensagem para o seu bot.\n'
+  else
+    printf '  Telegram: desligado. Para ligar: %s/install.sh --telegram\n' "$SCRIPT_DIR"
+  fi
+  printf '  Seu second brain: %s (abra no Obsidian; o JARVIS lê e escreve nele)\n' "$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env" 2>/dev/null)"
+  printf '  Para rodar de novo ou atualizar: o mesmo comando da instalação. Para desinstalar: %s/uninstall.sh\n\n' "$SCRIPT_DIR"
+  if can_prompt; then
+    case "$OS" in
+      Darwin) open "$url" 2>/dev/null || true ;;
+      Linux) [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && have xdg-open && xdg-open "$url" >/dev/null 2>&1 || true ;;
+    esac
+  fi
 }
 
 log "whitebeard-os $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo dev) | $OS/$ARCH | papéis $ROLES$( [ "$DRY_RUN" = 1 ] && printf ' | dry-run' )$( [ "$NO_START" = 1 ] && printf ' | no-start' )"

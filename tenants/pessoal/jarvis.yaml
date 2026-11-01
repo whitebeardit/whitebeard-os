@@ -1,0 +1,23 @@
+# Tenant padrão de quem instala o Whitebeard OS sem ter um tenant próprio: uma pessoa, um computador.
+# Só o essencial: os módulos genéricos do JARVIS Web, o second brain em ~/whitebeard-secondbrain e os três
+# papéis no mesmo computador. Nada de demonstração (para isso existe tenants/exemplo). Para uma empresa,
+# copie esta pasta para um repositório privado, troque o nome e acrescente MCPs, skills e integrações.
+tenant: pessoal
+idioma: pt-BR
+aceleracao: auto # GPU se houver (Metal, CUDA, Vulkan); CPU sempre funciona
+dados: .whitebeard # pasta de dados, relativa a $HOME (vira $JARVIS_DATA)
+
+interface:
+  modulos: [sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera]
+
+vault:
+  path: whitebeard-secondbrain # relativo a $HOME; o instalador cria se não existir (abre no Obsidian)
+
+hermes:
+  provider: anthropic # usa o login do Claude Code; `hermes model` troca, se quiser
+  model: claude-sonnet-5-5
+  fallback: anthropic/claude-haiku-5-5
+
+nos:
+  - host: local
+    papeis: [desktop, core, knowledge]

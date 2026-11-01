@@ -93,6 +93,9 @@ Nada de chaves, convites ou arquivos para editar. Telegram é opcional: `./insta
 do bot e reconhece o seu chat pela primeira mensagem. Tenant real: `JARVIS_TENANT=<nome, pasta ou
 /caminho/jarvis.yaml>` antes do comando. Para refazer a instalação, rode o mesmo comando de novo: é idempotente.
 
+Para desinstalar: `~/DEV/whitebeard-os/uninstall.sh` remove serviços e programas e **mantém** o second brain e o
+`secrets.env` (com `--tudo`, remove também os dois). O Claude Code e o seu login nunca são tocados.
+
 Passo a passo, sem o instalador:
 
 ```sh

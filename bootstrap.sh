@@ -318,6 +318,12 @@ install_paperclip() {
   has_role core || return 0
   skipped paperclip && { log "paperclip: pulado"; return 0; }
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] npm install -g paperclipai@%s\n' "$PAPERCLIP_VERSION"; return 0; fi
+  # atalho da "loja gerenciada" do Paperclip (paperclipai install) que ficou sem alvo depois de uma
+  # desinstalação: vem antes do npm no PATH e quebra tudo com "Cannot find module .../cli/current/..."
+  shim="$HOME/.local/bin/paperclipai"
+  if [ -f "$shim" ] && grep -q "managed install shim" "$shim" 2>/dev/null && [ ! -e "$HOME/.paperclip/cli/current" ]; then
+    rm -f "$shim"; log "paperclip: atalho órfão de instalação antiga removido ($shim)"
+  fi
   if with_node "npm ls -g 'paperclipai@$PAPERCLIP_VERSION' >/dev/null 2>&1"; then
     log "paperclip $PAPERCLIP_VERSION já presente"
   else
@@ -735,6 +741,20 @@ install_knowledge_native() {
   launchctl bootout "gui/$(id -u)/dev.whitebeard.gbrain" 2>/dev/null || true
   i=0; while launchctl print "gui/$(id -u)/dev.whitebeard.gbrain" >/dev/null 2>&1 && [ "$i" -lt 20 ]; do i=$((i + 1)); sleep 0.5; done
   if [ ! -f "$HOME/.gbrain/config.json" ]; then
+    # Cérebro novo: uma reserva de identidade do second brain deixada por um cérebro anterior (fica no
+    # diretório pai do vault, como .gbrain-owner-<sha256 do caminho>.json) faria o GBrain recusar a pasta
+    # ("recovery_required: belongs to another owner"). Só aqui, na criação, ela é sabidamente órfã.
+    vault=$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env")
+    [ -n "$vault" ] && python3 - "$vault" <<'PY'
+import glob, json, os, sys
+vault = os.path.realpath(sys.argv[1])
+for f in glob.glob(os.path.join(os.path.dirname(vault), ".gbrain-owner-*.json")):
+    try:
+        if os.path.realpath(json.load(open(f)).get("root", "")) == vault:
+            os.remove(f); print(f"[whitebeard-os] knowledge: reserva órfã de um cérebro anterior removida ({os.path.basename(f)[:30]}…)")
+    except Exception:
+        pass
+PY
     env "$gb_env" "$HOME/.local/bin/gbrain" init --pglite --non-interactive \
       --embedding-model "ollama:$EMBED_MODEL" --embedding-dimensions 1024 >/dev/null \
       || die "knowledge: gbrain init falhou"

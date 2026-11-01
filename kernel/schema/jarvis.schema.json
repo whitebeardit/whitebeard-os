@@ -77,6 +77,33 @@
       "type": "string",
       "description": "pasta de dados do tenant (posts, métricas, contratos, registros do JARVIS Web), relativa a $HOME; vira $JARVIS_DATA. Padrão: $JARVIS_HOME/data"
     },
+    "interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "JARVIS Web: quais módulos aparecem. Padrão do produto: os genéricos (sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera). instagram, midias, rastreamento, leads e analytics são integrações de tenant",
+      "properties": {
+        "modulos": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "sistemas",
+              "conhecimento",
+              "arquivos",
+              "comunicacoes",
+              "ferramentas",
+              "diagnosticos",
+              "camera",
+              "instagram",
+              "midias",
+              "rastreamento",
+              "leads",
+              "analytics"
+            ]
+          }
+        }
+      }
+    },
     "vault": {
       "type": "object",
       "additionalProperties": false,

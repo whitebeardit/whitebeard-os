@@ -12,10 +12,12 @@ KERNEL_DIR="$SCRIPT_DIR/kernel"
 # shellcheck source=kernel/versions.env
 . "$KERNEL_DIR/versions.env"
 
-ROLES="desktop"
+ROLES=""
 TENANT=""
 DRY_RUN=0
 NO_START=0
+NO_PROMPT=0
+KNOWLEDGE_ADIADO=0
 SKIP=","
 WITH_HERMES=""
 JARVIS_HOME="${JARVIS_HOME:-$HOME/.jarvis}"
@@ -29,13 +31,14 @@ usage() {
 uso: $0 --tenant <jarvis.yaml> [opções]
 
   --tenant <arquivo>   declaração do tenant (obrigatório; ex.: tenants/exemplo/jarvis.yaml)
-  --role a,b           papéis: desktop (padrão), core, knowledge; ex.: --role desktop,core,knowledge
+  --role a,b           papéis: desktop, core, knowledge. Padrão: os do host \`local\` em \`nos:\` do tenant (sem nos: os três, tudo-em-um)
   --home <dir>         raiz da instalação (padrão: \$JARVIS_HOME ou ~/.jarvis)
   --with-hermes        instala o Hermes upstream (tag $HERMES_TAG); padrão: sim no papel core, não no desktop
   --without-hermes     não instala o Hermes
   --no-start           instala e renderiza, mas não sobe serviços nem containers
   --skip a,b           pula etapas: uv, node, claude, ffmpeg, hermes, paperclip, render, mcp, web, knowledge, services, rc
   --dry-run            valida o jarvis.yaml e mostra o que faria; não escreve nada
+  --no-prompt          não pergunta segredos no terminal (CI); deixa vazios em secrets.env
   -h, --help           esta ajuda
 EOF
 }
@@ -50,6 +53,7 @@ while [ $# -gt 0 ]; do
     --without-hermes) WITH_HERMES=0; shift ;;
     --no-start)       NO_START=1; shift ;;
     --dry-run)        DRY_RUN=1; shift ;;
+    --no-prompt)      NO_PROMPT=1; shift ;;
     -h|--help)        usage; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
@@ -67,6 +71,30 @@ with_node() { bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && $1"; }
 
 [ -n "$TENANT" ] || { usage >&2; die "--tenant é obrigatório"; }
 [ -f "$TENANT" ] || die "tenant não encontrado: $TENANT"
+# Sem --role: os papéis do host `local` em `nos:` do tenant; sem `nos:`, tudo-em-um (desktop,core,knowledge).
+if [ -z "$ROLES" ]; then
+  ROLES=$(python3 - "$TENANT" <<'PY'
+import re, sys
+txt = open(sys.argv[1], encoding="utf-8").read()
+# leitura mínima sem yaml (o render valida de verdade): bloco `nos:` com host local
+roles = []
+m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
+if m:
+    for item in re.split(r"\n\s*-\s", "\n" + m.group(1)):
+        if not item.strip():
+            continue
+        host = re.search(r"host:\s*([^\s#]+)", item)
+        if host and host.group(1) not in ("local", "localhost"):
+            continue
+        for key in ("papeis", "papel"):
+            k = re.search(key + r":\s*\[([^\]]*)\]|" + key + r":\s*([^\s#\[]+)", item)
+            if k:
+                roles += [r.strip() for r in (k.group(1) or k.group(2)).split(",") if r.strip()]
+print(",".join(dict.fromkeys(roles)) if roles else "desktop,core,knowledge")
+PY
+)
+  log "papéis (de nos: do tenant): $ROLES"
+fi
 old_ifs=$IFS
 IFS=,
 for r in $ROLES; do
@@ -104,9 +132,15 @@ check_prereqs() {
   fi
   if has_role knowledge && ! skipped knowledge; then
     if ! have docker || ! docker compose version >/dev/null 2>&1; then
-      if [ "$DRY_RUN" = 1 ]; then log "aviso: o papel knowledge precisa de Docker com compose v2 (ausente)"; return 0; fi
-      if [ "$OS" = Darwin ]; then die "o papel knowledge precisa de Docker: instale Docker Desktop ou OrbStack e rode de novo"; fi
-      die "o papel knowledge precisa de Docker com o plugin compose: https://docs.docker.com/engine/install/ (e seu usuário no grupo docker)"
+      # Docker pede senha de administrador para instalar: não dá para resolver aqui sem perguntar.
+      # O papel knowledge fica de fora desta execução e os outros seguem; rode de novo com Docker.
+      if [ "$OS" = Darwin ]; then
+        log "aviso: o papel knowledge precisa de Docker (OrbStack ou Docker Desktop). Instale e rode o bootstrap de novo; seguindo sem knowledge"
+      else
+        log "aviso: o papel knowledge precisa de Docker com o plugin compose (https://docs.docker.com/engine/install/). Seguindo sem knowledge"
+      fi
+      ROLES=$(printf '%s' "$ROLES" | tr ',' '\n' | grep -vx knowledge | paste -sd, -)
+      KNOWLEDGE_ADIADO=1
     fi
   fi
 }
@@ -258,6 +292,41 @@ render_tenant() {
   fi
   mkdir -p "$JARVIS_HOME"
   uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR"
+  ask_secrets && uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" >/dev/null
+  return 0
+}
+
+# Segredos obrigatórios ainda vazios: pergunta no terminal (pelo /dev/tty, que funciona mesmo com
+# `curl | sh`), grava em secrets.env e devolve 0 para o render rodar de novo. Sem terminal, só avisa.
+ask_secrets() {
+  f="$JARVIS_HOME/render/secrets-missing.txt"
+  [ -s "$f" ] || return 1
+  if [ ! -r /dev/tty ] || [ "$NO_PROMPT" = 1 ]; then
+    log "segredos obrigatórios vazios: $(paste -sd' ' "$f"). Preencha $JARVIS_HOME/secrets.env e rode de novo"
+    return 1
+  fi
+  log "segredos obrigatórios para os papéis $ROLES (Enter em branco para deixar para depois):"
+  answered=0
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    hint=$(grep -B4 "^$name=" "$JARVIS_HOME/secrets.env" | grep '^# como obter:' | tail -n 1 | sed 's/^# como obter: //')
+    printf '  %s%s: ' "$name" "${hint:+ ($hint)}" >/dev/tty
+    stty -echo </dev/tty 2>/dev/null || true
+    IFS= read -r value </dev/tty
+    stty echo </dev/tty 2>/dev/null || true
+    printf '\n' >/dev/tty
+    [ -n "$value" ] || continue
+    python3 - "$JARVIS_HOME/secrets.env" "$name" "$value" <<'PY'
+import re, sys
+p, name, value = sys.argv[1:4]
+s = open(p, encoding="utf-8").read()
+q = "'" + value.replace("'", "'\\''") + "'"
+s2, n = re.subn(r"(?m)^" + re.escape(name) + r"=.*$", name + "=" + q, s)
+open(p, "w", encoding="utf-8").write(s2 if n else s + "\n" + name + "=" + q + "\n")
+PY
+    answered=1
+  done < "$f"
+  [ "$answered" = 1 ]
 }
 
 apply_mcp() {
@@ -501,6 +570,7 @@ doctor() {
     log "web: JARVIS Web em $p://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json; certificado em \$JARVIS_HOME/tls)"
   fi
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
+  [ "$KNOWLEDGE_ADIADO" = 1 ] && log "knowledge: adiado (sem Docker). Instale Docker e rode o bootstrap de novo"
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
 }
 

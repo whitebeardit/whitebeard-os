@@ -12,7 +12,7 @@
 #   JARVIS_TENANT    caminho do jarvis.yaml (padrão: tenants/exemplo/jarvis.yaml do próprio kernel)
 #
 # O que faz: garante git e curl (no macOS instala as Command Line Tools), clona ou atualiza o kernel e
-# chama bootstrap.sh com o papel desktop. Idempotente: pode rodar de novo.
+# chama bootstrap.sh; os papéis vêm de `nos:` do tenant (tudo-em-um por padrão). Idempotente: pode rodar de novo.
 set -eu
 
 WHITEBEARD_OS_DIR="${WHITEBEARD_OS_DIR:-$HOME/DEV/whitebeard-os}"

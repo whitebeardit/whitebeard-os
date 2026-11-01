@@ -26,6 +26,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 ROLES = ("desktop", "core", "satelite", "knowledge")
+MODULOS_PADRAO = ["sistemas", "conhecimento", "arquivos", "comunicacoes", "ferramentas", "diagnosticos", "camera"]
 VAR_RE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
 
 
@@ -323,6 +324,11 @@ def main() -> int:
         summary.append(f"[whitebeard-os] aviso: não linkei (destino existe e não é link): {', '.join(not_linked)}")
     if missing:
         summary.append(f"[whitebeard-os] preencha {secrets_path} e rode o bootstrap de novo")
+    # módulos do JARVIS Web: o tenant escolhe; sem `interface`, só os genéricos do produto
+    modulos = ((data.get("interface") or {}).get("modulos")) or MODULOS_PADRAO
+    w.write(home / "render" / "web.json", json.dumps({"tenant": tenant, "modulos": list(modulos)}, ensure_ascii=False, indent=2) + "\n")
+    # obrigatórios ainda vazios: o bootstrap pergunta no terminal e roda o render de novo
+    w.write(home / "render" / "secrets-missing.txt", "\n".join(missing) + ("\n" if missing else ""))
     w.write(home / "render" / "summary.txt", "\n".join(summary) + "\n")
     print("\n".join(summary))
     return 0

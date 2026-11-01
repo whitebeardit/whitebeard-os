@@ -47,7 +47,7 @@ jobs:
       - name: instalação zerada (${{ matrix.roles }}, sem subir serviços)
         env:
           GH_TOKEN: ${{ github.token }} # permite ao bootstrap baixar o FFmpeg com whisper da release privada
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start ${{ inputs.with_hermes && '--with-hermes --skip web' || '--skip hermes,web' }}
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --no-prompt ${{ inputs.with_hermes && '--with-hermes --skip web' || '--skip hermes,web' }}
       - name: verificação comum
         run: |
           . "$HOME/.jarvis/profile.sh"
@@ -99,13 +99,13 @@ jobs:
           test ! -f "$RUNNER_TEMP/jarvis2/secrets.env"
           test -f "$RUNNER_TEMP/dados2/leia-me.txt"
       - name: idempotência (segunda execução)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --skip hermes,web
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --no-prompt --skip hermes,web
       - name: "instalador de uma linha (modo curl | sh, clona e roda o bootstrap)"
         env:
           WHITEBEARD_OS_DIR: ${{ runner.temp }}/whitebeard-os-oneline
           WHITEBEARD_OS_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           WHITEBEARD_OS_REF: ${{ github.ref_name }}
         run: |
-          cat install.sh | sh -s -- --no-start --skip hermes,web
+          cat install.sh | sh -s -- --no-start --no-prompt --skip hermes,web
           test -f "$WHITEBEARD_OS_DIR/bootstrap.sh"
           test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/exemplo/jarvis.yaml"

@@ -31,8 +31,10 @@ Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o pa
 | **core** | Hermes (gateway Telegram + crons), Paperclip (Node + Postgres embutido) | host sempre ligado |
 | **knowledge** | GBrain (MCP + ingestão do vault), pgvector, Ollama (embeddings), em Docker Compose | Docker (Linux) ou Docker Desktop/OrbStack (macOS) |
 
-O mesmo `bootstrap.sh` instala qualquer combinação: `--role desktop,core,knowledge`. Um papel em outra
-máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do tenant apontam para lá.
+Sem `--role`, o `bootstrap.sh` instala os papéis do host `local` em `nos:` do tenant (sem `nos:`, os três:
+tudo-em-um). Um papel em outra máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do
+tenant apontam para lá. Segredos obrigatórios que faltam são pedidos no terminal (`--no-prompt` desliga).
+Sem Docker, o papel knowledge é adiado com aviso e os outros seguem.
 
 **Camada de decisão com provedor plugável.** Rotear mensagens, classificar intents e aplicar guardrails são
 perguntas fechadas, e o kernel as trata por uma abstração própria: perguntas tipadas versionadas, limiar de
@@ -151,8 +153,8 @@ se o compose estiver no ar), `claude` (configurações) e `vault` (só referênc
 
 ## O que entra no `jarvis.yaml`
 
-Parâmetros do tenant: identificador, idioma, pasta de dados (`dados`), vault, servidores MCP, pacotes de
-skills, modelo do Hermes, perfis, crons, serviços monitorados, nós. Segredos **nunca** entram no yaml: entram como `${NOME}` e são
+Parâmetros do tenant: identificador, idioma, pasta de dados (`dados`), módulos do JARVIS Web (`interface`),
+vault, servidores MCP, pacotes de skills, modelo do Hermes, perfis, crons, serviços monitorados, nós. Segredos **nunca** entram no yaml: entram como `${NOME}` e são
 preenchidos em `secrets.env` a partir do manifesto. Esquema completo em `kernel/schema/jarvis.schema.json`;
 exemplo em `tenants/exemplo/jarvis.yaml`.
 

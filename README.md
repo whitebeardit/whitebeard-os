@@ -132,6 +132,7 @@ kernel/
   skills/                    skills do kernel (mecanismo puro)
 tenants/exemplo/             tenant fictício: usado pelo CI e copiado por quem começa do zero
 docs/validacao-macos.md      roteiro de validação no Mac zerado
+docs/validacao-macos-agente.md  o mesmo roteiro, escrito para o Claude Code do próprio Mac executar
 test/docker-ubuntu.sh        mesma validação numa Ubuntu 24.04 descartável
 ```
 

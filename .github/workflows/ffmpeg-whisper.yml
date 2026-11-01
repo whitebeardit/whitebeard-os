@@ -43,9 +43,20 @@ jobs:
           key: fbs-${{ inputs.script_tag }}-whisper-${{ inputs.backend }}-${{ runner.os }}-${{ runner.arch }}-v1
           restore-keys: |
             fbs-${{ inputs.script_tag }}-whisper-${{ inputs.backend }}-${{ runner.os }}-${{ runner.arch }}-
+            fbs-v9.0.4-whisper-cpu-Linux-X64-v1
       - name: compilar (estático, LGPL, whisper=${{ inputs.backend }}, sem rav1e)
         working-directory: ${{ runner.temp }}/fbs
         run: SKIPINSTALL=yes ./build-ffmpeg --build --full-static --whisper=${{ inputs.backend }} --disable=rav1e
+      - name: diagnóstico do configure (só em falha)
+        if: failure()
+        working-directory: ${{ runner.temp }}/fbs
+        run: |
+          echo "== whisper.pc"; cat workspace/lib/pkgconfig/whisper.pc 2>/dev/null || echo "(ausente)"
+          echo "== pkg-config"; PKG_CONFIG_PATH=workspace/lib/pkgconfig pkg-config --static --libs --cflags whisper || true
+          echo "== archives"; ls -la workspace/lib/libwhisper* workspace/lib/libggml* 2>/dev/null || true
+          log=$(find packages -maxdepth 3 -path '*ffbuild/config.log' | head -n 1)
+          echo "== config.log: $log"
+          if [ -n "$log" ]; then grep -n -B2 -A40 'whisper' "$log" | grep -v '^--$' | tail -n 120; fi
       - name: guardar bibliotecas compiladas (mesmo se falhou)
         if: always() && steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

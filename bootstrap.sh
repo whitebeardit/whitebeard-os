@@ -152,9 +152,54 @@ link_ffmpeg() {
   fi
 }
 
+# Asset de release do kernel (repositório privado): via `gh` autenticado ou WHITEBEARD_OS_TOKEN (API do
+# GitHub com Accept: application/octet-stream). Devolve 1 sem credencial ou sem o asset.
+fetch_release_asset() {
+  tag=$1; asset=$2; out=$3
+  if have gh && gh auth status >/dev/null 2>&1; then
+    gh release download "$tag" -R "$KERNEL_REPO_SLUG" -p "$asset" -O "$out" --clobber >/dev/null 2>&1 && return 0
+  fi
+  if [ -n "${WHITEBEARD_OS_TOKEN:-}" ]; then
+    aurl=$(curl -fsSL -H "Authorization: Bearer $WHITEBEARD_OS_TOKEN" "https://api.github.com/repos/$KERNEL_REPO_SLUG/releases/tags/$tag" 2>/dev/null \
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["url"] for a in d.get("assets",[]) if a["name"]==sys.argv[1]),""))' "$asset")
+    [ -n "$aurl" ] && curl -fsSL -H "Authorization: Bearer $WHITEBEARD_OS_TOKEN" -H "Accept: application/octet-stream" "$aurl" -o "$out" && return 0
+  fi
+  return 1
+}
+
+sha256_of() { if have sha256sum; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
+
+# Build próprio com o filtro whisper, quando existe para a plataforma e dá para baixar; senão, o público.
+install_ffmpeg_whisper() {
+  case "$OS/$ARCH" in
+    Linux/x86_64) tag="$FFMPEG_WHISPER_TAG_LINUX_X86_64"; asset="$FFMPEG_WHISPER_ASSET_LINUX_X86_64"; sha="$FFMPEG_WHISPER_SHA256_LINUX_X86_64" ;;
+    *) return 1 ;;
+  esac
+  [ -n "$tag" ] && [ -n "$asset" ] || return 1
+  dest="$JARVIS_HOME/tools/ffmpeg-whisper-${asset%.tar.xz}"
+  if [ -f "$dest/.ok" ] && [ -x "$dest/ffmpeg" ]; then log "ffmpeg com whisper já presente"; link_ffmpeg "$dest"; return 0; fi
+  if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] baixar release %s (%s) em %s, se houver credencial\n' "$tag" "$asset" "$dest"; return 0; fi
+  mkdir -p "$dest"
+  if ! fetch_release_asset "$tag" "$asset" "$dest/archive.tar.xz"; then
+    rm -rf "$dest"; log "ffmpeg: build com whisper indisponível (sem gh autenticado nem WHITEBEARD_OS_TOKEN); usando o build público"; return 1
+  fi
+  got=$(sha256_of "$dest/archive.tar.xz")
+  [ "$got" = "$sha" ] || { rm -rf "$dest"; die "ffmpeg com whisper: sha256 não confere ($got)"; }
+  tar -xJf "$dest/archive.tar.xz" -C "$dest" && rm -f "$dest/archive.tar.xz"
+  f=$(find "$dest" -type f -name ffmpeg | head -n 1); p=$(find "$dest" -type f -name ffprobe | head -n 1)
+  [ -n "$f" ] || die "ffmpeg não encontrado no pacote com whisper"
+  [ "$f" = "$dest/ffmpeg" ] || mv "$f" "$dest/ffmpeg"
+  if [ -n "$p" ] && [ "$p" != "$dest/ffprobe" ]; then mv "$p" "$dest/ffprobe"; fi
+  chmod +x "$dest/ffmpeg"; [ -f "$dest/ffprobe" ] && chmod +x "$dest/ffprobe"
+  : > "$dest/.ok"
+  log "ffmpeg: build com whisper instalado ($asset, sha256 conferido)"
+  link_ffmpeg "$dest"
+}
+
 install_ffmpeg() {
   if ! has_role desktop && ! has_role core; then return 0; fi
   skipped ffmpeg && { log "ffmpeg: pulado"; return 0; }
+  if install_ffmpeg_whisper; then return 0; fi
   case "$OS/$ARCH" in
     Linux/x86_64) url="$FFMPEG_URL_LINUX_X86_64" ;;
     Darwin/arm64) url="$FFMPEG_URL_DARWIN_ARM64" ;;

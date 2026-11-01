@@ -45,6 +45,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: instalação zerada (${{ matrix.roles }}, sem subir serviços)
+        env:
+          GH_TOKEN: ${{ github.token }} # permite ao bootstrap baixar o FFmpeg com whisper da release privada
         run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start ${{ inputs.with_hermes && '--with-hermes --skip web' || '--skip hermes,web' }}
       - name: verificação comum
         run: |
@@ -57,6 +59,7 @@ jobs:
           claude --version
           ffmpeg -version | head -n 1
           ffprobe -version | head -n 1
+          if [ "$(uname -s)" = Linux ]; then ffmpeg -hide_banner -filters | grep -q whisper; fi
           test -L "$HOME/.claude/skills/exemplo-ola"
           test -f "$HOME/.jarvis/skills/exemplo-ola/SKILL.md"
           perm=$(stat -c %a "$HOME/.jarvis/secrets.env" 2>/dev/null || stat -f %Lp "$HOME/.jarvis/secrets.env")

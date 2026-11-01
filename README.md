@@ -164,7 +164,7 @@ exemplo em `tenants/exemplo/jarvis.yaml`.
 | Paperclip | MIT | npm, versão fixa, instalado no Node do lockfile (papel core) |
 | GBrain, pgvector, Ollama | MIT (GBrain), PostgreSQL, MIT (Ollama) | compose do papel knowledge; GBrain construído da tag fixa |
 | Claude Code | proprietário (Anthropic) | instalador oficial; cada usuário usa a própria conta |
-| FFmpeg 9.0.2 | LGPL (builds estáticos de terceiros fixados por URL) | baixado na instalação para `$JARVIS_HOME/tools`; o bootstrap informa se o build traz o filtro Whisper |
+| FFmpeg 9.0 | LGPL | Linux x86_64: build próprio com o filtro Whisper (whisper.cpp), compilado pelo workflow `ffmpeg-whisper.yml` e publicado como release do kernel (precisa de `gh` autenticado ou `WHITEBEARD_OS_TOKEN` enquanto o repositório é privado); demais plataformas: build estático de terceiros fixado por URL, sem Whisper |
 | Modelos (Anthropic, OpenAI, outros) | contas do usuário | chaves e logins só em `secrets.env` e OAuth local |
 
 ## Licenciamento do produto

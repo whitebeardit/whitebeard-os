@@ -275,6 +275,9 @@ def main() -> int:
         env_keys = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHANNEL", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
         env_keys += [k for k in mcp_refs if k not in env_keys]
         env_lines = [f"{k}={values[k]}" for k in env_keys if values.get(k)]
+        # as skills de documentação falam em $VAULT_PATH e $JARVIS_TENANT: o gateway não herda o shell da
+        # pessoa, então o agente do Hermes recebe os dois pelo .env (não são segredos)
+        env_lines += [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}"]
         # chat privado (id positivo) é o próprio dono: autorizado no gateway sem pareamento manual
         home_chat = str(values.get("TELEGRAM_HOME_CHANNEL", "")).strip()
         if home_chat.isdigit():

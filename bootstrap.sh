@@ -713,8 +713,7 @@ install_knowledge_native() {
     : > "$gb_dir/.ok"
   fi
   mkdir -p "$HOME/.local/bin"
-  # GBRAIN_NO_UPDATE_CHECK: a versão é fixada pelo kernel; o aviso de self-upgrade só confundiria
-  printf '#!/bin/sh\n# gerado pelo whitebeard-os: GBrain %s no Bun %s\nexport GBRAIN_NO_UPDATE_CHECK=1\nexec "%s" "%s/src/cli.ts" "$@"\n' \
+  printf '#!/bin/sh\n# gerado pelo whitebeard-os: GBrain %s no Bun %s\nexec "%s" "%s/src/cli.ts" "$@"\n' \
     "$GBRAIN_REF" "$BUN_VERSION" "$bun_dir/bun" "$gb_dir" > "$HOME/.local/bin/gbrain"
   chmod +x "$HOME/.local/bin/gbrain"
   # instalação anterior em Docker ocupa a porta 3131: desliga (os volumes ficam, nada é apagado)
@@ -736,11 +735,19 @@ install_knowledge_native() {
   launchctl bootout "gui/$(id -u)/dev.whitebeard.gbrain" 2>/dev/null || true
   i=0; while launchctl print "gui/$(id -u)/dev.whitebeard.gbrain" >/dev/null 2>&1 && [ "$i" -lt 20 ]; do i=$((i + 1)); sleep 0.5; done
   if [ ! -f "$HOME/.gbrain/config.json" ]; then
-    env "$gb_env" GBRAIN_NO_UPDATE_CHECK=1 "$HOME/.local/bin/gbrain" init --pglite --non-interactive \
+    env "$gb_env" "$HOME/.local/bin/gbrain" init --pglite --non-interactive \
       --embedding-model "ollama:$EMBED_MODEL" --embedding-dimensions 1024 >/dev/null \
       || die "knowledge: gbrain init falhou"
     log "knowledge: cérebro criado (PGLite em ~/.gbrain)"
   fi
+  # a versão do GBrain é fixada pelo kernel: o aviso de self-upgrade em cada comando só confundiria
+  python3 - "$HOME/.gbrain/config.json" <<'PY'
+import json, sys
+p = sys.argv[1]; c = json.load(open(p, encoding="utf-8"))
+su = c.setdefault("self_upgrade", {})
+if su.get("mode") != "off":
+    su.update({"mode": "off", "mode_prompted": True}); json.dump(c, open(p, "w", encoding="utf-8"), indent=2)
+PY
   env "$gb_env" "$HOME/.local/bin/gbrain" apply-migrations --yes --no-autopilot-install >/dev/null \
     || die "knowledge: migrações do GBrain falharam"
   # token do MCP (uma vez; só com o serve parado o CLI abre o banco). Nunca vai para o log.
@@ -761,11 +768,14 @@ install_knowledge_native() {
         && log "knowledge: second brain registrado como fonte do cérebro" \
         || log "aviso: não consegui registrar $vault como fonte do GBrain"
     fi
+    # o token só vê as fontes do seu grant: second brain primeiro (fonte de escrita) e a pasta default
+    env "$gb_env" "$HOME/.local/bin/gbrain" auth rescope --token whitebeard-os --sources secondbrain,default >/dev/null 2>&1 \
+      || log "aviso: não consegui dar ao token do MCP acesso ao second brain"
     env "$gb_env" "$HOME/.local/bin/gbrain" sync --no-pull --working-tree >/dev/null 2>&1 || log "aviso: primeira sincronização do second brain falhou"
   fi
   launch_agent dev.whitebeard.gbrain "$JARVIS_HOME/logs/gbrain.log" "$HOME/.local/bin/gbrain" serve --http \
     --port 3131 --bind 127.0.0.1 --public-url http://localhost:3131 -- \
-    "$gb_env" "EMBED_MODEL=$EMBED_MODEL" "GBRAIN_AI_EMBED_TIMEOUT_MS=300000" "GBRAIN_NO_UPDATE_CHECK=1" "HOME=$HOME" \
+    "$gb_env" "EMBED_MODEL=$EMBED_MODEL" "GBRAIN_AI_EMBED_TIMEOUT_MS=300000" "HOME=$HOME" \
     "PATH=$bun_dir:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   wait_http http://127.0.0.1:3131/health 60 || log "aviso: o GBrain ainda não respondeu em 127.0.0.1:3131 (veja $JARVIS_HOME/logs/gbrain.log)"
   # a cada 2 min: guarda o que mudou no second brain (commit local) e sincroniza com o cérebro pelo serve
@@ -775,7 +785,7 @@ install_knowledge_native() {
 #!/bin/sh
 # gerado pelo whitebeard-os: commita o que mudou no second brain e sincroniza com o GBrain (serve no ar)
 export PATH="$bun_dir:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME"
-export OLLAMA_BASE_URL=http://127.0.0.1:11434/v1 GBRAIN_NO_UPDATE_CHECK=1
+export OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
 cd "$vault" || exit 0
 git add -A >/dev/null 2>&1
 git diff --cached --quiet || git -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "auto: \$(date '+%Y-%m-%d %H:%M')"

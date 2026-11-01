@@ -192,7 +192,8 @@ def main() -> int:
     ]
     if vault_path:
         env_lines.append(f"VAULT_PATH={vault_path}")
-    env_lines.append(f"PATH={user_home / '.local' / 'bin'}:/usr/local/bin:/usr/bin:/bin")
+    # /usr/sbin e /sbin: no macOS o ping mora em /sbin, e o serviço herda só este PATH
+    env_lines.append(f"PATH={user_home / '.local' / 'bin'}:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")
     w.write(home / "profile.env", "\n".join(env_lines) + "\n")
 
     # ---- servidores MCP do Claude Code (papel desktop; segredos só por ${VAR} em runtime)

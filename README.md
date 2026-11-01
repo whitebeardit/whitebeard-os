@@ -125,6 +125,22 @@ docs/validacao-macos.md      roteiro de validação no Mac zerado
 test/docker-ubuntu.sh        mesma validação numa Ubuntu 24.04 descartável
 ```
 
+## Levar tudo para outra máquina: exportar e importar
+
+```sh
+uv run kernel/bin/wb_export.py --dry-run                 # lista stores e tamanhos
+uv run kernel/bin/wb_export.py --sem financeiro          # bundle .tar.gz (modo 600) + .sha256, sem o grupo "financeiro" do tenant
+# na máquina nova, depois do bootstrap com o mesmo tenant:
+uv run kernel/bin/wb_import.py whitebeard-export-*.tar.gz
+```
+
+Stores: `jarvis` (`$JARVIS_HOME` sem o que é regenerável), `hermes` (sem código, caches e tokens por máquina),
+`paperclip` (config, arquivos e o backup de banco mais recente), `knowledge` (dump do Postgres e home do GBrain,
+se o compose estiver no ar), `claude` (configurações) e `vault` (só referência ao git, ou conteúdo com
+`--with-vault`). Segredos ficam de fora por padrão (`--with-secrets` para incluir); o import nunca sobrescreve
+`secrets.env` nem `.env` existentes. O tenant declara em `exportacao.grupos` os globs que podem ficar de fora
+(ex.: financeiro). O CI exporta e importa num HOME alternativo a cada execução.
+
 ## O que entra no `jarvis.yaml`
 
 Parâmetros do tenant: identificador, idioma, vault, servidores MCP, pacotes de skills, modelo do Hermes,

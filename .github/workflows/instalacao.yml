@@ -80,6 +80,17 @@ jobs:
           done
           test "$s" = healthy
           docker compose --project-directory "$d" down -v
+      - name: exportar e importar (stores jarvis, paperclip, claude; HOME alternativo)
+        run: |
+          . "$HOME/.jarvis/profile.sh"
+          uv run --quiet kernel/bin/wb_export.py --dry-run
+          uv run --quiet kernel/bin/wb_export.py --out "$RUNNER_TEMP/bundle.tar.gz" --only jarvis,paperclip,claude
+          test -f "$RUNNER_TEMP/bundle.tar.gz.sha256"
+          uv run --quiet kernel/bin/wb_import.py "$RUNNER_TEMP/bundle.tar.gz" --dry-run
+          uv run --quiet kernel/bin/wb_import.py "$RUNNER_TEMP/bundle.tar.gz" --jarvis-home "$RUNNER_TEMP/jarvis2" --paperclip-home "$RUNNER_TEMP/pc2" --only jarvis,paperclip
+          test -f "$RUNNER_TEMP/jarvis2/jarvis.yaml"
+          test -f "$RUNNER_TEMP/jarvis2/skills/exemplo-ola/SKILL.md"
+          test ! -f "$RUNNER_TEMP/jarvis2/secrets.env"
       - name: idempotência (segunda execução)
         run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --skip hermes
       - name: "instalador de uma linha (modo curl | sh, clona e roda o bootstrap)"

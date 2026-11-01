@@ -64,6 +64,14 @@
         ]
       }
     },
+    "exportacao": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "grupos de arquivos que podem ficar fora de um export (wb_export.py --sem grupo); globs relativos a cada store",
+      "properties": {
+        "grupos": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } }
+      }
+    },
     "decisoes": {
       "type": "object",
       "additionalProperties": false,

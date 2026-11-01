@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import secrets as pysecrets
 import shutil
@@ -158,10 +159,10 @@ def main() -> int:
     w.write(home / "tenant.path", str(tenant_path) + "\n")
 
     # ---- profile.sh
-    vault_path = None
+    # second brain: pasta do tenant em $HOME (padrão whitebeard-secondbrain). O bootstrap clona vault.repo
+    # quando houver um e der acesso; senão cria um vault local com a estrutura do tenant.
     vault = data.get("vault") or {}
-    if vault.get("path"):
-        vault_path = str(user_home / vault["path"])
+    vault_path = str(user_home / (vault.get("path") or "whitebeard-secondbrain"))
     # pasta de dados do tenant: `dados` (relativa a $HOME) ou $JARVIS_HOME/data; o JARVIS Web e as
     # skills leem $JARVIS_DATA, nunca um nome fixo
     data_dir = str(user_home / data["dados"]) if data.get("dados") else str(home / "data")
@@ -198,7 +199,14 @@ def main() -> int:
     w.write(home / "profile.env", "\n".join(env_lines) + "\n")
 
     # ---- servidores MCP do Claude Code (papel desktop; segredos só por ${VAR} em runtime)
-    servers = [m for m in data.get("mcp", []) or [] if for_roles(m)] if "desktop" in roles else []
+    tenant_mcp = [m for m in data.get("mcp", []) or [] if for_roles(m)]
+    # cérebro local: o GBrain do papel knowledge entra como MCP `knowledge` no Claude Code e no Hermes, com o
+    # token que o bootstrap gera ao instalar o knowledge (${VAR} literal: resolvido em runtime de secrets.env
+    # no Claude Code e do .env no Hermes). O tenant pode declarar um `knowledge` próprio, que então prevalece.
+    if "knowledge" in roles and values.get("GBRAIN_MCP_TOKEN") and not any(m["name"] == "knowledge" for m in tenant_mcp):
+        tenant_mcp.append({"name": "knowledge", "transport": "http", "url": "http://127.0.0.1:3131/mcp",
+                           "headers": {"Authorization": "Bearer ${GBRAIN_MCP_TOKEN}"}})
+    servers = tenant_mcp if "desktop" in roles else []
     if servers:
         mcp = [
             "#!/bin/sh",
@@ -209,6 +217,12 @@ def main() -> int:
             "set +a",
             "",
         ]
+        # o que o kernel registrou numa execução anterior e saiu do tenant é removido (nunca o que a pessoa
+        # adicionou à mão: só nomes que estiveram nesta lista)
+        names_file = home / "render" / "claude-mcp.names"
+        previous = names_file.read_text(encoding="utf-8").split() if names_file.is_file() else []
+        for stale in [n for n in previous if n not in {m["name"] for m in servers}]:
+            mcp.append(f"claude mcp remove --scope user {sq(stale)} >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s removido (saiu do tenant)\\n' {sq(stale)} || true")
         for m in servers:
             name = m["name"]
             mcp.append(f"claude mcp remove --scope user {sq(name)} >/dev/null 2>&1 || true")
@@ -226,6 +240,7 @@ def main() -> int:
             mcp.append(" ".join(cmd))
             mcp.append(f"printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}")
         w.write(home / "render" / "claude-mcp.sh", "\n".join(mcp) + "\n", mode=0o700)
+        w.write(names_file, "\n".join(m["name"] for m in servers) + "\n")
 
     # ---- papel core: Hermes (config inicial e variáveis), aplicados pelo bootstrap sem sobrescrever
     hermes_cfg = data.get("hermes") or {}
@@ -245,7 +260,7 @@ def main() -> int:
         # MCPs do tenant para o Hermes deste host (o agente e o painel de MCPs do JARVIS Web leem dele).
         # ${VAR} fica literal: o Hermes resolve do próprio .env em runtime, e o segredo não vai para o config.
         hermes_mcp: dict[str, dict] = {}
-        for m in (m for m in data.get("mcp", []) or [] if for_roles(m)):
+        for m in tenant_mcp:
             if m["transport"] == "stdio":
                 entry = {"command": m["command"], "args": list(m.get("args", []) or [])}
             else:
@@ -338,6 +353,15 @@ def main() -> int:
                 not_linked.append(str(link))
             else:
                 link.symlink_to(dest)
+            # o Hermes lê as próprias skills em ~/.hermes/skills (mesmo formato SKILL.md): o agente do
+            # Telegram e do chat documenta com as mesmas regras do Claude Code
+            hermes_skills = user_home / ".hermes" / "skills"
+            if hermes_skills.is_dir():
+                hl = hermes_skills / d.name
+                if hl.is_symlink():
+                    hl.unlink()
+                if not hl.exists():
+                    hl.symlink_to(dest)
             installed.append(d.name)
 
     # ---- resumo
@@ -350,10 +374,13 @@ def main() -> int:
         + (f"; OBRIGATÓRIOS faltando: {', '.join(missing)}" if missing else ""),
     ]
     if vault_path:
-        summary.append(f"[whitebeard-os] vault: {vault_path}" + ("" if Path(vault_path).exists() else " (ainda não clonado)"))
+        summary.append(f"[whitebeard-os] vault: {vault_path}" + ("" if Path(vault_path).exists() else " (o bootstrap cria)"))
     summary.append(f"[whitebeard-os] dados: {data_dir}")
     if "knowledge" in roles:
-        summary.append(f"[whitebeard-os] knowledge: compose em {home / 'compose' / 'knowledge'}; GBrain {versions.get('GBRAIN_REF', '?')}, embeddings {versions.get('EMBED_MODEL', '?')}")
+        if platform.system() == "Darwin" and platform.machine() == "arm64":
+            summary.append(f"[whitebeard-os] knowledge: nativo (GBrain {versions.get('GBRAIN_REF', '?')} com PGLite, Ollama na GPU, embeddings {versions.get('EMBED_MODEL', '?')}); MCP knowledge em http://127.0.0.1:3131/mcp")
+        else:
+            summary.append(f"[whitebeard-os] knowledge: compose em {home / 'compose' / 'knowledge'}; GBrain {versions.get('GBRAIN_REF', '?')}, embeddings {versions.get('EMBED_MODEL', '?')}")
     if not_linked:
         summary.append(f"[whitebeard-os] aviso: não linkei (destino existe e não é link): {', '.join(not_linked)}")
     if missing:

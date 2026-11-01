@@ -19,6 +19,9 @@ NO_START=0
 NO_PROMPT=0
 WITH_TELEGRAM=0
 PAPERCLIP_LOCAL=0
+# o knowledge gerou um segredo novo (token do MCP): render e MCPs precisam ser reaplicados
+RERENDER=0
+HERMES_RESTART=0
 KNOWLEDGE_ADIADO=0
 # knowledge no tudo-em-um do macOS é nativo (sem Docker); no Linux segue o compose
 KNOWLEDGE_NATIVE=0
@@ -256,6 +259,23 @@ install_ffmpeg() {
   link_ffmpeg "$dest"
 }
 
+# Claude conectado à conta da pessoa: Hermes e Paperclip usam esse login. Sem ele, os dois ficam sem
+# modelo em silêncio; por isso o instalador confere e, num terminal, abre o login e espera.
+ensure_claude_login() {
+  skipped claude && return 0
+  have claude || return 0
+  [ "$DRY_RUN" = 1 ] && return 0
+  if claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then log "claude: conectado à sua conta"; return 0; fi
+  if can_prompt; then
+    log "claude: entre na sua conta Claude (vai abrir o navegador; volte aqui quando terminar)"
+    claude auth login </dev/tty >/dev/tty 2>&1 || true
+    if claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then log "claude: conectado à sua conta"
+    else log "aviso: Claude não conectado; Hermes e Paperclip ficam sem modelo até você rodar: claude auth login"; fi
+  else
+    log "aviso: Claude não conectado; rode num terminal: claude auth login"
+  fi
+}
+
 install_hermes() {
   if [ "$WITH_HERMES" != 1 ] || skipped hermes; then log "hermes: não instalado (--with-hermes para incluir)"; return 0; fi
   if have hermes || [ -x "$HERMES_HOME/bin/hermes" ]; then log "hermes já presente ($HERMES_HOME)"; return 0; fi
@@ -491,6 +511,11 @@ config = load_config()
 changed = False
 servers = config.get("mcp_servers") if isinstance(config.get("mcp_servers"), dict) else {}
 applied = []
+managed_file = os.path.join(src, "mcp.applied")
+managed = open(managed_file, encoding="utf-8").read().split() if os.path.exists(managed_file) else []
+for stale in [n for n in managed if n not in wanted and n in servers]:
+    del servers[stale]; changed = True
+    print(f"[whitebeard-os] hermes: mcp {stale} removido (saiu do tenant)")
 for name, entry in wanted.items():
     issues = validate_mcp_server_entry(name, entry)
     if issues:
@@ -510,8 +535,109 @@ if isinstance(config.get("fallback_model"), str) and isinstance(fb, dict):
     print("[whitebeard-os] hermes: fallback_model reparado (string → {provider, model})")
 if changed:
     save_config(config)
+open(managed_file, "w", encoding="utf-8").write("\n".join(applied) + "\n")
 print(f"[whitebeard-os] hermes: mcp ({len(applied)}): {', '.join(applied) or '-'}")
 PY
+}
+
+# Second brain da pessoa: a pasta VAULT_PATH do tenant (padrão ~/whitebeard-secondbrain). Com vault.repo e
+# acesso, clona; senão cria um vault local. Sempre um repositório git com a estrutura que as skills de
+# documentação esperam (tenants/<tenant>/{projects-doc,knowledge-domain,resources}); abre no Obsidian.
+# Commits são feitos pelo kernel com identidade própria: a pessoa não precisa saber git.
+ensure_vault() {
+  skipped render && return 0
+  [ "$DRY_RUN" = 1 ] && return 0
+  vault=$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env")
+  tenant=$(sed -n 's/^JARVIS_TENANT=//p' "$JARVIS_HOME/profile.env")
+  [ -n "$vault" ] && [ -n "$tenant" ] || return 0
+  repo=$(python3 - "$TENANT" <<'PY'
+import re, sys
+txt = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r"^vault:\s*\n((?:[ \t].*\n?)+)", txt, re.M)
+r = re.search(r"^\s*repo:\s*([^\s#]+)", m.group(1), re.M) if m else None
+print(r.group(1) if r else "")
+PY
+)
+  if [ ! -d "$vault" ] && [ -n "$repo" ]; then
+    log "vault: clonando $repo em $vault"
+    git clone -q "$repo" "$vault" 2>/dev/null || log "aviso: não consegui clonar $repo (sem acesso?); criando um second brain local"
+  fi
+  [ -d "$vault" ] || { log "vault: criando o second brain em $vault"; mkdir -p "$vault"; }
+  td="$vault/tenants/$tenant"
+  mkdir -p "$td/projects-doc" "$td/knowledge-domain" "$td/resources"
+  if [ ! -f "$vault/README.md" ]; then
+    cat >"$vault/README.md" <<EOF
+---
+title: Second brain
+---
+
+# Second brain
+
+Este é o seu cérebro de conhecimento. Tudo o que você e os seus agentes documentam fica aqui, em arquivos
+Markdown que você pode abrir no Obsidian (abra esta pasta como cofre) ou em qualquer editor.
+
+O Whitebeard OS indexa esta pasta sozinho: o que você escrever aqui passa a ser pesquisável pelos agentes em
+poucos minutos. O histórico é guardado automaticamente; você não precisa de git.
+
+## Onde fica cada coisa
+
+- [[tenants/$tenant/projects-doc/README|projects-doc]]: como os seus projetos e sistemas funcionam.
+- [[tenants/$tenant/knowledge-domain/README|knowledge-domain]]: conhecimento do seu negócio e da sua área,
+  que continua valendo mesmo sem nenhum projeto.
+- [[tenants/$tenant/resources/README|resources]]: material bruto, capturas e rascunhos ainda não organizados.
+EOF
+  fi
+  [ -f "$td/README.md" ] || cat >"$td/README.md" <<EOF
+---
+title: Índice de $tenant
+type: index
+---
+
+# $tenant
+
+- [[projects-doc/README|Documentação de projetos]]
+- [[knowledge-domain/README|Conhecimento de domínio]]
+- [[resources/README|Recursos brutos]]
+EOF
+  [ -f "$td/projects-doc/README.md" ] || cat >"$td/projects-doc/README.md" <<EOF
+---
+title: Documentação de projetos de $tenant
+type: index
+---
+
+# Documentação de projetos
+
+Uma pasta por projeto ou sistema (arquitetura, configuração, operação, runbooks, decisões). Este índice
+lista os projetos documentados; mantenha-o atualizado ao criar um novo.
+EOF
+  [ -f "$td/knowledge-domain/README.md" ] || cat >"$td/knowledge-domain/README.md" <<EOF
+---
+title: Conhecimento de domínio de $tenant
+type: index
+---
+
+# Conhecimento de domínio
+
+Conceitos, regras, glossário e processos do seu negócio ou da sua área: o que continuaria útil mesmo que
+nenhum sistema existisse.
+EOF
+  [ -f "$td/resources/README.md" ] || cat >"$td/resources/README.md" <<EOF
+---
+title: Recursos brutos de $tenant
+---
+
+# Recursos
+
+Pouso temporário: capturas, transcrições, rascunhos e material misto que ainda vai ser organizado em
+projects-doc ou knowledge-domain.
+EOF
+  [ -f "$vault/.gitignore" ] || printf '.DS_Store\n.trash/\n.obsidian/workspace*.json\n.obsidian/cache\n# marcador interno do GBrain (dono do PGLite); não é conhecimento\n.gbrain-owner.json\n' >"$vault/.gitignore"
+  grep -q '^\.gbrain-owner\.json$' "$vault/.gitignore" 2>/dev/null || printf '.gbrain-owner.json\n' >>"$vault/.gitignore"
+  [ -d "$vault/.git" ] || git -C "$vault" init -q
+  git -C "$vault" add -A >/dev/null 2>&1
+  git -C "$vault" diff --cached --quiet 2>/dev/null \
+    || git -C "$vault" -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "whitebeard-os: estrutura do second brain"
+  log "vault: second brain em $vault (abra no Obsidian)"
 }
 
 # Baixa url em dest conferindo o sha256 (falha = morre: binário adulterado não roda).
@@ -532,6 +658,8 @@ launch_agent() {
   for kv in "$@"; do envs="$envs<key>${kv%%=*}</key><string>${kv#*=}</string>"; done
   plist="$HOME/Library/LaunchAgents/$label.plist"
   mkdir -p "$HOME/Library/LaunchAgents" "$(dirname "$logf")"
+  keep="<key>KeepAlive</key><true/>"
+  [ -n "${LA_INTERVAL:-}" ] && keep="<key>StartInterval</key><integer>$LA_INTERVAL</integer>"
   cat >"$plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -541,7 +669,7 @@ launch_agent() {
   <key>ProgramArguments</key><array>$args</array>
   <key>EnvironmentVariables</key><dict>$envs</dict>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  $keep
   <key>StandardOutPath</key><string>$logf</string>
   <key>StandardErrorPath</key><string>$logf</string>
 </dict>
@@ -585,7 +713,8 @@ install_knowledge_native() {
     : > "$gb_dir/.ok"
   fi
   mkdir -p "$HOME/.local/bin"
-  printf '#!/bin/sh\n# gerado pelo whitebeard-os: GBrain %s no Bun %s\nexec "%s" "%s/src/cli.ts" "$@"\n' \
+  # GBRAIN_NO_UPDATE_CHECK: a versão é fixada pelo kernel; o aviso de self-upgrade só confundiria
+  printf '#!/bin/sh\n# gerado pelo whitebeard-os: GBrain %s no Bun %s\nexport GBRAIN_NO_UPDATE_CHECK=1\nexec "%s" "%s/src/cli.ts" "$@"\n' \
     "$GBRAIN_REF" "$BUN_VERSION" "$bun_dir/bun" "$gb_dir" > "$HOME/.local/bin/gbrain"
   chmod +x "$HOME/.local/bin/gbrain"
   # instalação anterior em Docker ocupa a porta 3131: desliga (os volumes ficam, nada é apagado)
@@ -614,12 +743,60 @@ install_knowledge_native() {
   fi
   env "$gb_env" "$HOME/.local/bin/gbrain" apply-migrations --yes --no-autopilot-install >/dev/null \
     || die "knowledge: migrações do GBrain falharam"
+  # token do MCP (uma vez; só com o serve parado o CLI abre o banco). Nunca vai para o log.
+  tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
+  if [ -z "$tok" ] || ! env "$gb_env" "$HOME/.local/bin/gbrain" auth list 2>/dev/null | grep whitebeard-os | grep -qv REVOKED; then
+    tok=$(env "$gb_env" "$HOME/.local/bin/gbrain" auth create whitebeard-os --scopes read,write 2>/dev/null | grep -oE 'gbrain_[A-Za-z0-9]{40,}' | head -n 1)
+    [ -n "$tok" ] || die "knowledge: não consegui criar o token do MCP do GBrain"
+    set_secret GBRAIN_MCP_TOKEN "$tok"
+    RERENDER=1
+    log "knowledge: token do MCP criado (guardado em secrets.env)"
+  fi
+  unset tok
+  # o second brain é a fonte do cérebro; primeira sincronização direta (serve parado)
+  vault=$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env")
+  if [ -d "$vault/.git" ]; then
+    if ! env "$gb_env" "$HOME/.local/bin/gbrain" sources list 2>/dev/null | grep -q secondbrain; then
+      env "$gb_env" "$HOME/.local/bin/gbrain" sources add secondbrain --path "$vault" --name "Second brain" >/dev/null 2>&1 \
+        && log "knowledge: second brain registrado como fonte do cérebro" \
+        || log "aviso: não consegui registrar $vault como fonte do GBrain"
+    fi
+    env "$gb_env" "$HOME/.local/bin/gbrain" sync --no-pull --working-tree >/dev/null 2>&1 || log "aviso: primeira sincronização do second brain falhou"
+  fi
   launch_agent dev.whitebeard.gbrain "$JARVIS_HOME/logs/gbrain.log" "$HOME/.local/bin/gbrain" serve --http \
     --port 3131 --bind 127.0.0.1 --public-url http://localhost:3131 -- \
-    "$gb_env" "EMBED_MODEL=$EMBED_MODEL" "GBRAIN_AI_EMBED_TIMEOUT_MS=300000" "HOME=$HOME" \
+    "$gb_env" "EMBED_MODEL=$EMBED_MODEL" "GBRAIN_AI_EMBED_TIMEOUT_MS=300000" "GBRAIN_NO_UPDATE_CHECK=1" "HOME=$HOME" \
     "PATH=$bun_dir:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   wait_http http://127.0.0.1:3131/health 60 || log "aviso: o GBrain ainda não respondeu em 127.0.0.1:3131 (veja $JARVIS_HOME/logs/gbrain.log)"
+  # a cada 2 min: guarda o que mudou no second brain (commit local) e sincroniza com o cérebro pelo serve
+  if [ -d "$vault/.git" ]; then
+    mkdir -p "$JARVIS_HOME/bin"
+    cat >"$JARVIS_HOME/bin/vault-sync.sh" <<EOF
+#!/bin/sh
+# gerado pelo whitebeard-os: commita o que mudou no second brain e sincroniza com o GBrain (serve no ar)
+export PATH="$bun_dir:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME"
+export OLLAMA_BASE_URL=http://127.0.0.1:11434/v1 GBRAIN_NO_UPDATE_CHECK=1
+cd "$vault" || exit 0
+git add -A >/dev/null 2>&1
+git diff --cached --quiet || git -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "auto: \$(date '+%Y-%m-%d %H:%M')"
+curl -fs -o /dev/null http://127.0.0.1:3131/health || exit 0
+exec gbrain sync --no-pull --working-tree
+EOF
+    chmod +x "$JARVIS_HOME/bin/vault-sync.sh"
+    LA_INTERVAL=120 launch_agent dev.whitebeard.vault-sync "$JARVIS_HOME/logs/vault-sync.log" "$JARVIS_HOME/bin/vault-sync.sh"
+  fi
   log "knowledge: GBrain em http://localhost:3131 (MCP em /mcp), PGLite em ~/.gbrain, embeddings $EMBED_MODEL na GPU"
+}
+
+# O token do MCP nasce dentro de install_knowledge, depois do render: com ele criado, o render e os MCPs
+# (Claude Code e Hermes) são reaplicados nesta mesma execução, e o gateway é reiniciado para ver o cérebro.
+apply_knowledge_render() {
+  [ "$RERENDER" = 1 ] || return 0
+  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" >/dev/null
+  apply_mcp
+  apply_hermes_config   # o .env do Hermes ganha GBRAIN_MCP_TOKEN (mescla sem sobrescrever)
+  apply_hermes_tenant
+  HERMES_RESTART=1
 }
 
 install_knowledge() {
@@ -767,7 +944,7 @@ install_services() {
   if [ "$WITH_HERMES" = 1 ] && have hermes; then
     if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null; then
       hermes gateway install --start-on-login --start-now && log "hermes: gateway instalado como serviço"
-      if [ "${TELEGRAM_CHANGED:-0}" = 1 ]; then hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true; fi
+      if [ "${TELEGRAM_CHANGED:-0}" = 1 ] || [ "$HERMES_RESTART" = 1 ]; then hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true; fi
     else
       log "hermes: Telegram desligado (opcional; para ligar: ./install.sh --telegram)"
     fi
@@ -954,12 +1131,22 @@ doctor() {
   if have claude; then log "claude: $(claude --version 2>/dev/null)"; fi
   if have ffmpeg; then log "ffmpeg: $(ffmpeg -version 2>/dev/null | head -n 1 | awk '{print $3}')"; fi
   if have hermes; then log "hermes: $(hermes --version 2>/dev/null | head -1)"; fi
+  if have claude; then
+    if claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then log "claude: conectado à sua conta"; else log "claude: NÃO conectado (rode: claude auth login)"; fi
+  fi
   if has_role core && [ -s "$NVM_DIR/nvm.sh" ]; then log "paperclip: $(with_node 'paperclipai -V 2>/dev/null' | tail -n 1)"; fi
   if has_role knowledge && [ "$KNOWLEDGE_NATIVE" = 1 ]; then
     st=""; for s in ollama gbrain; do
       launchctl print "gui/$(id -u)/dev.whitebeard.$s" 2>/dev/null | grep -q "state = running" && st="$st $s=running" || st="$st $s=parado"
     done
-    log "knowledge (nativo):$st"
+    h=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3131/health 2>/dev/null)
+    tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
+    m=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:3131/mcp 2>/dev/null)
+    unset tok
+    c="não"; claude mcp get knowledge >/dev/null 2>&1 && c="sim"
+    log "knowledge (nativo):$st | GBrain health=$h | MCP com token http=$m | MCP knowledge no Claude Code: $c"
+    log "second brain: $(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env") (sincronizado a cada 2 min)"
   elif has_role knowledge && have docker; then log "knowledge: $(docker compose --project-directory "$JARVIS_HOME/compose/knowledge" ps --format '{{.Name}}={{.State}}' 2>/dev/null | tr '\n' ' ')"; fi
   if has_role desktop && [ -f "$JARVIS_HOME/app/jarvis-web/dist/index.html" ]; then
     p=http; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && p=https
@@ -975,15 +1162,18 @@ check_prereqs
 install_uv
 install_node
 install_claude
+ensure_claude_login
 install_ffmpeg
 install_hermes
 ensure_hermes_voice
 install_paperclip
 render_tenant
+ensure_vault
 apply_mcp
 apply_hermes_config
 apply_hermes_tenant
 install_knowledge
+apply_knowledge_render
 install_web
 install_services
 install_rc

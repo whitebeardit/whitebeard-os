@@ -6,8 +6,7 @@
 #
 # Variáveis de ambiente (todas opcionais):
 #   WHITEBEARD_OS_DIR    onde clonar (padrão: ~/DEV/whitebeard-os)
-#   WHITEBEARD_OS_REPO   URL git do kernel (padrão: https://github.com/whitebeardit/whitebeard-os.git;
-#                    enquanto o repositório for privado use git@github.com:whitebeardit/whitebeard-os.git)
+#   WHITEBEARD_OS_REPO   URL git do kernel (padrão: https://github.com/whitebeardit/whitebeard-os.git, público)
 #   WHITEBEARD_OS_REF    branch ou tag (padrão: main)
 #   JARVIS_TENANT    tenant: nome (tenants/<nome>/ do kernel), pasta ou caminho do jarvis.yaml
 #                    (padrão: exemplo). O profile.sh exporta o nome do tenant instalado, então

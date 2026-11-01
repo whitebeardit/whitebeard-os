@@ -86,7 +86,7 @@ paperclipai service status
 ```
 
 Esperado: o link `~/.local/bin/hermes` aponta para `~/.hermes/hermes-agent/venv/bin/hermes`; "voz ok";
-MCPs `exemplo_knowledge` e `exemplo_ferramentas` listados; gateway e Paperclip rodando.
+MCPs `knowledge` e `exemplo_ferramentas` listados; gateway e Paperclip rodando.
 
 Provedor do modelo: peça ao fundador para rodar `hermes model` no terminal dele, escolher "ChatGPT or Codex
 Subscription" (ou outro provedor que ele tenha) e concluir o login pelo código. Espere a confirmação. Depois:

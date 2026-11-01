@@ -23,7 +23,7 @@ docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c '
     claude --version
     test -L ~/.claude/skills/exemplo-ola
     test \"\$(stat -c %a ~/.jarvis/secrets.env)\" = 600
-    claude mcp get exemplo_knowledge
+    claude mcp get exemplo_ferramentas
     claude mcp get exemplo_ferramentas
     grep -c \"# whitebeard-os\" ~/.bashrc | grep -qx 1
     echo OK-ubuntu-24.04

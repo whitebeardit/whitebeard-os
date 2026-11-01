@@ -64,7 +64,7 @@ jobs:
           test -f "$HOME/.jarvis/skills/exemplo-ola/SKILL.md"
           perm=$(stat -c %a "$HOME/.jarvis/secrets.env" 2>/dev/null || stat -f %Lp "$HOME/.jarvis/secrets.env")
           test "$perm" = 600
-          claude mcp get exemplo_knowledge
+          claude mcp get exemplo_ferramentas
           claude mcp get exemplo_ferramentas
           paperclipai -V
           test -f "$HOME/.jarvis/render/hermes/env"

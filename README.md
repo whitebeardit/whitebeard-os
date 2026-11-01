@@ -58,13 +58,19 @@ empacotamento nem assinatura por sistema operacional. O app lê as pastas pelo m
 
 Versão `0.2.0-dev`. Os três papéis instalam a partir do mesmo bootstrap:
 
-- **desktop**: provado em CI (Ubuntu 24.04 e macOS) e em Ubuntu descartável; aguardando validação no Mac físico.
+- **desktop**: provado em CI (Ubuntu 24.04 e macOS), em Ubuntu descartável e num Mac físico (Apple Silicon,
+  2026-11-01). O JARVIS Web vem pronto de [whitebeard-os-releases](https://github.com/whitebeardit/whitebeard-os-releases)
+  (sem npm nem build na máquina de quem instala).
 - **core**: Paperclip fixado no lockfile e instalado pelo npm do Node 24; Hermes upstream instalado por
   padrão; serviços de usuário registrados pelos próprios CLIs (`paperclipai onboard --install-service`,
   `hermes gateway install`). O CI prova instalação e renderização (`--no-start`); subir os serviços se prova
   no Mac físico.
-- **knowledge**: compose com GBrain (tag fixa), pgvector e Ollama, portas só em localhost, senha e token
-  gerados na instalação. O CI valida o compose e sobe o banco até ficar saudável.
+- **knowledge**: no macOS (Apple Silicon) é nativo, sem Docker: GBrain com PGLite (Postgres embutido), Ollama
+  na GPU (Metal) para os embeddings, token do MCP gerado na instalação e o second brain da pessoa
+  (`~/whitebeard-secondbrain`, criado se não existir) sincronizado a cada 2 minutos. No Linux segue o compose
+  com GBrain (tag fixa), pgvector e Ollama, portas só em localhost. O cérebro entra como MCP `knowledge` no
+  Claude Code e no Hermes, e as skills `knowledge`, `knowledge-write` e `project-documentation` do kernel
+  ensinam os dois a consultar e a documentar nele.
 
 `satelite` (Hermes perfil + MCP em outra máquina) vem a seguir; o JARVIS Web já entra no papel desktop,
 com TLS local, a partir do branch do app fixado no lockfile. Validação de
@@ -77,15 +83,15 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 ```
 
 O `install.sh` garante git e curl (no macOS instala as Command Line Tools), clona o kernel em
-`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant de exemplo. Opções passam direto:
-`| sh -s -- --with-hermes`. Tenant real: `JARVIS_TENANT=<nome, pasta ou /caminho/jarvis.yaml>` antes do comando.
+`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant de exemplo, tudo-em-um. O que a pessoa faz:
 
-Enquanto o repositório for **privado**, o `curl` anônimo não alcança o arquivo. Com a chave SSH cadastrada
-no GitHub, o equivalente é:
+1. roda o comando acima num terminal;
+2. entra na conta Claude quando o navegador abrir (único passo interativo: Hermes e Paperclip usam esse login);
+3. abre o JARVIS Web no endereço que o resumo mostra.
 
-```sh
-git clone git@github.com:whitebeardit/whitebeard-os.git ~/DEV/whitebeard-os && ~/DEV/whitebeard-os/install.sh
-```
+Nada de chaves, convites ou arquivos para editar. Telegram é opcional: `./install.sh --telegram` pede o token
+do bot e reconhece o seu chat pela primeira mensagem. Tenant real: `JARVIS_TENANT=<nome, pasta ou
+/caminho/jarvis.yaml>` antes do comando. Para refazer a instalação, rode o mesmo comando de novo: é idempotente.
 
 Passo a passo, sem o instalador:
 
@@ -105,16 +111,18 @@ O bootstrap é idempotente e só escreve dentro de `$HOME`:
 
 | Onde | O quê | Papel |
 | --- | --- | --- |
-| `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/ffmpeg-*`, `compose/knowledge/` | todos |
+| `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/` (ffmpeg; no macOS também bun, ollama e gbrain), `compose/knowledge/` (Linux) | todos |
+| `~/whitebeard-secondbrain/` (`$VAULT_PATH`) | o second brain: vault Markdown (Obsidian) com `tenants/<tenant>/{projects-doc,knowledge-domain,resources}`; git local com commits automáticos | todos |
 | `$JARVIS_DATA` (`dados:` do tenant, padrão `~/.jarvis/data`) | dados do tenant: posts, métricas, contratos, registros e token do JARVIS Web | todos |
 | `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | todos |
-| `~/.jarvis/app/jarvis-web/` | app JARVIS Web na ref do lockfile, construído; serviço `jarvis-web` (systemd de usuário) ou LaunchAgent `dev.whitebeard.jarvis-web` lendo `profile.env` | desktop |
+| `~/.jarvis/app/jarvis-web/` | JARVIS Web do pacote fixado no lockfile (link para `jarvis-web-<versão>/`); serviço `jarvis-web` (systemd de usuário) ou LaunchAgent `dev.whitebeard.jarvis-web` lendo `web.env` | desktop |
 | `~/.jarvis/tls/` | certificado autoassinado do JARVIS Web (SAN: localhost, host, IPs); o serviço sobe em HTTPS | desktop |
 | `~/.nvm/` | Node na versão do lockfile; `paperclipai` instalado nele | todos / core |
-| `~/.claude/skills/<nome>`, `~/.claude.json` | links para as skills; servidores MCP do tenant | desktop |
+| `~/.claude/skills/<nome>`, `~/.hermes/skills/<nome>`, `~/.claude.json` | links para as skills (Claude Code e Hermes); servidores MCP do tenant e o `knowledge` local | desktop / core |
 | `~/.hermes/` | Hermes upstream (tag fixa); `config.yaml` inicial e `.env` do tenant, sem sobrescrever | core (ou `--with-hermes`) |
-| `~/.paperclip/` | instância do Paperclip (Postgres embutido) criada por `paperclipai onboard` | core |
-| Docker | projeto `whitebeard-knowledge`: GBrain, pgvector, Ollama, volumes próprios | knowledge |
+| `~/.paperclip/` | instância do Paperclip (Postgres embutido); no tudo-em-um fica só nesta máquina, sem login, com empresa, conexão Claude e agente CEO criados na instalação | core |
+| `~/.gbrain/` + LaunchAgents `dev.whitebeard.{ollama,gbrain,vault-sync}` | macOS: cérebro PGLite, Ollama nativo e a sincronização do second brain | knowledge |
+| Docker | Linux: projeto `whitebeard-knowledge`: GBrain, pgvector, Ollama, volumes próprios | knowledge |
 | `~/.zshrc` / `~/.bashrc` | uma linha: `. "$JARVIS_HOME/profile.sh"` | todos |
 
 ## Layout

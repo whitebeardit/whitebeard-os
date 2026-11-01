@@ -301,7 +301,8 @@ render_tenant() {
 ask_secrets() {
   f="$JARVIS_HOME/render/secrets-missing.txt"
   [ -s "$f" ] || return 1
-  if [ ! -r /dev/tty ] || [ "$NO_PROMPT" = 1 ]; then
+  # sem terminal de verdade (ssh sem -t, cron, CI) o /dev/tty existe mas não abre: só avisa
+  if [ "$NO_PROMPT" = 1 ] || ! ( : </dev/tty ) 2>/dev/null; then
     log "segredos obrigatórios vazios: $(paste -sd' ' "$f"). Preencha $JARVIS_HOME/secrets.env e rode de novo"
     return 1
   fi

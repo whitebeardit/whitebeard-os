@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 
 O `install.sh` garante git e curl (no macOS instala as Command Line Tools), clona o kernel em
 `~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant de exemplo. Opções passam direto:
-`| sh -s -- --with-hermes`. Tenant real: `JARVIS_TENANT=/caminho/jarvis.yaml` antes do comando.
+`| sh -s -- --with-hermes`. Tenant real: `JARVIS_TENANT=<nome, pasta ou /caminho/jarvis.yaml>` antes do comando.
 
 Enquanto o repositório for **privado**, o `curl` anônimo não alcança o arquivo. Com a chave SSH cadastrada
 no GitHub, o equivalente é:
@@ -167,7 +167,7 @@ exemplo em `tenants/exemplo/jarvis.yaml`.
 | Paperclip | MIT | npm, versão fixa, instalado no Node do lockfile (papel core) |
 | GBrain, pgvector, Ollama | MIT (GBrain), PostgreSQL, MIT (Ollama) | compose do papel knowledge; GBrain construído da tag fixa |
 | Claude Code | proprietário (Anthropic) | instalador oficial; cada usuário usa a própria conta |
-| FFmpeg 9.0 | LGPL | Linux x86_64: build próprio com o filtro Whisper (whisper.cpp), compilado pelo workflow `ffmpeg-whisper.yml` e publicado como release do kernel (precisa de `gh` autenticado ou `WHITEBEARD_OS_TOKEN` enquanto o repositório é privado); demais plataformas: build estático de terceiros fixado por URL, sem Whisper |
+| FFmpeg 9.0 | LGPL | build próprio com o filtro Whisper (whisper.cpp), publicado em [whitebeard-os-releases](https://github.com/whitebeardit/whitebeard-os-releases) com sha256: macOS arm64 com GPU Metal e avfoundation (câmera e microfone), Linux x86_64 estático em CPU (workflow `ffmpeg-whisper.yml`); demais plataformas: build estático de terceiros fixado por URL, sem Whisper |
 | Modelos (Anthropic, OpenAI, outros) | contas do usuário | chaves e logins só em `secrets.env` e OAuth local |
 
 ## Licenciamento do produto

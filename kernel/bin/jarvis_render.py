@@ -234,15 +234,49 @@ def main() -> int:
             model = {k: hermes_cfg[k] for k in ("provider", "model") if k in hermes_cfg}
             cfg = {"model": model}
             if hermes_cfg.get("fallback"):
-                cfg["fallback_model"] = hermes_cfg["fallback"]
+                # "provedor/modelo" (divide no primeiro "/": openrouter/anthropic/x → provider openrouter);
+                # sem "/", o provedor principal. O Hermes exige {provider, model}, não string.
+                prov, sep, fb_model = hermes_cfg["fallback"].partition("/")
+                cfg["fallback_model"] = ({"provider": prov, "model": fb_model} if sep
+                                         else {"provider": model.get("provider", ""), "model": prov})
             w.write(home / "render" / "hermes" / "config.yaml",
                     "# gerado pelo whitebeard-os (modelo do tenant); o Hermes completa o resto\n"
                     + yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
+        # MCPs do tenant para o Hermes deste host (o agente e o painel de MCPs do JARVIS Web leem dele).
+        # ${VAR} fica literal: o Hermes resolve do próprio .env em runtime, e o segredo não vai para o config.
+        hermes_mcp: dict[str, dict] = {}
+        for m in (m for m in data.get("mcp", []) or [] if for_roles(m)):
+            if m["transport"] == "stdio":
+                entry = {"command": m["command"], "args": list(m.get("args", []) or [])}
+            else:
+                entry = {"url": m["url"]}
+            for k in ("headers", "env"):
+                if m.get(k):
+                    entry[k] = dict(m[k])
+            hermes_mcp[m["name"]] = entry
+        w.write(home / "render" / "hermes" / "mcp.json",
+                json.dumps(hermes_mcp, ensure_ascii=False, indent=2) + "\n")
+        mcp_refs = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", json.dumps(hermes_mcp))))
         env_keys = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHANNEL", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+        env_keys += [k for k in mcp_refs if k not in env_keys]
         env_lines = [f"{k}={values[k]}" for k in env_keys if values.get(k)]
+        # chat privado (id positivo) é o próprio dono: autorizado no gateway sem pareamento manual
+        home_chat = str(values.get("TELEGRAM_HOME_CHANNEL", "")).strip()
+        if home_chat.isdigit():
+            env_lines.append(f"TELEGRAM_ALLOWED_USERS={home_chat}")
         w.write(home / "render" / "hermes" / "env",
                 "# gerado pelo whitebeard-os; só chaves preenchidas em secrets.env\n" + "\n".join(env_lines) + "\n",
                 mode=0o600)
+
+    # ---- papel desktop: board key do Paperclip para o JARVIS Web. O serviço não recebe segredos pelo
+    # ambiente (o plist do LaunchAgent é legível); o app lê este arquivo da pasta de dados.
+    # Só cria: um arquivo existente (feito à mão, com outra chave) não é trocado em silêncio.
+    if "desktop" in roles and values.get("PAPERCLIP_API_KEY"):
+        key_file = Path(data_dir) / "paperclip-board-key"
+        if not key_file.exists():
+            w.write(key_file, values["PAPERCLIP_API_KEY"] + "\n", mode=0o600)
+        elif key_file.read_text(encoding="utf-8").strip() != values["PAPERCLIP_API_KEY"]:
+            log(f"aviso: {key_file} tem outra chave que a PAPERCLIP_API_KEY de secrets.env; mantido como está")
 
     # ---- papel knowledge: .env do compose (imagens do lockfile + segredos gerados)
     if "knowledge" in roles:

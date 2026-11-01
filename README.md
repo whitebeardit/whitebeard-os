@@ -27,7 +27,7 @@ Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o pa
 
 | Papel | Componentes | Precisa de |
 | --- | --- | --- |
-| **desktop** | Claude Code, skills, clientes MCP, JARVIS Web (UI no browser, servida localmente), Hermes CLI | só `$HOME` |
+| **desktop** | Claude Code, skills, clientes MCP, JARVIS Web (UI no browser, construída do app e registrada como serviço de usuário), Hermes CLI | só `$HOME` e chave SSH com acesso ao repositório do app |
 | **core** | Hermes (gateway Telegram + crons), Paperclip (Node + Postgres embutido) | host sempre ligado |
 | **knowledge** | GBrain (MCP + ingestão do vault), pgvector, Ollama (embeddings), em Docker Compose | Docker (Linux) ou Docker Desktop/OrbStack (macOS) |
 
@@ -93,7 +93,9 @@ cd ~/DEV/whitebeard-os
 ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # tudo-em-um
 ```
 
-Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`).
+Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`). O CI roda com
+`--skip web` porque o repositório do app é privado e o runner não tem a chave; num host seu, o JARVIS Web
+entra no papel desktop e sobe em `http://localhost:8017` (token em `$JARVIS_DATA/jarvis-web.json`).
 
 O bootstrap é idempotente e só escreve dentro de `$HOME`:
 
@@ -102,6 +104,7 @@ O bootstrap é idempotente e só escreve dentro de `$HOME`:
 | `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/ffmpeg-*`, `compose/knowledge/` | todos |
 | `$JARVIS_DATA` (`dados:` do tenant, padrão `~/.jarvis/data`) | dados do tenant: posts, métricas, contratos, registros e token do JARVIS Web | todos |
 | `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | todos |
+| `~/.jarvis/app/jarvis-web/` | app JARVIS Web na ref do lockfile, construído; serviço `jarvis-web` (systemd de usuário) ou LaunchAgent `dev.whitebeard.jarvis-web` lendo `profile.env` | desktop |
 | `~/.nvm/` | Node na versão do lockfile; `paperclipai` instalado nele | todos / core |
 | `~/.claude/skills/<nome>`, `~/.claude.json` | links para as skills; servidores MCP do tenant | desktop |
 | `~/.hermes/` | Hermes upstream (tag fixa); `config.yaml` inicial e `.env` do tenant, sem sobrescrever | core (ou `--with-hermes`) |

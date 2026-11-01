@@ -182,6 +182,18 @@ def main() -> int:
         'if [ -s "$NVM_DIR/nvm.sh" ]; then . "$NVM_DIR/nvm.sh"; fi',
     ]
     w.write(home / "profile.sh", "\n".join(profile) + "\n")
+    # mesma informação em KEY=VALUE, sem shell: EnvironmentFile do systemd e LaunchAgent do macOS
+    env_lines = [
+        f"JARVIS_HOME={home}",
+        f"JARVIS_TENANT={tenant}",
+        f"JARVIS_ROLE={role_label}",
+        f"JARVIS_DATA={data_dir}",
+        f"HERMES_HOME={user_home / '.hermes'}",
+    ]
+    if vault_path:
+        env_lines.append(f"VAULT_PATH={vault_path}")
+    env_lines.append(f"PATH={user_home / '.local' / 'bin'}:/usr/local/bin:/usr/bin:/bin")
+    w.write(home / "profile.env", "\n".join(env_lines) + "\n")
 
     # ---- servidores MCP do Claude Code (papel desktop; segredos só por ${VAR} em runtime)
     servers = [m for m in data.get("mcp", []) or [] if for_roles(m)] if "desktop" in roles else []

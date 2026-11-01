@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: instalação zerada (${{ matrix.roles }}, sem subir serviços)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start ${{ inputs.with_hermes && '--with-hermes' || '--skip hermes' }}
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start ${{ inputs.with_hermes && '--with-hermes --skip web' || '--skip hermes,web' }}
       - name: verificação comum
         run: |
           . "$HOME/.jarvis/profile.sh"
@@ -96,13 +96,13 @@ jobs:
           test ! -f "$RUNNER_TEMP/jarvis2/secrets.env"
           test -f "$RUNNER_TEMP/dados2/leia-me.txt"
       - name: idempotência (segunda execução)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --skip hermes
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --skip hermes,web
       - name: "instalador de uma linha (modo curl | sh, clona e roda o bootstrap)"
         env:
           WHITEBEARD_OS_DIR: ${{ runner.temp }}/whitebeard-os-oneline
           WHITEBEARD_OS_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           WHITEBEARD_OS_REF: ${{ github.ref_name }}
         run: |
-          cat install.sh | sh -s -- --no-start --skip hermes
+          cat install.sh | sh -s -- --no-start --skip hermes,web
           test -f "$WHITEBEARD_OS_DIR/bootstrap.sh"
           test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/exemplo/jarvis.yaml"

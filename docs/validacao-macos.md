@@ -43,6 +43,22 @@ ls -l ~/.jarvis/secrets.env        # deve ser -rw------- (600)
 Depois rode o bootstrap de novo: deve terminar igual, sem duplicar linhas no `~/.zshrc` e sem erro
 (idempotência).
 
+## 3b. JARVIS Web (a interface)
+
+O papel desktop clona o app na ref do lockfile, constrói a UI e registra o LaunchAgent
+`dev.whitebeard.jarvis-web` (precisa da chave SSH com acesso ao repositório `whitebeardit/jarvis-desktop`).
+Conferir:
+
+```sh
+launchctl print "gui/$(id -u)/dev.whitebeard.jarvis-web" | head -n 5
+tail -n 5 "$JARVIS_HOME/logs/jarvis-web.log"
+open "http://localhost:8017/?token=$(python3 -c 'import json,os;print(json.load(open(os.environ["JARVIS_DATA"]+"/jarvis-web.json"))["token"])')"
+```
+
+Esperado: a UI abre no Safari com o tenant de exemplo (painéis vazios, sem erro); no celular, o mesmo
+endereço com o IP do Mac. Se o clone falhar por chave SSH, o bootstrap para com a mensagem
+`web: clone falhou`; rode de novo depois de cadastrar a chave, ou `--skip web` para seguir sem a UI.
+
 ## 4. Opcional: Hermes
 
 ```sh

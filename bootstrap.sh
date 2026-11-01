@@ -34,7 +34,7 @@ uso: $0 --tenant <jarvis.yaml> [opções]
   --with-hermes        instala o Hermes upstream (tag $HERMES_TAG); padrão: sim no papel core, não no desktop
   --without-hermes     não instala o Hermes
   --no-start           instala e renderiza, mas não sobe serviços nem containers
-  --skip a,b           pula etapas: uv, node, claude, ffmpeg, hermes, paperclip, render, mcp, knowledge, services, rc
+  --skip a,b           pula etapas: uv, node, claude, ffmpeg, hermes, paperclip, render, mcp, web, knowledge, services, rc
   --dry-run            valida o jarvis.yaml e mostra o que faria; não escreve nada
   -h, --help           esta ajuda
 EOF
@@ -300,6 +300,92 @@ install_services() {
   fi
 }
 
+# JARVIS Web: a interface do produto. Clona o app na ref do lockfile, instala só as dependências de
+# runtime (sem Electron), constrói a UI e registra um serviço de usuário que lê $JARVIS_HOME/profile.env.
+install_web() {
+  has_role desktop || return 0
+  skipped web && { log "web: pulado"; return 0; }
+  app="$JARVIS_HOME/app/jarvis-web"
+  if [ "$DRY_RUN" = 1 ]; then
+    log "web: clonaria $JARVIS_WEB_REPO ($JARVIS_WEB_REF) em $app, npm ci sem dev, vite build, serviço jarvis-web na porta $JARVIS_WEB_PORT"
+    return 0
+  fi
+  [ -s "$NVM_DIR/nvm.sh" ] || die "web: Node ausente (etapa node pulada?)"
+  if [ -d "$app/.git" ]; then
+    git -C "$app" fetch -q --depth 1 origin "$JARVIS_WEB_REF" || die "web: não consegui atualizar $app"
+    git -C "$app" checkout -q --detach FETCH_HEAD
+  else
+    mkdir -p "$JARVIS_HOME/app"
+    git clone -q --depth 1 --branch "$JARVIS_WEB_REF" "$JARVIS_WEB_REPO" "$app" || die "web: clone falhou ($JARVIS_WEB_REPO). Chave SSH com acesso ao repositório do app?"
+  fi
+  log "web: dependências de runtime e build da UI (sem Electron)"
+  with_node "cd '$app' && npm ci --omit=dev --no-audit --no-fund --loglevel=error && npx vite build --logLevel error" || die "web: build falhou"
+  node_bin=$(with_node 'command -v node')
+  install_web_service "$app" "$node_bin"
+}
+
+install_web_service() {
+  app=$1
+  node_bin=$2
+  case "$OS" in
+    Linux)
+      unit_dir="$HOME/.config/systemd/user"
+      mkdir -p "$unit_dir"
+      cat >"$unit_dir/jarvis-web.service" <<EOF
+[Unit]
+Description=JARVIS Web (Whitebeard OS)
+After=network.target
+
+[Service]
+EnvironmentFile=$JARVIS_HOME/profile.env
+Environment=JARVIS_WEB_PORT=$JARVIS_WEB_PORT
+WorkingDirectory=$app
+ExecStart=$node_bin $app/server/web.cjs
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+EOF
+      if [ "$NO_START" = 1 ]; then
+        log "web: unidade escrita em $unit_dir/jarvis-web.service (--no-start). Depois: systemctl --user enable --now jarvis-web"
+        return 0
+      fi
+      systemctl --user daemon-reload && systemctl --user enable --now jarvis-web.service && log "web: serviço jarvis-web ativo em http://localhost:$JARVIS_WEB_PORT"
+      ;;
+    Darwin)
+      plist="$HOME/Library/LaunchAgents/dev.whitebeard.jarvis-web.plist"
+      mkdir -p "$HOME/Library/LaunchAgents" "$JARVIS_HOME/logs"
+      env_xml=$(sed -n 's/^\([A-Z_][A-Z0-9_]*\)=\(.*\)$/      <key>\1<\/key><string>\2<\/string>/p' "$JARVIS_HOME/profile.env")
+      cat >"$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>dev.whitebeard.jarvis-web</string>
+  <key>ProgramArguments</key><array><string>$node_bin</string><string>$app/server/web.cjs</string></array>
+  <key>WorkingDirectory</key><string>$app</string>
+  <key>EnvironmentVariables</key><dict>
+$env_xml
+      <key>JARVIS_WEB_PORT</key><string>$JARVIS_WEB_PORT</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$JARVIS_HOME/logs/jarvis-web.log</string>
+  <key>StandardErrorPath</key><string>$JARVIS_HOME/logs/jarvis-web.log</string>
+</dict>
+</plist>
+EOF
+      if [ "$NO_START" = 1 ]; then
+        log "web: LaunchAgent escrito em $plist (--no-start). Depois: launchctl bootstrap gui/\$(id -u) $plist"
+        return 0
+      fi
+      launchctl bootout "gui/$(id -u)/dev.whitebeard.jarvis-web" 2>/dev/null || true
+      launchctl bootstrap "gui/$(id -u)" "$plist" && log "web: LaunchAgent ativo em http://localhost:$JARVIS_WEB_PORT"
+      ;;
+  esac
+}
+
 install_rc() {
   skipped rc && { log "rc: pulado"; return 0; }
   line=". \"$JARVIS_HOME/profile.sh\" # whitebeard-os"
@@ -326,6 +412,7 @@ doctor() {
   if have hermes; then log "hermes: $(hermes --version 2>/dev/null | head -1)"; fi
   if has_role core && [ -s "$NVM_DIR/nvm.sh" ]; then log "paperclip: $(with_node 'paperclipai -V 2>/dev/null' | tail -n 1)"; fi
   if has_role knowledge && have docker; then log "knowledge: $(docker compose --project-directory "$JARVIS_HOME/compose/knowledge" ps --format '{{.Name}}={{.State}}' 2>/dev/null | tr '\n' ' ')"; fi
+  if has_role desktop && [ -f "$JARVIS_HOME/app/jarvis-web/dist/index.html" ]; then log "web: JARVIS Web em http://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json)"; fi
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
 }
@@ -342,6 +429,7 @@ render_tenant
 apply_mcp
 apply_hermes_config
 install_knowledge
+install_web
 install_services
 install_rc
 doctor

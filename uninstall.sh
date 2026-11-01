@@ -1,11 +1,14 @@
 #!/bin/sh
 # uninstall.sh — desfaz o que o bootstrap.sh instalou nesta máquina, só dentro de $HOME, sem sudo.
 #
-#   ~/DEV/whitebeard-os/uninstall.sh              # remove serviços e programas; MANTÉM o second brain e secrets.env
-#   ~/DEV/whitebeard-os/uninstall.sh --tudo       # remove também o second brain e os segredos (irreversível)
+#   ~/DEV/whitebeard-os/uninstall.sh          # para e remove serviços e programas do kernel; MANTÉM os dados
+#   ~/DEV/whitebeard-os/uninstall.sh --tudo   # remove também os dados (irreversível)
 #
-# O que fica sempre: o Claude Code e o seu login (são seus, não do Whitebeard OS), o uv e este clone do kernel.
-# Rodar o install.sh de novo depois refaz tudo; com secrets.env mantido, o Telegram volta sem perguntas.
+# Dados que o modo padrão mantém: o second brain, secrets.env, a pasta de dados do tenant (token do JARVIS
+# Web, board key), o Paperclip (~/.paperclip: empresas, agentes), o Hermes (~/.hermes: configuração,
+# sessões) e o cérebro (~/.gbrain). Node/nvm fica sempre, a menos que o kernel o tenha instalado e --tudo.
+# Nunca tocados: o Claude Code e o seu login, o uv, este clone do kernel.
+# Rodar o install.sh de novo depois refaz tudo; com secrets.env mantido, nada é perguntado.
 set -eu
 
 JARVIS_HOME="${JARVIS_HOME:-$HOME/.jarvis}"
@@ -15,6 +18,7 @@ log() { printf '[whitebeard-os/uninstall] %s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 vault=$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env" 2>/dev/null || true)
+data=$(sed -n 's/^JARVIS_DATA=//p' "$JARVIS_HOME/profile.env" 2>/dev/null || true)
 PATH="$HOME/.local/bin:$PATH"; export PATH
 [ -s "$HOME/.nvm/nvm.sh" ] && { NVM_DIR="$HOME/.nvm"; export NVM_DIR; . "$NVM_DIR/nvm.sh" >/dev/null 2>&1 || true; }
 
@@ -32,15 +36,18 @@ case "$(uname -s)" in
     for u in jarvis-web hermes-gateway paperclip; do systemctl --user disable --now "$u.service" 2>/dev/null || true; rm -f "$HOME/.config/systemd/user/$u.service"; done
     systemctl --user daemon-reload 2>/dev/null || true
     if have docker && [ -d "$JARVIS_HOME/compose/knowledge" ]; then
-      docker compose --project-directory "$JARVIS_HOME/compose/knowledge" down -v >/dev/null 2>&1 && log "knowledge: containers e volumes removidos" || true
+      if [ "$TUDO" = 1 ]; then
+        docker compose --project-directory "$JARVIS_HOME/compose/knowledge" down -v >/dev/null 2>&1 && log "knowledge: containers e volumes removidos" || true
+      else
+        docker compose --project-directory "$JARVIS_HOME/compose/knowledge" down >/dev/null 2>&1 && log "knowledge: containers parados (volumes mantidos)" || true
+      fi
     fi ;;
 esac
 sleep 1
 pkill -f "server/web.cjs" 2>/dev/null || true
 pkill -f "$JARVIS_HOME/tools/" 2>/dev/null || true
-pkill -f "hermes-agent/venv" 2>/dev/null || true
 
-# ---- Claude Code: MCPs e skills que o kernel registrou (nunca os da pessoa)
+# ---- Claude Code e Hermes: MCPs e skills que o kernel registrou (nunca os da pessoa)
 if have claude; then
   for n in $(cat "$JARVIS_HOME/render/claude-mcp.names" 2>/dev/null); do
     claude mcp remove --scope user "$n" >/dev/null 2>&1 && log "claude: mcp $n removido" || true
@@ -52,37 +59,54 @@ for d in "$JARVIS_HOME"/skills/*/; do
   for link in "$HOME/.claude/skills/$n" "$HOME/.hermes/skills/$n"; do [ -L "$link" ] && rm -f "$link"; done
 done
 
-# ---- segredos e second brain
-if [ "$TUDO" = 1 ]; then
-  rm -f "$JARVIS_HOME/secrets.env"
-  if [ -n "$vault" ] && [ -d "$vault" ]; then rm -rf "$vault"; log "second brain removido: $vault"; fi
-else
-  if [ -f "$JARVIS_HOME/secrets.env" ]; then
-    mkdir -p "$HOME/.jarvis-mantido" && cp -p "$JARVIS_HOME/secrets.env" "$HOME/.jarvis-mantido/secrets.env" && chmod 600 "$HOME/.jarvis-mantido/secrets.env"
-    log "secrets.env guardado em ~/.jarvis-mantido (o install.sh reaproveita)"
-  fi
-  [ -n "$vault" ] && [ -d "$vault" ] && log "second brain mantido: $vault (use --tudo para remover)"
-fi
-# a reserva de identidade do GBrain fica no diretório pai do vault; sem o cérebro ela só atrapalha
-if [ -n "$vault" ]; then
-  for f in "$(dirname "$vault")"/.gbrain-owner-*.json; do
-    [ -f "$f" ] && python3 -c 'import json,os,sys; sys.exit(0 if os.path.realpath(json.load(open(sys.argv[1])).get("root",""))==os.path.realpath(sys.argv[2]) else 1)' "$f" "$vault" 2>/dev/null && rm -f "$f"
-  done
+# ---- o que se guarda do $JARVIS_HOME antes de removê-lo
+keep=$(mktemp -d)
+[ -f "$JARVIS_HOME/.nvm-instalado-pelo-kernel" ] && : > "$keep/.nvm-instalado-pelo-kernel"
+if [ "$TUDO" != 1 ]; then
+  [ -f "$JARVIS_HOME/secrets.env" ] && cp -p "$JARVIS_HOME/secrets.env" "$keep/secrets.env"
+  # pasta de dados padrão mora dentro de $JARVIS_HOME; a do tenant (dados:) mora fora e não é tocada
+  case "$data" in "$JARVIS_HOME"/*) [ -d "$data" ] && cp -Rp "$data" "$keep/data" ;; esac
 fi
 
-# ---- programas e dados do kernel
-data=$(sed -n 's/^JARVIS_DATA=//p' "$JARVIS_HOME/profile.env" 2>/dev/null || true)
-rm -rf "$JARVIS_HOME" "$HOME/.hermes" "$HOME/.paperclip" "$HOME/.gbrain" "$HOME/.nvm"
-[ -n "$data" ] && [ "$TUDO" = 1 ] && rm -rf "$data"
+# ---- programas e configuração do kernel
+rm -rf "$JARVIS_HOME"
 rm -f "$HOME/.local/bin/ffmpeg" "$HOME/.local/bin/ffprobe" "$HOME/.local/bin/hermes" "$HOME/.local/bin/gbrain"
-# atalho da loja gerenciada do Paperclip (paperclipai install): sem alvo, quebra o PATH
-if [ -f "$HOME/.local/bin/paperclipai" ] && grep -q "managed install shim" "$HOME/.local/bin/paperclipai" 2>/dev/null; then rm -f "$HOME/.local/bin/paperclipai"; fi
+# atalho da loja gerenciada do Paperclip (paperclipai install) que ficaria sem alvo
+if [ "$TUDO" = 1 ] && [ -f "$HOME/.local/bin/paperclipai" ] && grep -q "managed install shim" "$HOME/.local/bin/paperclipai" 2>/dev/null; then rm -f "$HOME/.local/bin/paperclipai"; fi
+# linha do profile nos rc (marcador "# whitebeard-os", o mesmo que o install_rc escreve)
 for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.zprofile" "$HOME/.profile"; do
-  [ -f "$rc" ] && grep -q '\.jarvis/profile\.sh' "$rc" && { grep -v '\.jarvis/profile\.sh' "$rc" > "$rc.tmp" && mv "$rc.tmp" "$rc"; }
+  [ -f "$rc" ] || continue
+  if grep -qF '# whitebeard-os' "$rc" || grep -qF "$JARVIS_HOME/profile.sh" "$rc"; then
+    python3 - "$rc" "$JARVIS_HOME" <<'PY'
+import sys
+p, home = sys.argv[1:3]
+lines = open(p, encoding="utf-8").read().split("\n")
+out = [l for l in lines if "# whitebeard-os" not in l and f"{home}/profile.sh" not in l]
+open(p, "w", encoding="utf-8").write("\n".join(out))
+PY
+    log "rc: linha do Whitebeard OS removida de $rc"
+  fi
 done
-# segredos mantidos voltam para o lugar: o próximo install.sh os encontra
-if [ "$TUDO" != 1 ] && [ -f "$HOME/.jarvis-mantido/secrets.env" ]; then
-  mkdir -p "$JARVIS_HOME" && mv "$HOME/.jarvis-mantido/secrets.env" "$JARVIS_HOME/secrets.env" && rmdir "$HOME/.jarvis-mantido" 2>/dev/null || true
+
+# ---- dados
+if [ "$TUDO" = 1 ]; then
+  rm -rf "$HOME/.hermes" "$HOME/.paperclip" "$HOME/.gbrain"
+  [ -n "$data" ] && rm -rf "$data"
+  if [ -n "$vault" ] && [ -d "$vault" ]; then rm -rf "$vault"; log "second brain removido: $vault"; fi
+  # a reserva de identidade do GBrain fica no diretório pai do vault
+  if [ -n "$vault" ]; then
+    for f in "$(dirname "$vault")"/.gbrain-owner-*.json; do
+      [ -f "$f" ] && python3 -c 'import json,os,sys; sys.exit(0 if os.path.realpath(json.load(open(sys.argv[1])).get("root",""))==os.path.realpath(sys.argv[2]) else 1)' "$f" "$vault" 2>/dev/null && rm -f "$f"
+    done
+  fi
+  [ -f "$keep/.nvm-instalado-pelo-kernel" ] && rm -rf "$HOME/.nvm"
+  log "removido tudo: dados, second brain, Paperclip, Hermes e cérebro"
+else
+  mkdir -p "$JARVIS_HOME"
+  [ -f "$keep/secrets.env" ] && cp -p "$keep/secrets.env" "$JARVIS_HOME/secrets.env"
+  [ -d "$keep/data" ] && cp -Rp "$keep/data" "$data"
+  log "mantidos: secrets.env$( [ -n "$data" ] && printf ', dados em %s' "$data" ), ~/.paperclip, ~/.hermes, ~/.gbrain$( [ -n "$vault" ] && printf ', second brain em %s' "$vault" ) (use --tudo para remover)"
 fi
-log "pronto. Mantidos: Claude Code e seu login, uv, este clone$( [ "$TUDO" = 1 ] || printf ', secrets.env e o second brain' )."
+rm -rf "$keep"
+log "pronto. Nunca tocados: Claude Code e seu login, uv, este clone."
 log "para instalar de novo: curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh"

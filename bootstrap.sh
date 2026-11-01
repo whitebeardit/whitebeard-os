@@ -172,6 +172,7 @@ install_node() {
   if [ ! -s "$NVM_DIR/nvm.sh" ]; then
     log "instalando nvm $NVM_VERSION em $NVM_DIR"
     run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh' | env PROFILE=/dev/null NVM_DIR='$NVM_DIR' bash"
+    [ "$DRY_RUN" = 1 ] || { mkdir -p "$JARVIS_HOME"; : > "$JARVIS_HOME/.nvm-instalado-pelo-kernel"; }
   fi
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] nvm install %s\n' "$NODE_VERSION"; return 0; fi
   with_node "nvm install '$NODE_VERSION' >/dev/null && nvm alias default '$NODE_VERSION' >/dev/null && printf '[whitebeard-os] node %s pronto\n' \"\$(node -v)\""
@@ -216,7 +217,8 @@ install_ffmpeg_whisper() {
   if [ -f "$dest/.ok" ] && [ -x "$dest/ffmpeg" ]; then log "ffmpeg com whisper já presente"; link_ffmpeg "$dest"; return 0; fi
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] baixar %s em %s\n' "$url" "$dest"; return 0; fi
   rm -rf "$dest"; mkdir -p "$dest"
-  fetch_verified "$url" "$sha" "$dest/archive.tar.xz"
+  # sem o build próprio (release fora do ar, sha desatualizado), fica o build público, sem whisper
+  if ! try_fetch_verified "$url" "$sha" "$dest/archive.tar.xz"; then rm -rf "$dest"; log "ffmpeg: build com whisper indisponível; usando o build público"; return 1; fi
   tar -xJf "$dest/archive.tar.xz" -C "$dest" && rm -f "$dest/archive.tar.xz"
   f=$(find "$dest" -type f -name ffmpeg | head -n 1); p=$(find "$dest" -type f -name ffprobe | head -n 1)
   [ -n "$f" ] || die "ffmpeg não encontrado no pacote com whisper"
@@ -410,7 +412,16 @@ try:
 except Exception:
     print("[whitebeard-os] aviso: o Telegram recusou o token (confira em @BotFather)", file=sys.stderr); sys.exit(0)
 print(f"\n  Mande \"oi\" para @{me['username']} no Telegram. Espero até 3 minutos...", file=open("/dev/tty", "w"))
-offset, deadline = 0, time.time() + 180
+# o backlog do bot pode ter mensagem de qualquer pessoa: descarta tudo o que chegou antes deste momento
+started = int(time.time())
+offset = 0
+try:
+    last = api("getUpdates", offset=-1, timeout=0)
+    if last:
+        offset = last[-1]["update_id"] + 1
+except Exception:
+    pass
+deadline = time.time() + 180
 while time.time() < deadline:
     try:
         ups = api("getUpdates", timeout=30, offset=offset, allowed_updates='["message"]')
@@ -419,6 +430,8 @@ while time.time() < deadline:
     for u in ups:
         offset = u["update_id"] + 1
         m = u.get("message") or {}
+        if m.get("date", 0) < started:
+            continue
         if (m.get("chat") or {}).get("type") == "private" and (m.get("from") or {}).get("id"):
             api("getUpdates", offset=offset, timeout=0)  # marca como lida: o gateway não responde a ela de novo
             print(m["from"]["id"]); sys.exit(0)
@@ -483,7 +496,20 @@ apply_hermes_config() {
     while IFS= read -r line; do
       case "$line" in ''|'#'*) continue ;; esac
       k=${line%%=*}
-      if ! grep -q "^$k=" "$HERMES_HOME/.env"; then printf '%s\n' "$line" >> "$HERMES_HOME/.env"; fi
+      if ! grep -q "^$k=" "$HERMES_HOME/.env"; then
+        printf '%s\n' "$line" >> "$HERMES_HOME/.env"
+      else
+        # chaves que o kernel gera ou deriva mudam de valor (token do cérebro recriado, chat do dono):
+        # essas são atualizadas; as demais (segredos da pessoa) nunca são sobrescritas
+        case "$k" in GBRAIN_MCP_TOKEN|TELEGRAM_ALLOWED_USERS|VAULT_PATH|JARVIS_TENANT)
+          grep -qxF "$line" "$HERMES_HOME/.env" || python3 - "$HERMES_HOME/.env" "$k" "$line" <<'PY'
+import re, sys
+p, k, line = sys.argv[1:4]
+s = open(p, encoding="utf-8").read()
+open(p, "w", encoding="utf-8").write(re.sub(r"(?m)^" + re.escape(k) + r"=.*$", lambda _: line, s, count=1))
+PY
+        ;; esac
+      fi
     done < "$JARVIS_HOME/render/hermes/env"
     log "hermes: variáveis do tenant mescladas em $HERMES_HOME/.env (sem sobrescrever)"
   fi
@@ -646,18 +672,22 @@ EOF
   log "vault: second brain em $vault (abra no Obsidian)"
 }
 
-# Baixa url em dest conferindo o sha256 (falha = morre: binário adulterado não roda).
-fetch_verified() {
-  curl -fsSL "$1" -o "$3.part" || die "download falhou: $1"
+# Baixa url em dest conferindo o sha256. try_fetch_verified devolve 1 em falha (para quem tem fallback);
+# fetch_verified morre: binário ausente ou adulterado não roda.
+try_fetch_verified() {
+  curl -fsSL "$1" -o "$3.part" || { rm -f "$3.part"; log "download falhou: $1"; return 1; }
   got=$(sha256_of "$3.part")
-  [ "$got" = "$2" ] || { rm -f "$3.part"; die "sha256 não confere para $1 (esperado $2, veio $got)"; }
+  [ "$got" = "$2" ] || { rm -f "$3.part"; log "sha256 não confere para $1 (esperado $2, veio $got)"; return 1; }
   mv "$3.part" "$3"
 }
+fetch_verified() { try_fetch_verified "$@" || die "não consegui baixar com segurança: $1"; }
 
 # Serviço de usuário do macOS (LaunchAgent): rótulo, log e o comando; variáveis de ambiente em KEY=VALUE
 # depois de "--". Recria o plist e religa, esperando o bootout terminar (é assíncrono).
 launch_agent() {
   label=$1; logf=$2; shift 2
+  interval=""
+  if [ "${1:-}" = --interval ]; then interval=$2; shift 2; fi
   args=""; envs=""
   while [ $# -gt 0 ] && [ "$1" != -- ]; do args="$args<string>$1</string>"; shift; done
   [ "${1:-}" = -- ] && shift
@@ -665,7 +695,7 @@ launch_agent() {
   plist="$HOME/Library/LaunchAgents/$label.plist"
   mkdir -p "$HOME/Library/LaunchAgents" "$(dirname "$logf")"
   keep="<key>KeepAlive</key><true/>"
-  [ -n "${LA_INTERVAL:-}" ] && keep="<key>StartInterval</key><integer>$LA_INTERVAL</integer>"
+  [ -n "$interval" ] && keep="<key>StartInterval</key><integer>$interval</integer>"
   cat >"$plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -813,7 +843,7 @@ curl -fs -o /dev/null http://127.0.0.1:3131/health || exit 0
 exec gbrain sync --no-pull --working-tree
 EOF
     chmod +x "$JARVIS_HOME/bin/vault-sync.sh"
-    LA_INTERVAL=120 launch_agent dev.whitebeard.vault-sync "$JARVIS_HOME/logs/vault-sync.log" "$JARVIS_HOME/bin/vault-sync.sh"
+    launch_agent dev.whitebeard.vault-sync "$JARVIS_HOME/logs/vault-sync.log" --interval 120 "$JARVIS_HOME/bin/vault-sync.sh"
   fi
   log "knowledge: GBrain em http://localhost:3131 (MCP em /mcp), PGLite em ~/.gbrain, embeddings $EMBED_MODEL na GPU"
 }
@@ -973,8 +1003,19 @@ install_services() {
   fi
   if [ "$WITH_HERMES" = 1 ] && have hermes; then
     if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null; then
-      hermes gateway install --start-on-login --start-now && log "hermes: gateway instalado como serviço"
-      if [ "${TELEGRAM_CHANGED:-0}" = 1 ] || [ "$HERMES_RESTART" = 1 ]; then hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true; fi
+      gw_present=0
+      case "$OS" in
+        Darwin) launchctl print "gui/$(id -u)/ai.hermes.gateway" >/dev/null 2>&1 && gw_present=1 ;;
+        Linux) systemctl --user is-enabled hermes-gateway.service >/dev/null 2>&1 && gw_present=1 ;;
+      esac
+      if [ "$gw_present" = 0 ]; then
+        hermes gateway install --start-on-login --start-now && log "hermes: gateway instalado como serviço"
+      elif [ "${TELEGRAM_CHANGED:-0}" = 1 ] || [ "$HERMES_RESTART" = 1 ]; then
+        hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true
+        log "hermes: gateway reiniciado (configuração mudou)"
+      else
+        log "hermes: gateway já instalado"
+      fi
     else
       log "hermes: Telegram desligado (opcional; para ligar: ./install.sh --telegram)"
     fi

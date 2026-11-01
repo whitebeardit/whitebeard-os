@@ -207,7 +207,12 @@ def main() -> int:
         tenant_mcp.append({"name": "knowledge", "transport": "http", "url": "http://127.0.0.1:3131/mcp",
                            "headers": {"Authorization": "Bearer ${GBRAIN_MCP_TOKEN}"}})
     servers = tenant_mcp if "desktop" in roles else []
-    if servers:
+    # o que o kernel registrou numa execução anterior e saiu do tenant é removido (nunca o que a pessoa
+    # adicionou à mão: só nomes que estiveram nesta lista); vale também quando a lista ficou vazia
+    names_file = home / "render" / "claude-mcp.names"
+    previous = names_file.read_text(encoding="utf-8").split() if names_file.is_file() else []
+    stale = [n for n in previous if n not in {m["name"] for m in servers}]
+    if servers or stale:
         mcp = [
             "#!/bin/sh",
             f"# gerado pelo whitebeard-os a partir de {tenant_path}; idempotente",
@@ -217,12 +222,8 @@ def main() -> int:
             "set +a",
             "",
         ]
-        # o que o kernel registrou numa execução anterior e saiu do tenant é removido (nunca o que a pessoa
-        # adicionou à mão: só nomes que estiveram nesta lista)
-        names_file = home / "render" / "claude-mcp.names"
-        previous = names_file.read_text(encoding="utf-8").split() if names_file.is_file() else []
-        for stale in [n for n in previous if n not in {m["name"] for m in servers}]:
-            mcp.append(f"claude mcp remove --scope user {sq(stale)} >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s removido (saiu do tenant)\\n' {sq(stale)} || true")
+        for n in stale:
+            mcp.append(f"claude mcp remove --scope user {sq(n)} >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s removido (saiu do tenant)\\n' {sq(n)} || true")
         for m in servers:
             name = m["name"]
             mcp.append(f"claude mcp remove --scope user {sq(name)} >/dev/null 2>&1 || true")

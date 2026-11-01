@@ -330,7 +330,7 @@ install_web() {
 ensure_web_tls() {
   tls_dir="$JARVIS_HOME/tls"
   # TLS_GEN muda quando a forma de gerar muda: o certificado antigo é refeito uma vez
-  TLS_GEN=2
+  TLS_GEN=3
   if [ -s "$tls_dir/jarvis-web.crt" ] && [ -s "$tls_dir/jarvis-web.key" ] && [ "$(cat "$tls_dir/GEN" 2>/dev/null)" = "$TLS_GEN" ]; then return 0; fi
   have openssl || { log "web: openssl ausente; JARVIS Web fica em HTTP (sem microfone fora do localhost)"; return 1; }
   mkdir -p "$tls_dir"
@@ -339,8 +339,10 @@ ensure_web_tls() {
   for ip in $(hostname -I 2>/dev/null || ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" {print $2}'); do
     case "$ip" in 10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) san="$san,IP:$ip" ;; esac
   done
-  # 820 dias: Safari e iOS recusam certificados de servidor com mais de 825 dias, mesmo confiados à mão
-  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -sha256 -days 820 \
+  # 820 dias: Safari e iOS recusam certificados de servidor com mais de 825 dias, mesmo confiados à mão.
+  # ec_param_enc:named_curve é obrigatório: o LibreSSL do macOS gera a chave EC com parâmetros explícitos,
+  # que Chrome (BoringSSL) e o próprio LibreSSL rejeitam no handshake TLS 1.3 ("decode error").
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -pkeyopt ec_param_enc:named_curve -nodes -sha256 -days 820 \
     -subj "/CN=jarvis-web" -addext "subjectAltName=$san" \
     -keyout "$tls_dir/jarvis-web.key" -out "$tls_dir/jarvis-web.crt" >/dev/null 2>&1 || { log "web: falha ao gerar certificado; fica em HTTP"; return 1; }
   chmod 600 "$tls_dir/jarvis-web.key"

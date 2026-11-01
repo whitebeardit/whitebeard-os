@@ -52,11 +52,13 @@ Conferir:
 ```sh
 launchctl print "gui/$(id -u)/dev.whitebeard.jarvis-web" | head -n 5
 tail -n 5 "$JARVIS_HOME/logs/jarvis-web.log"
-open "http://localhost:8017/?token=$(python3 -c 'import json,os;print(json.load(open(os.environ["JARVIS_DATA"]+"/jarvis-web.json"))["token"])')"
+open "https://localhost:8017/?token=$(python3 -c 'import json,os;print(json.load(open(os.environ["JARVIS_DATA"]+"/jarvis-web.json"))["token"])')"
 ```
 
-Esperado: a UI abre no Safari com o tenant de exemplo (painéis vazios, sem erro); no celular, o mesmo
-endereço com o IP do Mac. Se o clone falhar por chave SSH, o bootstrap para com a mensagem
+Esperado: o Safari avisa que o certificado é autoassinado (aceite: é o `$JARVIS_HOME/tls/jarvis-web.crt`
+gerado na instalação) e a UI abre com o tenant de exemplo (painéis vazios, sem erro). No celular: envie o
+`.crt` por AirDrop, instale o perfil e marque-o como confiável em Ajustes → Geral → Sobre → Certificados;
+depois abra o mesmo endereço com o IP do Mac. O microfone só funciona em HTTPS. Se o clone falhar por chave SSH, o bootstrap para com a mensagem
 `web: clone falhou`; rode de novo depois de cadastrar a chave, ou `--skip web` para seguir sem a UI.
 
 ## 4. Opcional: Hermes

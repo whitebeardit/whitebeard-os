@@ -64,7 +64,8 @@ Versão `0.2.0-dev`. Os três papéis instalam a partir do mesmo bootstrap:
 - **knowledge**: compose com GBrain (tag fixa), pgvector e Ollama, portas só em localhost, senha e token
   gerados na instalação. O CI valida o compose e sobe o banco até ficar saudável.
 
-`satelite` (Hermes perfil + MCP em outra máquina) e JARVIS Web com TLS local vêm a seguir. Validação de
+`satelite` (Hermes perfil + MCP em outra máquina) vem a seguir; o JARVIS Web já entra no papel desktop,
+com TLS local, a partir do branch do app fixado no lockfile. Validação de
 referência: tenant fictício `tenants/exemplo`, que é também o ponto de partida de um usuário novo.
 
 ## Instalação em um comando (host zerado)
@@ -95,7 +96,8 @@ cd ~/DEV/whitebeard-os
 
 Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`). O CI roda com
 `--skip web` porque o repositório do app é privado e o runner não tem a chave; num host seu, o JARVIS Web
-entra no papel desktop e sobe em `http://localhost:8017` (token em `$JARVIS_DATA/jarvis-web.json`).
+entra no papel desktop e sobe em `https://localhost:8017` (token em `$JARVIS_DATA/jarvis-web.json`; certificado
+autoassinado em `~/.jarvis/tls`, que o celular instala para liberar o microfone).
 
 O bootstrap é idempotente e só escreve dentro de `$HOME`:
 
@@ -105,6 +107,7 @@ O bootstrap é idempotente e só escreve dentro de `$HOME`:
 | `$JARVIS_DATA` (`dados:` do tenant, padrão `~/.jarvis/data`) | dados do tenant: posts, métricas, contratos, registros e token do JARVIS Web | todos |
 | `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | todos |
 | `~/.jarvis/app/jarvis-web/` | app JARVIS Web na ref do lockfile, construído; serviço `jarvis-web` (systemd de usuário) ou LaunchAgent `dev.whitebeard.jarvis-web` lendo `profile.env` | desktop |
+| `~/.jarvis/tls/` | certificado autoassinado do JARVIS Web (SAN: localhost, host, IPs); o serviço sobe em HTTPS | desktop |
 | `~/.nvm/` | Node na versão do lockfile; `paperclipai` instalado nele | todos / core |
 | `~/.claude/skills/<nome>`, `~/.claude.json` | links para as skills; servidores MCP do tenant | desktop |
 | `~/.hermes/` | Hermes upstream (tag fixa); `config.yaml` inicial e `.env` do tenant, sem sobrescrever | core (ou `--with-hermes`) |

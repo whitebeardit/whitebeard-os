@@ -324,9 +324,38 @@ install_web() {
   install_web_service "$app" "$node_bin"
 }
 
+# Certificado autoassinado para o JARVIS Web na LAN (o microfone no celular exige HTTPS). Gerado uma
+# vez em $JARVIS_HOME/tls com SAN para localhost, o nome do host e os IPs atuais; o celular confia nele
+# instalando o .crt (docs/validacao-macos.md). Sem openssl, o serviço fica em HTTP e o bootstrap avisa.
+ensure_web_tls() {
+  tls_dir="$JARVIS_HOME/tls"
+  if [ -s "$tls_dir/jarvis-web.crt" ] && [ -s "$tls_dir/jarvis-web.key" ]; then return 0; fi
+  have openssl || { log "web: openssl ausente; JARVIS Web fica em HTTP (sem microfone fora do localhost)"; return 1; }
+  mkdir -p "$tls_dir"
+  san="DNS:localhost,DNS:$(hostname),IP:127.0.0.1"
+  for ip in $(hostname -I 2>/dev/null || ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" {print $2}'); do
+    case "$ip" in *.*.*.*) san="$san,IP:$ip" ;; esac
+  done
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
+    -subj "/CN=jarvis-web" -addext "subjectAltName=$san" \
+    -keyout "$tls_dir/jarvis-web.key" -out "$tls_dir/jarvis-web.crt" >/dev/null 2>&1 || { log "web: falha ao gerar certificado; fica em HTTP"; return 1; }
+  chmod 600 "$tls_dir/jarvis-web.key"
+  log "web: certificado TLS gerado em $tls_dir (SAN: $san)"
+}
+
 install_web_service() {
   app=$1
   node_bin=$2
+  tls_env=""
+  tls_xml=""
+  proto=http
+  if ensure_web_tls; then
+    proto=https
+    tls_env="Environment=JARVIS_WEB_TLS_CERT=$JARVIS_HOME/tls/jarvis-web.crt
+Environment=JARVIS_WEB_TLS_KEY=$JARVIS_HOME/tls/jarvis-web.key"
+    tls_xml="      <key>JARVIS_WEB_TLS_CERT</key><string>$JARVIS_HOME/tls/jarvis-web.crt</string>
+      <key>JARVIS_WEB_TLS_KEY</key><string>$JARVIS_HOME/tls/jarvis-web.key</string>"
+  fi
   case "$OS" in
     Linux)
       unit_dir="$HOME/.config/systemd/user"
@@ -339,6 +368,7 @@ After=network.target
 [Service]
 EnvironmentFile=$JARVIS_HOME/profile.env
 Environment=JARVIS_WEB_PORT=$JARVIS_WEB_PORT
+$tls_env
 WorkingDirectory=$app
 ExecStart=$node_bin $app/server/web.cjs
 Restart=on-failure
@@ -351,7 +381,7 @@ EOF
         log "web: unidade escrita em $unit_dir/jarvis-web.service (--no-start). Depois: systemctl --user enable --now jarvis-web"
         return 0
       fi
-      systemctl --user daemon-reload && systemctl --user enable --now jarvis-web.service && log "web: serviço jarvis-web ativo em http://localhost:$JARVIS_WEB_PORT"
+      systemctl --user daemon-reload && systemctl --user enable --now jarvis-web.service && log "web: serviço jarvis-web ativo em $proto://localhost:$JARVIS_WEB_PORT"
       ;;
     Darwin)
       plist="$HOME/Library/LaunchAgents/dev.whitebeard.jarvis-web.plist"
@@ -368,6 +398,7 @@ EOF
   <key>EnvironmentVariables</key><dict>
 $env_xml
       <key>JARVIS_WEB_PORT</key><string>$JARVIS_WEB_PORT</string>
+$tls_xml
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -381,7 +412,7 @@ EOF
         return 0
       fi
       launchctl bootout "gui/$(id -u)/dev.whitebeard.jarvis-web" 2>/dev/null || true
-      launchctl bootstrap "gui/$(id -u)" "$plist" && log "web: LaunchAgent ativo em http://localhost:$JARVIS_WEB_PORT"
+      launchctl bootstrap "gui/$(id -u)" "$plist" && log "web: LaunchAgent ativo em $proto://localhost:$JARVIS_WEB_PORT"
       ;;
   esac
 }
@@ -412,7 +443,10 @@ doctor() {
   if have hermes; then log "hermes: $(hermes --version 2>/dev/null | head -1)"; fi
   if has_role core && [ -s "$NVM_DIR/nvm.sh" ]; then log "paperclip: $(with_node 'paperclipai -V 2>/dev/null' | tail -n 1)"; fi
   if has_role knowledge && have docker; then log "knowledge: $(docker compose --project-directory "$JARVIS_HOME/compose/knowledge" ps --format '{{.Name}}={{.State}}' 2>/dev/null | tr '\n' ' ')"; fi
-  if has_role desktop && [ -f "$JARVIS_HOME/app/jarvis-web/dist/index.html" ]; then log "web: JARVIS Web em http://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json)"; fi
+  if has_role desktop && [ -f "$JARVIS_HOME/app/jarvis-web/dist/index.html" ]; then
+    p=http; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && p=https
+    log "web: JARVIS Web em $p://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json; certificado em \$JARVIS_HOME/tls)"
+  fi
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
 }

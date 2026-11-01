@@ -161,11 +161,17 @@ def main() -> int:
     vault = data.get("vault") or {}
     if vault.get("path"):
         vault_path = str(user_home / vault["path"])
+    # pasta de dados do tenant: `dados` (relativa a $HOME) ou $JARVIS_HOME/data; o JARVIS Web e as
+    # skills leem $JARVIS_DATA, nunca um nome fixo
+    data_dir = str(user_home / data["dados"]) if data.get("dados") else str(home / "data")
+    if not args.dry_run:
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
     profile = [
         f"# gerado pelo whitebeard-os para o tenant {tenant}; não editar (re-rode o bootstrap)",
         f"export JARVIS_HOME={sq(str(home))}",
         f"export JARVIS_TENANT={sq(tenant)}",
         f"export JARVIS_ROLE={sq(role_label)}",
+        'export JARVIS_DATA="${JARVIS_DATA:-' + data_dir + '}"',
     ]
     if vault_path:
         profile.append('export VAULT_PATH="${VAULT_PATH:-' + vault_path + '}"')
@@ -297,6 +303,7 @@ def main() -> int:
     ]
     if vault_path:
         summary.append(f"[whitebeard-os] vault: {vault_path}" + ("" if Path(vault_path).exists() else " (ainda não clonado)"))
+    summary.append(f"[whitebeard-os] dados: {data_dir}")
     if "knowledge" in roles:
         summary.append(f"[whitebeard-os] knowledge: compose em {home / 'compose' / 'knowledge'}; GBrain {versions.get('GBRAIN_REF', '?')}, embeddings {versions.get('EMBED_MODEL', '?')}")
     if not_linked:

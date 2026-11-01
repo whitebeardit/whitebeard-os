@@ -4,21 +4,51 @@
   "title": "jarvis.yaml — declaração de tenant do Whitebeard OS",
   "description": "Tudo que é identidade do tenant entra aqui. Segredos nunca entram como valor: use ${NOME} e declare em `segredos`.",
   "type": "object",
-  "required": ["tenant", "idioma"],
+  "required": [
+    "tenant",
+    "idioma"
+  ],
   "additionalProperties": false,
   "$defs": {
-    "papel": { "enum": ["desktop", "core", "satelite", "knowledge"] },
-    "papeis": { "type": "array", "items": { "$ref": "#/$defs/papel" }, "uniqueItems": true },
+    "papel": {
+      "enum": [
+        "desktop",
+        "core",
+        "satelite",
+        "knowledge"
+      ]
+    },
+    "papeis": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/papel"
+      },
+      "uniqueItems": true
+    },
     "segredo": {
       "type": "object",
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
-        "description": { "type": "string" },
-        "required": { "type": "boolean", "default": false },
-        "obtain": { "type": "string" },
-        "roles": { "$ref": "#/$defs/papeis" }
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "obtain": {
+          "type": "string"
+        },
+        "roles": {
+          "$ref": "#/$defs/papeis"
+        }
       }
     }
   },
@@ -28,39 +58,120 @@
       "pattern": "^[a-z][a-z0-9-]{1,30}$",
       "description": "identificador curto, minúsculo; vira $JARVIS_TENANT"
     },
-    "idioma": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+    "idioma": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+    },
     "aceleracao": {
-      "enum": ["auto", "cpu", "cuda", "metal", "vulkan"],
+      "enum": [
+        "auto",
+        "cpu",
+        "cuda",
+        "metal",
+        "vulkan"
+      ],
       "default": "auto",
       "description": "GPU é opcional e nunca obrigatória. `auto` detecta na instalação (CUDA em Linux/NVIDIA, Metal em Apple Silicon, Vulkan genérico) e cai para CPU se não houver"
+    },
+    "dados": {
+      "type": "string",
+      "description": "pasta de dados do tenant (posts, métricas, contratos, registros do JARVIS Web), relativa a $HOME; vira $JARVIS_DATA. Padrão: $JARVIS_HOME/data"
     },
     "vault": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repo": { "type": "string", "description": "remoto git do second brain" },
-        "path": { "type": "string", "description": "pasta local, relativa a $HOME" }
+        "repo": {
+          "type": "string",
+          "description": "remoto git do second brain"
+        },
+        "path": {
+          "type": "string",
+          "description": "pasta local, relativa a $HOME"
+        }
       }
     },
     "mcp": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "transport"],
+        "required": [
+          "name",
+          "transport"
+        ],
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-          "transport": { "enum": ["http", "sse", "stdio"] },
-          "url": { "type": "string" },
-          "command": { "type": "string" },
-          "args": { "type": "array", "items": { "type": "string" } },
-          "env": { "type": "object", "additionalProperties": { "type": "string" } },
-          "headers": { "type": "object", "additionalProperties": { "type": "string" } },
-          "roles": { "$ref": "#/$defs/papeis" }
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "transport": {
+            "enum": [
+              "http",
+              "sse",
+              "stdio"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "roles": {
+            "$ref": "#/$defs/papeis"
+          }
         },
         "allOf": [
-          { "if": { "properties": { "transport": { "enum": ["http", "sse"] } } }, "then": { "required": ["url"] } },
-          { "if": { "properties": { "transport": { "const": "stdio" } } }, "then": { "required": ["command"] } }
+          {
+            "if": {
+              "properties": {
+                "transport": {
+                  "enum": [
+                    "http",
+                    "sse"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "url"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "transport": {
+                  "const": "stdio"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "command"
+              ]
+            }
+          }
         ]
       }
     },
@@ -69,7 +180,15 @@
       "additionalProperties": false,
       "description": "grupos de arquivos que podem ficar fora de um export (wb_export.py --sem grupo); globs relativos a cada store",
       "properties": {
-        "grupos": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } }
+        "grupos": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     },
     "decisoes": {
@@ -77,9 +196,28 @@
       "additionalProperties": false,
       "description": "camada de decisão do kernel (rotear, classificar, guardrails). O provedor é escolha do tenant; `regras` e `llm` funcionam sem terceiros",
       "properties": {
-        "provider": { "enum": ["regras", "llm", "jev"], "default": "regras" },
-        "limiar_confianca": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.85, "description": "abaixo disso a decisão escala para o LLM ou para o humano" },
-        "perfis_excluidos": { "type": "array", "items": { "type": "string" }, "description": "perfis cujo conteúdo nunca é enviado a provedor externo" }
+        "provider": {
+          "enum": [
+            "regras",
+            "llm",
+            "jev"
+          ],
+          "default": "regras"
+        },
+        "limiar_confianca": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.85,
+          "description": "abaixo disso a decisão escala para o LLM ou para o humano"
+        },
+        "perfis_excluidos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "perfis cujo conteúdo nunca é enviado a provedor externo"
+        }
       }
     },
     "skills": {
@@ -88,40 +226,82 @@
       "properties": {
         "packs": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "pastas com skills (cada uma com SKILL.md), relativas ao jarvis.yaml"
         }
       }
     },
-    "segredos": { "type": "array", "items": { "$ref": "#/$defs/segredo" } },
+    "segredos": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/segredo"
+      }
+    },
     "hermes": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "provider": { "type": "string" },
-        "model": { "type": "string" },
-        "fallback": { "type": "string" }
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "fallback": {
+          "type": "string"
+        }
       }
     },
     "telegram": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "bot": { "type": "string", "pattern": "^@[A-Za-z0-9_]+$" },
-        "home_chat": { "type": "string", "pattern": "^\\$\\{[A-Z][A-Z0-9_]*\\}$", "description": "sempre por variável" }
+        "bot": {
+          "type": "string",
+          "pattern": "^@[A-Za-z0-9_]+$"
+        },
+        "home_chat": {
+          "type": "string",
+          "pattern": "^\\$\\{[A-Z][A-Z0-9_]*\\}$",
+          "description": "sempre por variável"
+        }
       }
     },
     "perfis": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["nome", "tipo"],
+        "required": [
+          "nome",
+          "tipo"
+        ],
         "additionalProperties": false,
         "properties": {
-          "nome": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "tipo": { "enum": ["pessoal", "grupo-cliente", "grupo-interno", "servico"] },
-          "chat_id": { "type": "string", "pattern": "^\\$\\{[A-Z][A-Z0-9_]*\\}$", "description": "sempre por variável" },
-          "skills": { "type": "array", "items": { "type": "string" } }
+          "nome": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "tipo": {
+            "enum": [
+              "pessoal",
+              "grupo-cliente",
+              "grupo-interno",
+              "servico"
+            ]
+          },
+          "chat_id": {
+            "type": "string",
+            "pattern": "^\\$\\{[A-Z][A-Z0-9_]*\\}$",
+            "description": "sempre por variável"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -129,13 +309,26 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["nome", "agenda"],
+        "required": [
+          "nome",
+          "agenda"
+        ],
         "additionalProperties": false,
         "properties": {
-          "nome": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-          "agenda": { "type": "string", "description": "expressão cron de 5 campos" },
-          "prompt": { "type": "string" },
-          "perfil": { "type": "string" }
+          "nome": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "agenda": {
+            "type": "string",
+            "description": "expressão cron de 5 campos"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "perfil": {
+            "type": "string"
+          }
         }
       }
     },
@@ -143,12 +336,20 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "string" },
-          "skill": { "type": "string" },
-          "aws_profile": { "type": "string" }
+          "id": {
+            "type": "string"
+          },
+          "skill": {
+            "type": "string"
+          },
+          "aws_profile": {
+            "type": "string"
+          }
         }
       }
     },
@@ -158,11 +359,29 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "anyOf": [{ "required": ["papel"] }, { "required": ["papeis"] }],
+        "anyOf": [
+          {
+            "required": [
+              "papel"
+            ]
+          },
+          {
+            "required": [
+              "papeis"
+            ]
+          }
+        ],
         "properties": {
-          "host": { "type": "string", "description": "`local` (padrão) ou nome/endereço de outra máquina" },
-          "papel": { "$ref": "#/$defs/papel" },
-          "papeis": { "$ref": "#/$defs/papeis" }
+          "host": {
+            "type": "string",
+            "description": "`local` (padrão) ou nome/endereço de outra máquina"
+          },
+          "papel": {
+            "$ref": "#/$defs/papel"
+          },
+          "papeis": {
+            "$ref": "#/$defs/papeis"
+          }
         }
       }
     }

@@ -49,7 +49,8 @@ Ollama e Whisper rodam nativos e o compose aponta para eles.
 
 A interface gráfica do produto é **uma só: JARVIS Web**, servida pelo próprio host e aberta no browser
 (`http://localhost:8017`; na LAN ou no celular com TLS local). Não há app Electron no produto: mesma UI, sem
-empacotamento nem assinatura por sistema operacional.
+empacotamento nem assinatura por sistema operacional. O app lê as pastas pelo mesmo contrato do `profile.sh`
+(`JARVIS_HOME`, `JARVIS_DATA`, `HERMES_HOME`, `VAULT_PATH`), sem nome de tenant no código.
 
 ## Estado
 
@@ -99,6 +100,7 @@ O bootstrap é idempotente e só escreve dentro de `$HOME`:
 | Onde | O quê | Papel |
 | --- | --- | --- |
 | `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/ffmpeg-*`, `compose/knowledge/` | todos |
+| `$JARVIS_DATA` (`dados:` do tenant, padrão `~/.jarvis/data`) | dados do tenant: posts, métricas, contratos, registros e token do JARVIS Web | todos |
 | `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | todos |
 | `~/.nvm/` | Node na versão do lockfile; `paperclipai` instalado nele | todos / core |
 | `~/.claude/skills/<nome>`, `~/.claude.json` | links para as skills; servidores MCP do tenant | desktop |
@@ -134,7 +136,7 @@ uv run kernel/bin/wb_export.py --sem financeiro          # bundle .tar.gz (modo 
 uv run kernel/bin/wb_import.py whitebeard-export-*.tar.gz
 ```
 
-Stores: `jarvis` (`$JARVIS_HOME` sem o que é regenerável), `hermes` (sem código, caches e tokens por máquina),
+Stores: `jarvis` (`$JARVIS_HOME` sem o que é regenerável), `dados` (`$JARVIS_DATA`, sem os tokens por máquina), `hermes` (sem código, caches e tokens por máquina),
 `paperclip` (config, arquivos e o backup de banco mais recente), `knowledge` (dump do Postgres e home do GBrain,
 se o compose estiver no ar), `claude` (configurações) e `vault` (só referência ao git, ou conteúdo com
 `--with-vault`). Segredos ficam de fora por padrão (`--with-secrets` para incluir); o import nunca sobrescreve
@@ -143,8 +145,8 @@ se o compose estiver no ar), `claude` (configurações) e `vault` (só referênc
 
 ## O que entra no `jarvis.yaml`
 
-Parâmetros do tenant: identificador, idioma, vault, servidores MCP, pacotes de skills, modelo do Hermes,
-perfis, crons, serviços monitorados, nós. Segredos **nunca** entram no yaml: entram como `${NOME}` e são
+Parâmetros do tenant: identificador, idioma, pasta de dados (`dados`), vault, servidores MCP, pacotes de
+skills, modelo do Hermes, perfis, crons, serviços monitorados, nós. Segredos **nunca** entram no yaml: entram como `${NOME}` e são
 preenchidos em `secrets.env` a partir do manifesto. Esquema completo em `kernel/schema/jarvis.schema.json`;
 exemplo em `tenants/exemplo/jarvis.yaml`.
 

@@ -6,6 +6,7 @@
 
 Stores e destino:
   jarvis     → $JARVIS_HOME (mescla; nunca sobrescreve secrets.env existente)
+  dados      → $JARVIS_DATA (mescla; nunca sobrescreve tokens por máquina existentes)
   hermes     → $HERMES_HOME (mescla; nunca sobrescreve .env existente)
   paperclip  → ~/.paperclip/instances/<id>: config.json e data/storage/; o backup de banco vai para
                data/backups/ e precisa ser restaurado com o Paperclip parado (instruções no fim)
@@ -28,7 +29,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-NEVER_OVERWRITE = {"jarvis/secrets.env", "hermes/.env"}
+NEVER_OVERWRITE = {"jarvis/secrets.env", "hermes/.env", "dados/jarvis-web.json", "dados/paperclip-board-key", "dados/instagram.json"}
 CLAUDE_NO_OVERWRITE = {"claude/settings.json", "claude/CLAUDE.md", "claude/keybindings.json"}
 
 
@@ -45,6 +46,7 @@ def main() -> int:
     ap.add_argument("bundle")
     ap.add_argument("--jarvis-home", default=os.environ.get("JARVIS_HOME", str(Path.home() / ".jarvis")))
     ap.add_argument("--hermes-home", default=os.environ.get("HERMES_HOME", str(Path.home() / ".hermes")))
+    ap.add_argument("--data-home", default=os.environ.get("JARVIS_DATA"), help="pasta de dados do tenant (padrão: $JARVIS_DATA do profile.sh ou $JARVIS_HOME/data)")
     ap.add_argument("--paperclip-home", default=os.environ.get("PAPERCLIP_HOME", str(Path.home() / ".paperclip")))
     ap.add_argument("--instance", default="default")
     ap.add_argument("--only", default="")
@@ -65,6 +67,7 @@ def main() -> int:
     only = {s.strip() for s in a.only.split(",") if s.strip()}
     dest_root = {
         "jarvis": Path(a.jarvis_home),
+        "dados": Path(a.data_home) if a.data_home else Path(a.jarvis_home) / "data",
         "hermes": Path(a.hermes_home),
         "paperclip": Path(a.paperclip_home) / "instances" / a.instance,
         "claude": Path.home() / ".claude",

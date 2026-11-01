@@ -44,6 +44,19 @@ jobs:
           restore-keys: |
             fbs-${{ inputs.script_tag }}-whisper-${{ inputs.backend }}-${{ runner.os }}-${{ runner.arch }}-
             fbs-v9.0.4-whisper-cpu-Linux-X64-v1
+      - name: ajustes no script para o link estático do whisper em Linux
+        working-directory: ${{ runner.temp }}/fbs
+        run: |
+          # 1) libggml-cpu.a usa OpenMP (GGML_OPENMP é ON com GCC) e o whisper.pc gerado não lista -lgomp
+          #    nem as libs de sistema: no link estático o teste do configure falha com símbolos indefinidos.
+          # 2) GGML_NATIVE=OFF: sem -march=native, o binário roda em qualquer x86_64, não só na CPU do runner.
+          f=src/packages/40-audio.sh
+          grep -q 'WHISPER_LIBS+=" -lstdc++"' "$f"
+          sed -i 's/WHISPER_LIBS+=" -lstdc++"/WHISPER_LIBS+=" -lstdc++ -lgomp -lpthread -lm -ldl"/' "$f"
+          grep -q 'DWHISPER_BUILD_TESTS=OFF' "$f"
+          sed -i 's/-DWHISPER_BUILD_TESTS=OFF/-DWHISPER_BUILD_TESTS=OFF -DGGML_NATIVE=OFF/' "$f"
+          grep -n 'lgomp\|GGML_NATIVE' "$f"
+          rm -f packages/whisper.done   # refaz só o whisper (45 s) para o .pc sair com as libs certas
       - name: compilar (estático, LGPL, whisper=${{ inputs.backend }}, sem rav1e)
         working-directory: ${{ runner.temp }}/fbs
         run: SKIPINSTALL=yes ./build-ffmpeg --build --full-static --whisper=${{ inputs.backend }} --disable=rav1e
@@ -56,7 +69,7 @@ jobs:
           echo "== archives"; ls -la workspace/lib/libwhisper* workspace/lib/libggml* 2>/dev/null || true
           log=$(find packages -maxdepth 3 -path '*ffbuild/config.log' | head -n 1)
           echo "== config.log: $log"
-          if [ -n "$log" ]; then grep -n -B2 -A40 'whisper' "$log" | grep -v '^--$' | tail -n 120; fi
+          if [ -n "$log" ]; then awk '/check_pkg_config whisper/{f=1} f{print; n++} n>160{exit}' "$log"; fi
       - name: guardar bibliotecas compiladas (mesmo se falhou)
         if: always() && steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

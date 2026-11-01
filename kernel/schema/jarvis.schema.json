@@ -277,7 +277,8 @@
           "type": "string"
         },
         "fallback": {
-          "type": "string"
+          "type": "string",
+          "description": "modelo reserva como provedor/modelo (ex.: anthropic/claude-haiku-5-5); sem provedor, usa o principal"
         }
       }
     },

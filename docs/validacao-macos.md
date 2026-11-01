@@ -24,7 +24,7 @@ espere terminar e repita o comando. Quando o repositório for público, o mesmo 
 
 Esperado: nenhuma pergunta interativa além do diálogo das Command Line Tools; termina com o bloco
 `---- resumo ----` mostrando uv, node, claude, 1 skill instalada (`exemplo-ola`), 2 MCPs
-(`exemplo_knowledge`, `exemplo_ferramentas`), 0 segredos obrigatórios faltando.
+(`knowledge`, `exemplo_ferramentas`), 0 segredos obrigatórios faltando.
 
 ## 3. Conferir
 
@@ -36,7 +36,7 @@ node -v
 uv --version
 claude --version
 ls -la ~/.claude/skills/exemplo-ola
-claude mcp get exemplo_knowledge
+claude mcp get knowledge
 ls -l ~/.jarvis/secrets.env        # deve ser -rw------- (600)
 ```
 

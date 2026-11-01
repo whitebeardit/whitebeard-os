@@ -8,14 +8,11 @@ interface:
   modulos: [sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera] # os genéricos; instagram, midias, rastreamento, leads, analytics são integrações
 
 vault:
-  repo: git@github.com:exemplo/second-brain.git
-  path: DEV/OBSIDIAN/SecondBrainExemplo # relativo a $HOME
+  path: whitebeard-secondbrain # relativo a $HOME; sem repo:, o instalador cria um second brain local aqui
+  # repo: git@github.com:sua-org/second-brain.git   # opcional: um vault já existente, para clonar
 
 mcp:
-  - name: exemplo_knowledge
-    transport: http
-    url: https://knowledge.exemplo.test/mcp
-    roles: [desktop, core, satelite]
+  # o cérebro local (GBrain do papel knowledge) entra sozinho como MCP `knowledge`; declare aqui só os extras
   - name: exemplo_ferramentas
     transport: stdio
     command: npx

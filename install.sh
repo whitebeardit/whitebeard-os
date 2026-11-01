@@ -6,10 +6,11 @@
 #
 # Variáveis de ambiente (todas opcionais):
 #   WHITEBEARD_OS_DIR    onde clonar (padrão: ~/DEV/whitebeard-os)
-#   WHITEBEARD_OS_REPO   URL git do kernel (padrão: https://github.com/whitebeardit/whitebeard-os.git;
-#                    enquanto o repositório for privado use git@github.com:whitebeardit/whitebeard-os.git)
+#   WHITEBEARD_OS_REPO   URL git do kernel (padrão: https://github.com/whitebeardit/whitebeard-os.git, público)
 #   WHITEBEARD_OS_REF    branch ou tag (padrão: main)
-#   JARVIS_TENANT    caminho do jarvis.yaml (padrão: tenants/exemplo/jarvis.yaml do próprio kernel)
+#   JARVIS_TENANT    tenant: nome (tenants/<nome>/ do kernel), pasta ou caminho do jarvis.yaml
+#                    (padrão: exemplo). O profile.sh exporta o nome do tenant instalado, então
+#                    rodar de novo num terminal com o profile carregado reinstala o mesmo tenant.
 #
 # O que faz: garante git e curl (no macOS instala as Command Line Tools), clona ou atualiza o kernel e
 # chama bootstrap.sh; os papéis vêm de `nos:` do tenant (tudo-em-um por padrão). Idempotente: pode rodar de novo.
@@ -62,8 +63,11 @@ else
   fi
 fi
 
-if [ -z "$JARVIS_TENANT" ]; then JARVIS_TENANT="$WHITEBEARD_OS_DIR/tenants/exemplo/jarvis.yaml"; fi
-[ -f "$JARVIS_TENANT" ] || die "tenant não encontrado: $JARVIS_TENANT"
+tenant="${JARVIS_TENANT:-exemplo}"
+if [ -f "$tenant" ]; then JARVIS_TENANT="$tenant"
+elif [ -f "$tenant/jarvis.yaml" ]; then JARVIS_TENANT="$tenant/jarvis.yaml"
+else JARVIS_TENANT="$WHITEBEARD_OS_DIR/tenants/$tenant/jarvis.yaml"; fi
+[ -f "$JARVIS_TENANT" ] || die "tenant não encontrado: $tenant (nome em tenants/, pasta ou caminho do jarvis.yaml)"
 
 log "bootstrap: papel desktop, tenant $JARVIS_TENANT"
 # stdin de /dev/null: quando este script vem por `curl | sh`, nada abaixo pode ler o próprio script.

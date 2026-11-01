@@ -319,7 +319,7 @@ install_web() {
     git clone -q --depth 1 --branch "$JARVIS_WEB_REF" "$JARVIS_WEB_REPO" "$app" || die "web: clone falhou ($JARVIS_WEB_REPO). Chave SSH com acesso ao repositório do app?"
   fi
   log "web: dependências de runtime e build da UI (sem Electron)"
-  with_node "cd '$app' && npm ci --omit=dev --no-audit --no-fund --loglevel=error && npx vite build --logLevel error" || die "web: build falhou"
+  with_node "cd '$app' && NPM_CONFIG_UPDATE_NOTIFIER=false npm ci --omit=dev --no-audit --no-fund --loglevel=error && npx vite build --logLevel error" || die "web: build falhou"
   node_bin=$(with_node 'command -v node')
   install_web_service "$app" "$node_bin"
 }
@@ -333,8 +333,9 @@ ensure_web_tls() {
   have openssl || { log "web: openssl ausente; JARVIS Web fica em HTTP (sem microfone fora do localhost)"; return 1; }
   mkdir -p "$tls_dir"
   san="DNS:localhost,DNS:$(hostname),IP:127.0.0.1"
+  # só IPs de rede local (RFC 1918): endereços de VPN ou túnel são transitórios e não entram no SAN
   for ip in $(hostname -I 2>/dev/null || ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" {print $2}'); do
-    case "$ip" in *.*.*.*) san="$san,IP:$ip" ;; esac
+    case "$ip" in 10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) san="$san,IP:$ip" ;; esac
   done
   openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
     -subj "/CN=jarvis-web" -addext "subjectAltName=$san" \

@@ -97,7 +97,7 @@ não aparece na tela: fica em `~/.jarvis/logs/`. Tenant de uma empresa: `JARVIS_
 instalação, rode o mesmo comando de novo: é idempotente.
 
 Para desinstalar: `~/DEV/whitebeard-os/uninstall.sh` remove serviços e programas e **mantém** o second brain e o
-`secrets.env` (com `--tudo`, remove também os dois). O Claude Code e o seu login nunca são tocados.
+`secrets.env` (com `--delete-data`, remove também os dois). O Claude Code e o seu login nunca são tocados.
 
 Passo a passo, sem o instalador:
 

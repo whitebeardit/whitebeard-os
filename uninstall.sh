@@ -2,18 +2,18 @@
 # uninstall.sh — desfaz o que o bootstrap.sh instalou nesta máquina, só dentro de $HOME, sem sudo.
 #
 #   ~/DEV/whitebeard-os/uninstall.sh          # para e remove serviços e programas do kernel; MANTÉM os dados
-#   ~/DEV/whitebeard-os/uninstall.sh --tudo   # remove também os dados (irreversível)
+#   ~/DEV/whitebeard-os/uninstall.sh --delete-data   # remove também os dados (irreversível)
 #
 # Dados que o modo padrão mantém: o second brain, secrets.env, a pasta de dados do tenant (token do JARVIS
 # Web, board key), o Paperclip (~/.paperclip: empresas, agentes), o Hermes (~/.hermes: configuração,
-# sessões) e o cérebro (~/.gbrain). Node/nvm fica sempre, a menos que o kernel o tenha instalado e --tudo.
+# sessões) e o cérebro (~/.gbrain). Node/nvm fica sempre, a menos que o kernel o tenha instalado e --delete-data.
 # Nunca tocados: o Claude Code e o seu login, o uv, este clone do kernel.
 # Rodar o install.sh de novo depois refaz tudo; com secrets.env mantido, nada é perguntado.
 set -eu
 
 JARVIS_HOME="${JARVIS_HOME:-$HOME/.jarvis}"
-TUDO=0
-[ "${1:-}" = --tudo ] && TUDO=1
+DELETE_DATA=0
+[ "${1:-}" = --delete-data ] && DELETE_DATA=1
 log() { printf '[whitebeard-os/uninstall] %s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -36,7 +36,7 @@ case "$(uname -s)" in
     for u in jarvis-web hermes-gateway paperclip; do systemctl --user disable --now "$u.service" 2>/dev/null || true; rm -f "$HOME/.config/systemd/user/$u.service"; done
     systemctl --user daemon-reload 2>/dev/null || true
     if have docker && [ -d "$JARVIS_HOME/compose/knowledge" ]; then
-      if [ "$TUDO" = 1 ]; then
+      if [ "$DELETE_DATA" = 1 ]; then
         docker compose --project-directory "$JARVIS_HOME/compose/knowledge" down -v >/dev/null 2>&1 && log "knowledge: containers e volumes removidos" || true
       else
         docker compose --project-directory "$JARVIS_HOME/compose/knowledge" down >/dev/null 2>&1 && log "knowledge: containers parados (volumes mantidos)" || true
@@ -65,7 +65,7 @@ done
 # ---- o que se guarda do $JARVIS_HOME antes de removê-lo
 keep=$(mktemp -d)
 [ -f "$JARVIS_HOME/.nvm-instalado-pelo-kernel" ] && : > "$keep/.nvm-instalado-pelo-kernel"
-if [ "$TUDO" != 1 ]; then
+if [ "$DELETE_DATA" != 1 ]; then
   [ -f "$JARVIS_HOME/secrets.env" ] && cp -p "$JARVIS_HOME/secrets.env" "$keep/secrets.env"
   # pasta de dados padrão mora dentro de $JARVIS_HOME; a do tenant (dados:) mora fora e não é tocada
   case "$data" in "$JARVIS_HOME"/*) [ -d "$data" ] && cp -Rp "$data" "$keep/data" ;; esac
@@ -75,7 +75,7 @@ fi
 rm -rf "$JARVIS_HOME"
 rm -f "$HOME/.local/bin/ffmpeg" "$HOME/.local/bin/ffprobe" "$HOME/.local/bin/hermes" "$HOME/.local/bin/gbrain"
 # atalho da loja gerenciada do Paperclip (paperclipai install) que ficaria sem alvo
-if [ "$TUDO" = 1 ] && [ -f "$HOME/.local/bin/paperclipai" ] && grep -q "managed install shim" "$HOME/.local/bin/paperclipai" 2>/dev/null; then rm -f "$HOME/.local/bin/paperclipai"; fi
+if [ "$DELETE_DATA" = 1 ] && [ -f "$HOME/.local/bin/paperclipai" ] && grep -q "managed install shim" "$HOME/.local/bin/paperclipai" 2>/dev/null; then rm -f "$HOME/.local/bin/paperclipai"; fi
 # linha do profile nos rc (marcador "# whitebeard-os", o mesmo que o install_rc escreve)
 for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.zprofile" "$HOME/.profile"; do
   [ -f "$rc" ] || continue
@@ -92,7 +92,7 @@ PY
 done
 
 # ---- dados
-if [ "$TUDO" = 1 ]; then
+if [ "$DELETE_DATA" = 1 ]; then
   rm -rf "$HOME/.hermes" "$HOME/.paperclip" "$HOME/.gbrain"
   [ -n "$data" ] && rm -rf "$data"
   if [ -n "$vault" ] && [ -d "$vault" ]; then rm -rf "$vault"; log "second brain removido: $vault"; fi
@@ -108,7 +108,7 @@ else
   mkdir -p "$JARVIS_HOME"
   [ -f "$keep/secrets.env" ] && cp -p "$keep/secrets.env" "$JARVIS_HOME/secrets.env"
   [ -d "$keep/data" ] && cp -Rp "$keep/data" "$data"
-  log "mantidos: secrets.env$( [ -n "$data" ] && printf ', dados em %s' "$data" ), ~/.paperclip, ~/.hermes, ~/.gbrain$( [ -n "$vault" ] && printf ', second brain em %s' "$vault" ) (use --tudo para remover)"
+  log "mantidos: secrets.env$( [ -n "$data" ] && printf ', dados em %s' "$data" ), ~/.paperclip, ~/.hermes, ~/.gbrain$( [ -n "$vault" ] && printf ', second brain em %s' "$vault" ) (use --delete-data para remover)"
 fi
 rm -rf "$keep"
 log "pronto. Nunca tocados: Claude Code e seu login, uv, este clone."

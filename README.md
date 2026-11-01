@@ -53,10 +53,18 @@ empacotamento nem assinatura por sistema operacional.
 
 ## Estado
 
-Versão `0.1.0`. Papel implementado: **desktop** (Linux x86_64 e macOS). Os papéis `core` e `knowledge`
-(mesmo host, compose) vêm na `0.2`; `satelite` (Hermes perfil + MCP em outra máquina) depois. Validação de
-referência: CI em Ubuntu 24.04 e macOS, com o tenant fictício `tenants/exemplo`, que é também o ponto de
-partida de um usuário novo.
+Versão `0.2.0-dev`. Os três papéis instalam a partir do mesmo bootstrap:
+
+- **desktop**: provado em CI (Ubuntu 24.04 e macOS) e em Ubuntu descartável; aguardando validação no Mac físico.
+- **core**: Paperclip fixado no lockfile e instalado pelo npm do Node 24; Hermes upstream instalado por
+  padrão; serviços de usuário registrados pelos próprios CLIs (`paperclipai onboard --install-service`,
+  `hermes gateway install`). O CI prova instalação e renderização (`--no-start`); subir os serviços se prova
+  no Mac físico.
+- **knowledge**: compose com GBrain (tag fixa), pgvector e Ollama, portas só em localhost, senha e token
+  gerados na instalação. O CI valida o compose e sobe o banco até ficar saudável.
+
+`satelite` (Hermes perfil + MCP em outra máquina) e JARVIS Web com TLS local vêm a seguir. Validação de
+referência: tenant fictício `tenants/exemplo`, que é também o ponto de partida de um usuário novo.
 
 ## Instalação em um comando (host zerado)
 
@@ -79,34 +87,38 @@ Passo a passo, sem o instalador:
 
 ```sh
 cd ~/DEV/whitebeard-os
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run   # só valida e mostra o plano
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml             # instala o papel desktop
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run                   # só valida e mostra o plano
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml                             # papel desktop
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # tudo-em-um
 ```
 
-Opções em `./bootstrap.sh --help` (`--with-hermes`, `--skip`, `--home`).
+Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`).
 
 O bootstrap é idempotente e só escreve dentro de `$HOME`:
 
-| Onde | O quê |
-| --- | --- |
-| `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (modo 600), `profile.sh`, `render/`, `skills/` |
-| `~/.local/bin/` | `uv`, `claude` |
-| `~/.nvm/` | Node na versão do lockfile |
-| `~/.claude/skills/<nome>` | links para `$JARVIS_HOME/skills/<nome>` |
-| `~/.claude.json` | servidores MCP declarados no tenant (via `claude mcp add`) |
-| `~/.zshrc` / `~/.bashrc` | uma linha: `. "$JARVIS_HOME/profile.sh"` |
-| `~/.hermes/` | só com `--with-hermes` (instalador upstream, tag do lockfile) |
+| Onde | O quê | Papel |
+| --- | --- | --- |
+| `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/ffmpeg-*`, `compose/knowledge/` | todos |
+| `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | todos |
+| `~/.nvm/` | Node na versão do lockfile; `paperclipai` instalado nele | todos / core |
+| `~/.claude/skills/<nome>`, `~/.claude.json` | links para as skills; servidores MCP do tenant | desktop |
+| `~/.hermes/` | Hermes upstream (tag fixa); `config.yaml` inicial e `.env` do tenant, sem sobrescrever | core (ou `--with-hermes`) |
+| `~/.paperclip/` | instância do Paperclip (Postgres embutido) criada por `paperclipai onboard` | core |
+| Docker | projeto `whitebeard-knowledge`: GBrain, pgvector, Ollama, volumes próprios | knowledge |
+| `~/.zshrc` / `~/.bashrc` | uma linha: `. "$JARVIS_HOME/profile.sh"` | todos |
 
 ## Layout
 
 ```
-bootstrap.sh                 entrada única (POSIX sh; Linux e macOS)
+bootstrap.sh                 entrada única (POSIX sh; Linux e macOS); --role desktop,core,knowledge
+install.sh                   instalação em um comando (clona o kernel e chama o bootstrap)
 kernel/
-  versions.env               lockfile: node, nvm, uv, Claude Code, Hermes
+  versions.env               lockfile: node, nvm, uv, Claude Code, Hermes, Paperclip, GBrain, imagens, FFmpeg
   schema/jarvis.schema.json  contrato do jarvis.yaml
   secrets/manifest.yaml      segredos do kernel: nome, papel, como obter (nunca valores)
-  bin/jarvis_render.py       valida o tenant e gera secrets.env, profile.sh, MCP, skills
+  bin/jarvis_render.py       valida o tenant e gera secrets.env, profile.sh, MCP, skills, hermes/, knowledge.env
   bin/privacy_lint.py        falha se houver identidade de tenant, caminho de usuário ou segredo no kernel
+  compose/knowledge/         GBrain + pgvector + Ollama (compose, Dockerfile, entrypoint, sobreposição GPU)
   skills/                    skills do kernel (mecanismo puro)
 tenants/exemplo/             tenant fictício: usado pelo CI e copiado por quem começa do zero
 docs/validacao-macos.md      roteiro de validação no Mac zerado
@@ -125,10 +137,10 @@ exemplo em `tenants/exemplo/jarvis.yaml`.
 | Componente | Licença | Como entra |
 | --- | --- | --- |
 | Hermes Agent (NousResearch) | MIT | instalador upstream em tag fixa |
-| Paperclip | MIT | npm, versão fixa (papel core, próxima versão) |
-| GBrain | MIT | compose (papel knowledge, próxima versão) |
+| Paperclip | MIT | npm, versão fixa, instalado no Node do lockfile (papel core) |
+| GBrain, pgvector, Ollama | MIT (GBrain), PostgreSQL, MIT (Ollama) | compose do papel knowledge; GBrain construído da tag fixa |
 | Claude Code | proprietário (Anthropic) | instalador oficial; cada usuário usa a própria conta |
-| FFmpeg (série 9.0, com filtro Whisper) | LGPL/GPL conforme o build | build estático por SO/arquitetura baixado na instalação (0.2); câmera, áudio e transcrição |
+| FFmpeg 9.0.2 | LGPL (builds estáticos de terceiros fixados por URL) | baixado na instalação para `$JARVIS_HOME/tools`; o bootstrap informa se o build traz o filtro Whisper |
 | Modelos (Anthropic, OpenAI, outros) | contas do usuário | chaves e logins só em `secrets.env` e OAuth local |
 
 ## Licenciamento do produto

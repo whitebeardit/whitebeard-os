@@ -1,0 +1,15 @@
+# GBrain fixado por tag de release (GBRAIN_REF do lockfile). gbrain >= 0.60 exige Bun 1.4+.
+# Upgrade = mudar GBRAIN_REF no lockfile, `docker compose build gbrain`, `up -d gbrain`
+# (o entrypoint aplica migrações). Antes de qualquer upgrade: backup do banco e teste de restore.
+ARG BUN_IMAGE=oven/bun:1.4
+FROM ${BUN_IMAGE}
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssl \
+    && rm -rf /var/lib/apt/lists/*
+ARG GBRAIN_REF=v0.60.37.0
+RUN git clone --depth 1 --branch "${GBRAIN_REF}" https://github.com/garrytan/gbrain.git /opt/gbrain \
+    && cd /opt/gbrain && bun install && bun link
+ENV PATH="/root/.bun/bin:${PATH}"
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+EXPOSE 3131
+ENTRYPOINT ["/entrypoint.sh"]

@@ -53,6 +53,23 @@ hermes --version
 Isso valida o instalador upstream do Hermes no macOS na tag do lockfile. Não configure Telegram: o papel
 desktop não roda gateway com bot de produção.
 
+## 4b. Opcional: papel core no mesmo Mac
+
+Só depois de o desktop estar verde. Instala Hermes upstream e Paperclip, cria a instância do Paperclip em
+rede local e registra os dois como serviços de usuário (launchd):
+
+```sh
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core
+paperclipai service status
+open http://localhost:3100
+```
+
+O gateway do Hermes só é instalado se `TELEGRAM_BOT_TOKEN` estiver preenchido em `~/.jarvis/secrets.env`
+(use um bot de teste, nunca o de produção). Sem o token, o bootstrap avisa e segue.
+
+Para o papel knowledge no Mac é preciso Docker Desktop ou OrbStack instalado antes; aí
+`--role desktop,core,knowledge` sobe GBrain, pgvector e Ollama em `http://localhost:3131`.
+
 ## 5. O que reportar
 
 - Saída completa do bootstrap (as duas execuções) e do bloco de conferência.

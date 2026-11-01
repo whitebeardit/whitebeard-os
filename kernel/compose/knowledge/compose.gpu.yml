@@ -1,0 +1,11 @@
+# Sobreposição opcional: Ollama com GPU NVIDIA (Linux com NVIDIA Container Toolkit).
+# Aplicada pelo bootstrap quando aceleracao resolve para cuda. No macOS os containers não veem a GPU.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

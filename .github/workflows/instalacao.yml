@@ -18,7 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: shellcheck
-        run: shellcheck -x -s sh bootstrap.sh install.sh test/docker-ubuntu.sh
+        run: |
+          shellcheck -x -s sh bootstrap.sh install.sh test/docker-ubuntu.sh
+          shellcheck -s bash kernel/compose/knowledge/entrypoint.sh
       - name: uv (versão do lockfile)
         run: |
           . kernel/versions.env
@@ -26,42 +28,66 @@ jobs:
       - name: lint de privacidade
         run: |
           "$HOME/.local/bin/uv" run --quiet kernel/bin/privacy_lint.py
-      - name: esquema e tenant de exemplo (dry-run)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run
+      - name: esquema e tenant de exemplo (dry-run, três papéis)
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge --dry-run
 
   instala:
     needs: lint
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            roles: desktop,core,knowledge
+          - os: macos-latest
+            roles: desktop,core
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: instalação zerada (papel desktop)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop ${{ inputs.with_hermes && '--with-hermes' || '' }}
-      - name: verificação
+      - name: instalação zerada (${{ matrix.roles }}, sem subir serviços)
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start ${{ inputs.with_hermes && '--with-hermes' || '--skip hermes' }}
+      - name: verificação comum
         run: |
           . "$HOME/.jarvis/profile.sh"
           test "$JARVIS_TENANT" = exemplo
-          node -v | grep -q '^v22.22.2$'
+          node -v | grep -q '^v24.22.2$'
           uv --version
           claude --version
+          ffmpeg -version | head -n 1
+          ffprobe -version | head -n 1
           test -L "$HOME/.claude/skills/exemplo-ola"
           test -f "$HOME/.jarvis/skills/exemplo-ola/SKILL.md"
           perm=$(stat -c %a "$HOME/.jarvis/secrets.env" 2>/dev/null || stat -f %Lp "$HOME/.jarvis/secrets.env")
           test "$perm" = 600
           claude mcp get exemplo_knowledge
           claude mcp get exemplo_ferramentas
+          paperclipai -V
+          test -f "$HOME/.jarvis/render/hermes/env"
           cat "$HOME/.jarvis/render/summary.txt"
+      - name: verificação do papel knowledge (compose sobe o banco e desce)
+        if: contains(matrix.roles, 'knowledge')
+        run: |
+          d="$HOME/.jarvis/compose/knowledge"
+          test -f "$d/.env"
+          grep -q '^POSTGRES_PASSWORD=.' "$d/.env"
+          docker compose --project-directory "$d" config -q
+          docker compose --project-directory "$d" up -d db
+          s=starting
+          for i in $(seq 1 30); do
+            s=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose --project-directory "$d" ps -q db)")
+            [ "$s" = healthy ] && break
+            sleep 2
+          done
+          test "$s" = healthy
+          docker compose --project-directory "$d" down -v
       - name: idempotência (segunda execução)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --skip hermes
       - name: "instalador de uma linha (modo curl | sh, clona e roda o bootstrap)"
         env:
           WHITEBEARD_OS_DIR: ${{ runner.temp }}/whitebeard-os-oneline
           WHITEBEARD_OS_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           WHITEBEARD_OS_REF: ${{ github.ref_name }}
         run: |
-          cat install.sh | sh -s --
+          cat install.sh | sh -s -- --no-start --skip hermes
           test -f "$WHITEBEARD_OS_DIR/bootstrap.sh"
           test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/exemplo/jarvis.yaml"

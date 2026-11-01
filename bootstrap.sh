@@ -1,7 +1,10 @@
 #!/bin/sh
-# bootstrap.sh — instala um papel do Whitebeard OS num host zerado (Linux x86_64 ou macOS).
+# bootstrap.sh — instala papéis do Whitebeard OS num host zerado (Linux x86_64 ou macOS).
+#   desktop    Claude Code + skills + clientes MCP + FFmpeg (+ Hermes CLI opcional)
+#   core       Hermes (gateway Telegram + crons) e Paperclip como serviços do usuário
+#   knowledge  GBrain + pgvector + Ollama em Docker Compose
 # Idempotente: pode rodar de novo a qualquer momento. Só escreve dentro de $HOME.
-# Papel desta versão: desktop (Claude Code + skills + clientes MCP + Hermes opcional).
+# --no-start instala binários e renderiza configurações sem subir serviços nem containers (CI).
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
@@ -9,24 +12,29 @@ KERNEL_DIR="$SCRIPT_DIR/kernel"
 # shellcheck source=kernel/versions.env
 . "$KERNEL_DIR/versions.env"
 
-ROLE="desktop"
+ROLES="desktop"
 TENANT=""
 DRY_RUN=0
+NO_START=0
 SKIP=","
-WITH_HERMES=0
+WITH_HERMES=""
 JARVIS_HOME="${JARVIS_HOME:-$HOME/.jarvis}"
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 PATH="$HOME/.local/bin:$PATH"
-export PATH
+export PATH HERMES_HOME NVM_DIR
 
 usage() {
   cat <<EOF
 uso: $0 --tenant <jarvis.yaml> [opções]
 
   --tenant <arquivo>   declaração do tenant (obrigatório; ex.: tenants/exemplo/jarvis.yaml)
-  --role <papel>       desktop (padrão). core, satelite e knowledge: ainda não implementados
+  --role a,b           papéis: desktop (padrão), core, knowledge; ex.: --role desktop,core,knowledge
   --home <dir>         raiz da instalação (padrão: \$JARVIS_HOME ou ~/.jarvis)
-  --with-hermes        instala o Hermes upstream (tag $HERMES_TAG); opcional nesta versão
-  --skip a,b           pula etapas: uv, node, claude, hermes, render, mcp, rc
+  --with-hermes        instala o Hermes upstream (tag $HERMES_TAG); padrão: sim no papel core, não no desktop
+  --without-hermes     não instala o Hermes
+  --no-start           instala e renderiza, mas não sobe serviços nem containers
+  --skip a,b           pula etapas: uv, node, claude, ffmpeg, hermes, paperclip, render, mcp, knowledge, services, rc
   --dry-run            valida o jarvis.yaml e mostra o que faria; não escreve nada
   -h, --help           esta ajuda
 EOF
@@ -34,13 +42,15 @@ EOF
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --role)        ROLE="$2"; shift 2 ;;
-    --tenant)      TENANT="$2"; shift 2 ;;
-    --home)        JARVIS_HOME="$2"; shift 2 ;;
-    --skip)        SKIP=",$2,"; shift 2 ;;
-    --with-hermes) WITH_HERMES=1; shift ;;
-    --dry-run)     DRY_RUN=1; shift ;;
-    -h|--help)     usage; exit 0 ;;
+    --role)           ROLES="$2"; shift 2 ;;
+    --tenant)         TENANT="$2"; shift 2 ;;
+    --home)           JARVIS_HOME="$2"; shift 2 ;;
+    --skip)           SKIP=",$2,"; shift 2 ;;
+    --with-hermes)    WITH_HERMES=1; shift ;;
+    --without-hermes) WITH_HERMES=0; shift ;;
+    --no-start)       NO_START=1; shift ;;
+    --dry-run)        DRY_RUN=1; shift ;;
+    -h|--help)        usage; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
@@ -49,13 +59,27 @@ log() { printf '[whitebeard-os] %s\n' "$*"; }
 die() { printf '[whitebeard-os] ERRO: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 skipped() { case "$SKIP" in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
+has_role() { case ",$ROLES," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 run() {
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] %s\n' "$*"; else sh -c "$*"; fi
 }
+with_node() { bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && $1"; }
 
 [ -n "$TENANT" ] || { usage >&2; die "--tenant é obrigatório"; }
 [ -f "$TENANT" ] || die "tenant não encontrado: $TENANT"
-[ "$ROLE" = "desktop" ] || die "papel '$ROLE' ainda não implementado nesta versão (só desktop)"
+old_ifs=$IFS
+IFS=,
+for r in $ROLES; do
+  case "$r" in
+    desktop|core|knowledge) ;;
+    satelite) die "papel satelite ainda não implementado" ;;
+    *) die "papel desconhecido: $r (use desktop, core, knowledge)" ;;
+  esac
+done
+IFS=$old_ifs
+if [ -z "$WITH_HERMES" ]; then
+  if has_role core; then WITH_HERMES=1; else WITH_HERMES=0; fi
+fi
 
 OS=$(uname -s)
 ARCH=$(uname -m)
@@ -73,12 +97,18 @@ fi
 
 check_prereqs() {
   missing=""
-  for t in git curl python3; do have "$t" || missing="$missing $t"; done
-  [ -z "$missing" ] && return 0
-  if [ "$OS" = Darwin ]; then
-    die "faltam:$missing. No macOS: xcode-select --install (traz git e python3)"
+  for t in git curl python3 tar; do have "$t" || missing="$missing $t"; done
+  if [ -n "$missing" ]; then
+    if [ "$OS" = Darwin ]; then die "faltam:$missing. No macOS: xcode-select --install (traz git e python3)"; fi
+    die "faltam:$missing. No Ubuntu/Debian: sudo apt-get install -y git curl python3 ca-certificates xz-utils"
   fi
-  die "faltam:$missing. No Ubuntu/Debian: sudo apt-get install -y git curl python3 ca-certificates"
+  if has_role knowledge && ! skipped knowledge; then
+    if ! have docker || ! docker compose version >/dev/null 2>&1; then
+      if [ "$DRY_RUN" = 1 ]; then log "aviso: o papel knowledge precisa de Docker com compose v2 (ausente)"; return 0; fi
+      if [ "$OS" = Darwin ]; then die "o papel knowledge precisa de Docker: instale Docker Desktop ou OrbStack e rode de novo"; fi
+      die "o papel knowledge precisa de Docker com o plugin compose: https://docs.docker.com/engine/install/ (e seu usuário no grupo docker)"
+    fi
+  fi
 }
 
 install_uv() {
@@ -92,17 +122,16 @@ install_uv() {
 
 install_node() {
   skipped node && { log "node: pulado"; return 0; }
-  NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-  export NVM_DIR
   if [ ! -s "$NVM_DIR/nvm.sh" ]; then
     log "instalando nvm $NVM_VERSION em $NVM_DIR"
     run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh' | env PROFILE=/dev/null NVM_DIR='$NVM_DIR' bash"
   fi
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] nvm install %s\n' "$NODE_VERSION"; return 0; fi
-  bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && nvm install '$NODE_VERSION' >/dev/null && nvm alias default '$NODE_VERSION' >/dev/null && printf '[whitebeard-os] node %s pronto\n' \"\$(node -v)\""
+  with_node "nvm install '$NODE_VERSION' >/dev/null && nvm alias default '$NODE_VERSION' >/dev/null && printf '[whitebeard-os] node %s pronto\n' \"\$(node -v)\""
 }
 
 install_claude() {
+  has_role desktop || { log "claude: só no papel desktop"; return 0; }
   skipped claude && { log "claude: pulado"; return 0; }
   if have claude && claude --version 2>/dev/null | grep -q "^$CLAUDE_CODE_VERSION"; then
     log "Claude Code $CLAUDE_CODE_VERSION já presente"; return 0
@@ -111,13 +140,65 @@ install_claude() {
   run "curl -fsSL https://claude.ai/install.sh | bash -s -- '$CLAUDE_CODE_VERSION'"
 }
 
+link_ffmpeg() {
+  mkdir -p "$HOME/.local/bin"
+  ln -sf "$1/ffmpeg" "$HOME/.local/bin/ffmpeg"
+  if [ -x "$1/ffprobe" ]; then ln -sf "$1/ffprobe" "$HOME/.local/bin/ffprobe"; fi
+  log "ffmpeg: $("$1/ffmpeg" -version 2>/dev/null | head -n 1 | cut -c1-60)"
+  if "$1/ffmpeg" -hide_banner -filters 2>/dev/null | grep -q whisper; then
+    log "ffmpeg: filtro whisper disponível"
+  else
+    log "ffmpeg: build sem filtro whisper (a transcrição segue pelo caminho atual)"
+  fi
+}
+
+install_ffmpeg() {
+  if ! has_role desktop && ! has_role core; then return 0; fi
+  skipped ffmpeg && { log "ffmpeg: pulado"; return 0; }
+  case "$OS/$ARCH" in
+    Linux/x86_64) url="$FFMPEG_URL_LINUX_X86_64" ;;
+    Darwin/arm64) url="$FFMPEG_URL_DARWIN_ARM64" ;;
+    *) log "ffmpeg: sem build fixado para $OS/$ARCH; fica o do sistema, se houver"; return 0 ;;
+  esac
+  dest="$JARVIS_HOME/tools/ffmpeg-$FFMPEG_VERSION"
+  if [ -f "$dest/.ok" ] && [ -x "$dest/ffmpeg" ]; then
+    log "ffmpeg $FFMPEG_VERSION já presente"; link_ffmpeg "$dest"; return 0
+  fi
+  if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] baixar %s em %s\n' "$url" "$dest"; return 0; fi
+  log "baixando ffmpeg $FFMPEG_VERSION ($OS/$ARCH)"
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  curl -fsSL "$url" -o "$dest/archive.tar.xz"
+  tar -xJf "$dest/archive.tar.xz" -C "$dest"
+  rm -f "$dest/archive.tar.xz"
+  f=$(find "$dest" -type f -name ffmpeg | head -n 1)
+  p=$(find "$dest" -type f -name ffprobe | head -n 1)
+  [ -n "$f" ] || die "ffmpeg não encontrado no pacote baixado"
+  if [ "$f" != "$dest/ffmpeg" ]; then mv "$f" "$dest/ffmpeg"; fi
+  if [ -n "$p" ] && [ "$p" != "$dest/ffprobe" ]; then mv "$p" "$dest/ffprobe"; fi
+  chmod +x "$dest/ffmpeg"
+  if [ -f "$dest/ffprobe" ]; then chmod +x "$dest/ffprobe"; fi
+  : > "$dest/.ok"
+  link_ffmpeg "$dest"
+}
+
 install_hermes() {
-  if [ "$WITH_HERMES" != 1 ] || skipped hermes; then log "hermes: não solicitado (--with-hermes)"; return 0; fi
-  HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-  export HERMES_HOME
+  if [ "$WITH_HERMES" != 1 ] || skipped hermes; then log "hermes: não instalado (--with-hermes para incluir)"; return 0; fi
   if have hermes || [ -x "$HERMES_HOME/bin/hermes" ]; then log "hermes já presente ($HERMES_HOME)"; return 0; fi
   log "instalando Hermes upstream $HERMES_TAG em $HERMES_HOME"
   run "curl -fsSL 'https://raw.githubusercontent.com/NousResearch/hermes-agent/$HERMES_TAG/setup-hermes.sh' | bash"
+}
+
+install_paperclip() {
+  has_role core || return 0
+  skipped paperclip && { log "paperclip: pulado"; return 0; }
+  if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] npm install -g paperclipai@%s\n' "$PAPERCLIP_VERSION"; return 0; fi
+  if with_node "npm ls -g 'paperclipai@$PAPERCLIP_VERSION' >/dev/null 2>&1"; then
+    log "paperclip $PAPERCLIP_VERSION já presente"
+  else
+    log "instalando paperclip $PAPERCLIP_VERSION"
+    with_node "npm install -g --no-fund --no-audit 'paperclipai@$PAPERCLIP_VERSION' >/dev/null"
+  fi
 }
 
 render_tenant() {
@@ -127,20 +208,96 @@ render_tenant() {
     die "uv é necessário para renderizar o tenant (etapa uv pulada?)"
   fi
   if [ "$DRY_RUN" = 1 ]; then
-    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLE" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --dry-run
+    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --dry-run
     return 0
   fi
   mkdir -p "$JARVIS_HOME"
-  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLE" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR"
+  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR"
 }
 
 apply_mcp() {
+  has_role desktop || return 0
   skipped mcp && { log "mcp: pulado"; return 0; }
   script="$JARVIS_HOME/render/claude-mcp.sh"
   if [ "$DRY_RUN" = 1 ]; then log "mcp: aplicaria $script"; return 0; fi
   [ -f "$script" ] || { log "mcp: nada a aplicar"; return 0; }
   have claude || { log "mcp: claude ausente; pulei"; return 0; }
   sh "$script"
+}
+
+apply_hermes_config() {
+  [ "$WITH_HERMES" = 1 ] || return 0
+  [ "$DRY_RUN" = 1 ] && return 0
+  [ -d "$JARVIS_HOME/render/hermes" ] || return 0
+  mkdir -p "$HERMES_HOME"
+  if [ ! -f "$HERMES_HOME/config.yaml" ] && [ -f "$JARVIS_HOME/render/hermes/config.yaml" ]; then
+    cp "$JARVIS_HOME/render/hermes/config.yaml" "$HERMES_HOME/config.yaml"
+    log "hermes: config.yaml inicial escrito (modelo do tenant)"
+  fi
+  if [ -f "$JARVIS_HOME/render/hermes/env" ]; then
+    touch "$HERMES_HOME/.env"
+    chmod 600 "$HERMES_HOME/.env"
+    while IFS= read -r line; do
+      case "$line" in ''|'#'*) continue ;; esac
+      k=${line%%=*}
+      if ! grep -q "^$k=" "$HERMES_HOME/.env"; then printf '%s\n' "$line" >> "$HERMES_HOME/.env"; fi
+    done < "$JARVIS_HOME/render/hermes/env"
+    log "hermes: variáveis do tenant mescladas em $HERMES_HOME/.env (sem sobrescrever)"
+  fi
+}
+
+install_knowledge() {
+  has_role knowledge || return 0
+  skipped knowledge && { log "knowledge: pulado"; return 0; }
+  dest="$JARVIS_HOME/compose/knowledge"
+  if [ "$DRY_RUN" = 1 ]; then log "knowledge: copiaria o compose para $dest e validaria com docker compose"; return 0; fi
+  mkdir -p "$dest"
+  for f in compose.yml compose.gpu.yml Dockerfile.gbrain entrypoint.sh; do cp "$KERNEL_DIR/compose/knowledge/$f" "$dest/$f"; done
+  [ -f "$JARVIS_HOME/render/knowledge.env" ] || die "knowledge.env não renderizado (etapa render pulada?)"
+  cp "$JARVIS_HOME/render/knowledge.env" "$dest/.env"
+  chmod 600 "$dest/.env"
+  files="-f $dest/compose.yml"
+  accel=$(sed -n 's/^ACELERACAO=//p' "$dest/.env")
+  if [ "$accel" = auto ] && [ "$OS" = Linux ] && have nvidia-smi; then accel=cuda; fi
+  if [ "$accel" = cuda ]; then
+    if docker info 2>/dev/null | grep -qi nvidia; then
+      files="$files -f $dest/compose.gpu.yml"; log "knowledge: GPU NVIDIA ligada no Ollama"
+    else
+      log "knowledge: GPU pedida, mas o Docker não tem o runtime NVIDIA; seguindo em CPU"
+    fi
+  fi
+  # shellcheck disable=SC2086
+  docker compose --project-directory "$dest" $files config -q && log "knowledge: compose válido em $dest"
+  if [ "$NO_START" = 1 ]; then
+    log "knowledge: --no-start; para subir: docker compose --project-directory $dest up -d --build"
+    return 0
+  fi
+  # shellcheck disable=SC2086
+  docker compose --project-directory "$dest" $files up -d --build
+  log "knowledge: GBrain em http://localhost:$(sed -n 's/^GBRAIN_PORT=//p' "$dest/.env") (MCP em /mcp); Ollama baixando $EMBED_MODEL"
+}
+
+install_services() {
+  has_role core || return 0
+  skipped services && { log "serviços: pulados"; return 0; }
+  if [ "$DRY_RUN" = 1 ] || [ "$NO_START" = 1 ]; then
+    log "serviços: não instalados (--no-start). Depois: paperclipai onboard -y --bind lan --install-service; hermes gateway install --start-on-login"
+    return 0
+  fi
+  if [ ! -f "$HOME/.paperclip/instances/default/config.json" ]; then
+    log "paperclip: primeira configuração (rede local) e serviço de usuário"
+    with_node "paperclipai onboard -y --bind lan --install-service </dev/null"
+  else
+    with_node "paperclipai service install --json >/dev/null 2>&1 || true; paperclipai service start >/dev/null 2>&1 || true"
+    log "paperclip: serviço presente e iniciado"
+  fi
+  if [ "$WITH_HERMES" = 1 ] && have hermes; then
+    if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null; then
+      hermes gateway install --if-missing --start-on-login --start-now && log "hermes: gateway instalado como serviço"
+    else
+      log "hermes: sem TELEGRAM_BOT_TOKEN em $HERMES_HOME/.env; gateway não instalado (preencha secrets.env e rode de novo)"
+    fi
+  fi
 }
 
 install_rc() {
@@ -161,24 +318,30 @@ install_rc() {
 
 doctor() {
   log "---- resumo ----"
-  log "host: $OS $ARCH | tenant: $TENANT | papel: $ROLE | home: $JARVIS_HOME"
+  log "host: $OS $ARCH | tenant: $TENANT | papéis: $ROLES | home: $JARVIS_HOME"
   if have uv; then log "uv: $(uv --version | awk '{print $2}')"; fi
-  if [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
-    log "node: $(bash -c ". '${NVM_DIR:-$HOME/.nvm}/nvm.sh' >/dev/null 2>&1 && node -v")"
-  fi
+  if [ -s "$NVM_DIR/nvm.sh" ]; then log "node: $(with_node 'node -v')"; fi
   if have claude; then log "claude: $(claude --version 2>/dev/null)"; fi
+  if have ffmpeg; then log "ffmpeg: $(ffmpeg -version 2>/dev/null | head -n 1 | awk '{print $3}')"; fi
   if have hermes; then log "hermes: $(hermes --version 2>/dev/null | head -1)"; fi
+  if has_role core && [ -s "$NVM_DIR/nvm.sh" ]; then log "paperclip: $(with_node 'paperclipai -V 2>/dev/null' | tail -n 1)"; fi
+  if has_role knowledge && have docker; then log "knowledge: $(docker compose --project-directory "$JARVIS_HOME/compose/knowledge" ps --format '{{.Name}}={{.State}}' 2>/dev/null | tr '\n' ' ')"; fi
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
 }
 
-log "whitebeard-os $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo dev) | $OS/$ARCH | papel $ROLE$( [ "$DRY_RUN" = 1 ] && printf ' | dry-run' )"
+log "whitebeard-os $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo dev) | $OS/$ARCH | papéis $ROLES$( [ "$DRY_RUN" = 1 ] && printf ' | dry-run' )$( [ "$NO_START" = 1 ] && printf ' | no-start' )"
 check_prereqs
 install_uv
 install_node
 install_claude
+install_ffmpeg
 install_hermes
+install_paperclip
 render_tenant
 apply_mcp
+apply_hermes_config
+install_knowledge
+install_services
 install_rc
 doctor

@@ -1,0 +1,79 @@
+# Papel knowledge do Whitebeard OS: GBrain + pgvector + Ollama.
+# Variáveis vêm do .env gerado pelo bootstrap (render/knowledge.env). Portas só em localhost.
+name: whitebeard-knowledge
+
+services:
+  db:
+    image: ${PGVECTOR_IMAGE}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gbrain
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: gbrain
+    volumes:
+      - knowledge_pgdata:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gbrain -d gbrain"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  ollama:
+    image: ${OLLAMA_IMAGE}
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    networks: [internal]
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+
+  # Baixa o modelo de embeddings uma vez; termina sozinho.
+  ollama-init:
+    image: ${OLLAMA_IMAGE}
+    depends_on: [ollama]
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["until ollama list >/dev/null 2>&1; do sleep 2; done; ollama pull ${EMBED_MODEL}"]
+    networks: [internal]
+    restart: "no"
+
+  gbrain:
+    build:
+      context: .
+      dockerfile: Dockerfile.gbrain
+      args:
+        GBRAIN_REF: "${GBRAIN_REF}"
+        BUN_IMAGE: "${BUN_IMAGE}"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://gbrain:${POSTGRES_PASSWORD}@db:5432/gbrain
+      GBRAIN_ADMIN_BOOTSTRAP_TOKEN: ${GBRAIN_ADMIN_BOOTSTRAP_TOKEN}
+      GBRAIN_PUBLIC_URL: ${GBRAIN_PUBLIC_URL}
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      EMBED_MODEL: ${EMBED_MODEL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GBRAIN_AI_EMBED_TIMEOUT_MS: "300000"
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /vault
+    volumes:
+      - gbrain_home:/root/.gbrain
+      - ${VAULT_INDEX_DIR}:/vault:ro
+    networks: [internal]
+    ports:
+      - "127.0.0.1:${GBRAIN_PORT:-3131}:3131"
+
+networks:
+  internal: {}
+
+volumes:
+  knowledge_pgdata:
+  gbrain_home:
+  ollama_models:

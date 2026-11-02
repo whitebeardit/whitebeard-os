@@ -86,7 +86,7 @@ with_node() { bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && $1"; }
 # ou o nó cujo host é o seu nome: nome curto casa com nome curto, nome com domínio só com o FQDN igual.
 #   nos_query roles   → papéis do nó desta máquina ("" se nenhum nó casa; "-" se o tenant não tem nos:)
 #   nos_query others  → quantos nós de nos: são outras máquinas
-HOST_FULL=$(hostname 2>/dev/null | tr 'A-Z' 'a-z')
+HOST_FULL=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]')
 nos_query() {
   python3 - "$TENANT" "$HOST_FULL" "$1" <<'PY'
 import re, sys
@@ -873,9 +873,11 @@ PY
   vault=$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env")
   if [ -d "$vault/.git" ]; then
     if ! env "$gb_env" "$HOME/.local/bin/gbrain" sources list 2>/dev/null | grep -q secondbrain; then
-      env "$gb_env" "$HOME/.local/bin/gbrain" sources add secondbrain --path "$vault" --name "Second brain" >/dev/null 2>&1 \
-        && log "knowledge: second brain registrado como fonte do cérebro" \
-        || log "aviso: não consegui registrar $vault como fonte do GBrain"
+      if env "$gb_env" "$HOME/.local/bin/gbrain" sources add secondbrain --path "$vault" --name "Second brain" >/dev/null 2>&1; then
+        log "knowledge: second brain registrado como fonte do cérebro"
+      else
+        log "aviso: não consegui registrar $vault como fonte do GBrain"
+      fi
     fi
     # o token só vê as fontes do seu grant: second brain primeiro (fonte de escrita) e a pasta default
     env "$gb_env" "$HOME/.local/bin/gbrain" auth rescope --token whitebeard-os --sources secondbrain,default >/dev/null 2>&1 \
@@ -1092,8 +1094,8 @@ install_web() {
       log "web: baixando o JARVIS Web $JARVIS_WEB_VERSION"
       tmp=$(mktemp -d)
       fetch_verified "$JARVIS_WEB_URL" "$JARVIS_WEB_SHA256" "$tmp/web.tar.gz"
-      tar -xzf "$tmp/web.tar.gz" -C "$tmp" && rm -rf "$dir" && mkdir -p "$JARVIS_HOME/app" \
-        && mv "$tmp/jarvis-web-$JARVIS_WEB_VERSION" "$dir" || die "web: pacote do JARVIS Web inválido"
+      if ! { tar -xzf "$tmp/web.tar.gz" -C "$tmp" && rm -rf "$dir" && mkdir -p "$JARVIS_HOME/app" \
+        && mv "$tmp/jarvis-web-$JARVIS_WEB_VERSION" "$dir"; }; then die "web: pacote do JARVIS Web inválido"; fi
       rm -rf "$tmp"
     fi
     # instalação antiga por clone fica guardada, não é apagada
@@ -1306,7 +1308,7 @@ finalizar() {
   if can_prompt; then
     case "$OS" in
       Darwin) open "$url" 2>/dev/null || true ;;
-      Linux) [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && have xdg-open && xdg-open "$url" >/dev/null 2>&1 || true ;;
+      Linux) if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && have xdg-open; then xdg-open "$url" >/dev/null 2>&1 || true; fi ;;
     esac
   fi
 }

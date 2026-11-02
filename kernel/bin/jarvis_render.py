@@ -406,9 +406,14 @@ def main() -> int:
             hermes_skills = user_home / ".hermes" / "skills"
             if hermes_skills.is_dir():
                 hl = hermes_skills / d.name
+                # o Hermes organiza skills em categorias (skills/<categoria>/<nome>); uma skill com o mesmo
+                # nome já instalada em qualquer categoria é a da pessoa e vale: não se cria um duplicado
+                existing = [q for q in hermes_skills.glob(f"*/{d.name}/SKILL.md") if not q.parent.is_symlink() or q.parent.resolve() != dest.resolve()]
                 if hl.is_symlink():
                     hl.unlink()
-                if not hl.exists():
+                if existing:
+                    log(f"skill {d.name}: o Hermes já a tem em {existing[0].parent.parent.name}/; sem link duplicado")
+                elif not hl.exists():
                     hl.symlink_to(dest)
             installed.append(d.name)
 

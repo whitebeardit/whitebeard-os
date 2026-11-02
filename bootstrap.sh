@@ -19,6 +19,7 @@ NO_START=0
 NO_PROMPT=0
 WITH_TELEGRAM=0
 PAPERCLIP_LOCAL=0
+WEB_TLS=""
 # o knowledge gerou um segredo novo (token do MCP): render e MCPs precisam ser reaplicados
 RERENDER=0
 HERMES_RESTART=0
@@ -48,6 +49,8 @@ uso: $0 --tenant <jarvis.yaml> [opções]
   --no-prompt          não pergunta segredos no terminal (CI); deixa vazios em secrets.env
   --telegram           liga o Telegram: pede o token do bot e reconhece o seu chat pela primeira mensagem
   --paperclip-local    migra um Paperclip já instalado (autenticado, na rede) para só esta máquina, sem login
+  --no-tls             JARVIS Web em HTTP, sem certificado (padrão: HTTPS autoassinado; o microfone fora do
+                       localhost exige HTTPS). Lembrado nas próximas execuções em \$JARVIS_HOME/web.tls
   -h, --help           esta ajuda
 EOF
 }
@@ -65,6 +68,7 @@ while [ $# -gt 0 ]; do
     --no-prompt)      NO_PROMPT=1; shift ;;
     --telegram)       WITH_TELEGRAM=1; shift ;;
     --paperclip-local) PAPERCLIP_LOCAL=1; shift ;;
+    --no-tls)         WEB_TLS=0; shift ;;
     -h|--help)        usage; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
@@ -82,12 +86,15 @@ with_node() { bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && $1"; }
 
 [ -n "$TENANT" ] || { usage >&2; die "--tenant é obrigatório"; }
 [ -f "$TENANT" ] || die "tenant não encontrado: $TENANT"
-# Sem --role: os papéis do host `local` em `nos:` do tenant; sem `nos:`, tudo-em-um (desktop,core,knowledge).
+# Sem --role: os papéis do host desta máquina em `nos:` do tenant (`local`, `localhost` ou o nome do host,
+# com ou sem domínio); sem `nos:` ou sem um host que case, tudo-em-um (desktop,core,knowledge).
+HOST_SHORT=$(hostname 2>/dev/null | cut -d. -f1)
 if [ -z "$ROLES" ]; then
-  ROLES=$(python3 - "$TENANT" <<'PY'
+  ROLES=$(python3 - "$TENANT" "$HOST_SHORT" <<'PY'
 import re, sys
 txt = open(sys.argv[1], encoding="utf-8").read()
-# leitura mínima sem yaml (o render valida de verdade): bloco `nos:` com host local
+me = {"local", "localhost", sys.argv[2].lower()} - {""}
+# leitura mínima sem yaml (o render valida de verdade): bloco `nos:` com o host desta máquina
 roles = []
 m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
 if m:
@@ -95,7 +102,7 @@ if m:
         if not item.strip():
             continue
         host = re.search(r"host:\s*([^\s#]+)", item)
-        if host and host.group(1) not in ("local", "localhost"):
+        if host and host.group(1).lower().split(".")[0] not in me:
             continue
         for key in ("papeis", "papel"):
             k = re.search(key + r":\s*\[([^\]]*)\]|" + key + r":\s*([^\s#\[]+)", item)
@@ -104,7 +111,7 @@ if m:
 print(",".join(dict.fromkeys(roles)) if roles else "desktop,core,knowledge")
 PY
 )
-  log "papéis (de nos: do tenant): $ROLES"
+  log "papéis (de nos: do tenant, host ${HOST_SHORT:-local}): $ROLES"
 fi
 old_ifs=$IFS
 IFS=,
@@ -621,6 +628,11 @@ PY
   fi
   [ -d "$vault" ] || { log "vault: criando o second brain em $vault"; mkdir -p "$vault"; }
   td="$vault/tenants/$tenant"
+  if [ -d "$td" ]; then
+    # vault que já existia, com a pasta do tenant: nada é escrito (as pastas e índices são da pessoa)
+    log "vault: $vault já tem tenants/$tenant; nada a semear"
+    return 0
+  fi
   mkdir -p "$td/projects-doc" "$td/knowledge-domain" "$td/resources"
   if [ ! -f "$vault/README.md" ]; then
     cat >"$vault/README.md" <<EOF
@@ -922,12 +934,13 @@ install_knowledge() {
 # a conexão Claude usa a conta desta máquina (no modo autenticado ela exige um login isolado que, no macOS,
 # o Paperclip não consegue ler: o Claude Code guarda o token no Keychain).
 paperclip_bind() {
-  others=$(python3 - "$TENANT" <<'PY'
+  others=$(python3 - "$TENANT" "$HOST_SHORT" <<'PY'
 import re, sys
 txt = open(sys.argv[1], encoding="utf-8").read()
+me = {"local", "localhost", sys.argv[2].lower()} - {""}
 m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
 hosts = re.findall(r"host:\s*([^\s#]+)", m.group(1)) if m else []
-print(len([h for h in hosts if h not in ("local", "localhost")]))
+print(len([h for h in hosts if h.lower().split(".")[0] not in me]))
 PY
 )
   if has_role desktop && [ "$others" = 0 ]; then echo loopback; else echo lan; fi
@@ -1133,7 +1146,13 @@ install_web_service() {
   tls_env=""
   tls_xml=""
   proto=http
-  if ensure_web_tls; then
+  # a escolha fica guardada: quem instalou com --no-tls continua em HTTP ao rodar de novo sem a flag
+  [ "${WEB_TLS:-}" = 0 ] && printf 'off\n' >"$JARVIS_HOME/web.tls"
+  if [ -z "${WEB_TLS:-}" ] && [ "$(cat "$JARVIS_HOME/web.tls" 2>/dev/null)" = off ]; then WEB_TLS=0; fi
+  if [ "${WEB_TLS:-1}" = 0 ]; then
+    rm -f "$JARVIS_HOME/tls/jarvis-web.crt" "$JARVIS_HOME/tls/jarvis-web.key"
+    log "web: HTTP (--no-tls); microfone só em localhost"
+  elif ensure_web_tls; then
     proto=https
     tls_env="Environment=JARVIS_WEB_TLS_CERT=$JARVIS_HOME/tls/jarvis-web.crt
 Environment=JARVIS_WEB_TLS_KEY=$JARVIS_HOME/tls/jarvis-web.key"

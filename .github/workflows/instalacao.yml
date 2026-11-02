@@ -68,6 +68,22 @@ jobs:
           paperclipai -V
           test -f "$HOME/.jarvis/render/hermes/env"
           cat "$HOME/.jarvis/render/summary.txt"
+      - name: configuração depois da instalação (jarvis_setup.py e bootstrap --apply, como o JARVIS Web faz)
+        run: |
+          test "$(cat "$HOME/.jarvis/kernel.path")" = "$PWD"
+          python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)
+          assert d["ok"] and d["tenant"] == "exemplo" and d["telegram"]["disponivel"] and not d["concluido"], d
+          nomes = {s["nome"] for s in d["segredos"]}
+          assert "EXEMPLO_TOKEN" in nomes and "TELEGRAM_BOT_TOKEN" not in nomes and "POSTGRES_PASSWORD" not in nomes, nomes'
+          printf 'valor-de-teste\n' | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" set-secret EXEMPLO_TOKEN
+          test "$(grep -c "^EXEMPLO_TOKEN='valor-de-teste'$" "$HOME/.jarvis/secrets.env")" = 1
+          # só reaplica: nada instalado, serviço do JARVIS Web intocado; o segredo gravado sobrevive ao render
+          ./bootstrap.sh --apply --skip hermes
+          test "$(grep -c "^EXEMPLO_TOKEN='valor-de-teste'$" "$HOME/.jarvis/secrets.env")" = 1
+          python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" done
+          test -f "$HOME/.jarvis/setup.done"
       - name: verificação do papel knowledge (compose sobe o banco e desce)
         if: contains(matrix.roles, 'knowledge')
         run: |

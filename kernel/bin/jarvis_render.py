@@ -226,7 +226,19 @@ def main() -> int:
             mcp.append(f"claude mcp remove --scope user {sq(n)} >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s removido (saiu do tenant)\\n' {sq(n)} || true")
         for m in servers:
             name = m["name"]
-            mcp.append(f"claude mcp remove --scope user {sq(name)} >/dev/null 2>&1 || true")
+            # segredo vazio em env/headers/url: o MCP ficaria registrado quebrado (valores em branco) e,
+            # pior, substituiria um registro que a pessoa já tinha funcionando; fica de fora, com aviso
+            placeholders = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", json.dumps(m))))
+            blanks = [n for n in placeholders if not values.get(n)]
+            if blanks:
+                mcp.append(f"printf '[whitebeard-os] aviso: mcp %s não registrado (segredo vazio: %s); preencha em secrets.env e rode de novo\\n' {sq(name)} {sq(', '.join(blanks))}")
+                continue
+            # um MCP com este nome que o kernel não registrou é da pessoa: fica como está (só os nomes em
+            # claude-mcp.names, de execuções anteriores, são re-registrados)
+            if name not in previous:
+                mcp.append(f"if claude mcp get {sq(name)} >/dev/null 2>&1; then printf '[whitebeard-os] mcp %s já existia no Claude Code: mantido como está\\n' {sq(name)}; else")
+            else:
+                mcp.append(f"claude mcp remove --scope user {sq(name)} >/dev/null 2>&1 || true; if true; then")
             # Ordem importa: --env e --header são variádicos (engolem o que vier depois até a próxima
             # opção ou "--"), então vêm depois dos posicionais nome/url e antes de "--".
             cmd = ["claude", "mcp", "add", "--scope", "user", "--transport", m["transport"], sq(name)]
@@ -238,8 +250,9 @@ def main() -> int:
                 cmd += ["--env", dq(f"{k}={v}")]
             if m["transport"] == "stdio":
                 cmd += ["--", sq(m["command"])] + [sq(a) for a in m.get("args", []) or []]
-            mcp.append(" ".join(cmd) + f" >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}"
+            mcp.append("  " + " ".join(cmd) + f" >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}"
                        f" || printf '[whitebeard-os] aviso: não consegui registrar o mcp %s no Claude Code\\n' {sq(name)}")
+            mcp.append("fi")
         w.write(home / "render" / "claude-mcp.sh", "\n".join(mcp) + "\n", mode=0o700)
         w.write(names_file, "\n".join(m["name"] for m in servers) + "\n")
 

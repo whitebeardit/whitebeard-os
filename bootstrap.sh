@@ -372,6 +372,15 @@ install_paperclip() {
     log "instalando paperclip $PAPERCLIP_VERSION"
     with_node "npm install -g --no-fund --no-audit 'paperclipai@$PAPERCLIP_VERSION' >/dev/null"
   fi
+  # `paperclipai service install` escreve a unidade apontando para ~/.local/bin/paperclipai (o atalho da loja
+  # gerenciada, que o npm não cria): sem ele o serviço morre com "no executable" e o doctor recusa subir.
+  # Atalho do kernel para o binário do npm, só quando não há atalho da pessoa (loja gerenciada) no lugar.
+  bin=$(with_node 'command -v paperclipai' | tail -n 1)
+  if [ -n "$bin" ] && { [ ! -e "$shim" ] || grep -q "whitebeard-os: atalho" "$shim" 2>/dev/null; }; then
+    mkdir -p "$HOME/.local/bin"
+    printf '#!/bin/sh\n# whitebeard-os: atalho para o paperclipai instalado pelo npm (nvm); refeito a cada bootstrap\nexec %s "$@"\n' "$bin" >"$shim"
+    chmod 755 "$shim"
+  fi
 }
 
 render_tenant() {
@@ -1206,7 +1215,10 @@ EOF
         log "web: unidade escrita em $unit_dir/jarvis-web.service (--no-start). Depois: systemctl --user enable --now jarvis-web"
         return 0
       fi
-      systemctl --user daemon-reload && systemctl --user enable --now jarvis-web.service && log "web: serviço jarvis-web ativo em $proto://localhost:$JARVIS_WEB_PORT"
+      # enable --now não reinicia uma unidade já ativa: o processo antigo (outra versão, outro ExecStart)
+      # continuaria no ar; restart garante que o que está rodando é o que a unidade descreve
+      systemctl --user daemon-reload && systemctl --user enable jarvis-web.service >/dev/null 2>&1 \
+        && systemctl --user restart jarvis-web.service && log "web: serviço jarvis-web ativo em $proto://localhost:$JARVIS_WEB_PORT"
       ;;
     Darwin)
       plist="$HOME/Library/LaunchAgents/dev.whitebeard.jarvis-web.plist"

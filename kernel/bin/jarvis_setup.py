@@ -141,8 +141,12 @@ def cmd_status(home: Path) -> int:
 def cmd_set_secret(home: Path, name: str) -> int:
     if not NAME_RE.match(name or ""):
         return out({"ok": False, "erro": "nome de segredo inválido"})
-    known = {s.get("nome") for s in declared_secrets(home)} | set(read_env(home / "secrets.env"))
-    if name not in known or name in HIDDEN:
+    declared = declared_secrets(home)
+    known = {s.get("nome") for s in declared} | set(read_env(home / "secrets.env"))
+    generated = {s.get("nome") for s in declared if s.get("gerado")}
+    # os gerados pelo kernel (senha do banco, tokens de bootstrap) não são da pessoa: trocá-los quebraria
+    # o que já foi criado com eles
+    if name not in known or name in HIDDEN or name in generated:
         return out({"ok": False, "erro": f"{name} não é um segredo deste tenant"})
     value = stdin_value()
     if "\n" in value:

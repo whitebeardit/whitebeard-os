@@ -1266,10 +1266,11 @@ doctor() {
     st=""; for s in ollama gbrain; do
       launchctl print "gui/$(id -u)/dev.whitebeard.$s" 2>/dev/null | grep -q "state = running" && st="$st $s=running" || st="$st $s=parado"
     done
-    h=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3131/health 2>/dev/null)
+    # com --no-start nada escuta na porta: o curl falha (saída 7) e, com set -e, derrubaria o resumo
+    h=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3131/health 2>/dev/null || echo 000)
     tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
     m=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
-      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:3131/mcp 2>/dev/null)
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:3131/mcp 2>/dev/null || echo 000)
     unset tok
     c="não"; claude mcp get knowledge >/dev/null 2>&1 && c="sim"
     log "knowledge (nativo):$st | GBrain health=$h | MCP com token http=$m | MCP knowledge no Claude Code: $c"

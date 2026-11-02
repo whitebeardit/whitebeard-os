@@ -100,18 +100,26 @@ def is_me(name):
 m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
 if not m:
     print("-" if mode == "roles" else "0"); sys.exit(0)
+# comentários fora; cada nó começa numa linha "- host:" (ou "- papeis:", quando o host vem depois)
+block = re.sub(r"#.*", "", m.group(1))
 roles, others = [], 0
-for item in re.split(r"\n\s*-\s", "\n" + m.group(1)):
+for item in re.split(r"\n(?=\s*-\s+\w+:)", "\n" + block):
     if not item.strip():
         continue
-    h = re.search(r"host:\s*([^\s#]+)", item)
+    h = re.search(r"host:\s*(\S+)", item)
     if h and not is_me(h.group(1)):
         others += 1
         continue
     for key in ("papeis", "papel"):
-        k = re.search(key + r":\s*\[([^\]]*)\]|" + key + r":\s*([^\s#\[]+)", item)
+        # em linha ([a, b]) ou valor único na mesma linha; o valor único não atravessa a quebra de linha
+        # (senão o "-" da lista em bloco viraria um papel)
+        k = re.search(key + r":[ \t]*\[([^\]]*)\]|" + key + r":[ \t]*([^\s\[-][^\s\[]*)", item)
         if k:
-            roles += [r.strip() for r in (k.group(1) or k.group(2)).split(",") if r.strip()]
+            roles += [r.strip().strip("\"'") for r in (k.group(1) or k.group(2)).split(",") if r.strip()]
+        elif re.search(key + r":[ \t]*$", item, re.M):
+            # lista em bloco: as linhas "- x" depois da chave (a linha "- host:" não conta)
+            tail = item.split(key + ":", 1)[1]
+            roles += [r.strip("\"'") for r in re.findall(r"^\s*-\s+([^\s:]+)\s*$", tail, re.M)]
 print(",".join(dict.fromkeys(roles)) if mode == "roles" else others)
 PY
 }
@@ -178,10 +186,14 @@ check_prereqs() {
   fi
 }
 
+# "a >= b" para versões x.y.z (sem rebaixar o que a pessoa já tem mais novo que o fixado pelo kernel)
+version_ge() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)" = "$1" ]; }
+
 install_uv() {
   skipped uv && { log "uv: pulado"; return 0; }
-  if have uv && [ "$(uv --version 2>/dev/null | awk '{print $2}')" = "$UV_VERSION" ]; then
-    log "uv $UV_VERSION já presente"; return 0
+  cur=$(uv --version 2>/dev/null | awk '{print $2}')
+  if have uv && [ -n "$cur" ] && version_ge "$cur" "$UV_VERSION"; then
+    log "uv $cur já presente (kernel pede $UV_VERSION)"; return 0
   fi
   log "instalando uv $UV_VERSION em ~/.local/bin"
   run "curl -LsSf 'https://astral.sh/uv/$UV_VERSION/install.sh' | env UV_INSTALL_DIR='$HOME/.local/bin' UV_NO_MODIFY_PATH=1 sh"
@@ -203,8 +215,9 @@ install_node() {
 install_claude() {
   has_role desktop || { log "claude: só no papel desktop"; return 0; }
   skipped claude && { log "claude: pulado"; return 0; }
-  if have claude && claude --version 2>/dev/null | grep -q "^$CLAUDE_CODE_VERSION"; then
-    log "Claude Code $CLAUDE_CODE_VERSION já presente"; return 0
+  cur=$(claude --version 2>/dev/null | awk '{print $1; exit}')
+  if have claude && [ -n "$cur" ] && version_ge "$cur" "$CLAUDE_CODE_VERSION"; then
+    log "Claude Code $cur já presente (kernel pede $CLAUDE_CODE_VERSION)"; return 0
   fi
   log "instalando Claude Code $CLAUDE_CODE_VERSION"
   run "curl -fsSL https://claude.ai/install.sh | bash -s -- '$CLAUDE_CODE_VERSION'"
@@ -358,6 +371,15 @@ install_paperclip() {
   else
     log "instalando paperclip $PAPERCLIP_VERSION"
     with_node "npm install -g --no-fund --no-audit 'paperclipai@$PAPERCLIP_VERSION' >/dev/null"
+  fi
+  # `paperclipai service install` escreve a unidade apontando para ~/.local/bin/paperclipai (o atalho da loja
+  # gerenciada, que o npm não cria): sem ele o serviço morre com "no executable" e o doctor recusa subir.
+  # Atalho do kernel para o binário do npm, só quando não há atalho da pessoa (loja gerenciada) no lugar.
+  bin=$(with_node 'command -v paperclipai' | tail -n 1)
+  if [ -n "$bin" ] && { [ ! -e "$shim" ] || grep -q "whitebeard-os: atalho" "$shim" 2>/dev/null; }; then
+    mkdir -p "$HOME/.local/bin"
+    printf '#!/bin/sh\n# whitebeard-os: atalho para o paperclipai instalado pelo npm (nvm); refeito a cada bootstrap\nexec %s "$@"\n' "$bin" >"$shim"
+    chmod 755 "$shim"
   fi
 }
 
@@ -1193,7 +1215,10 @@ EOF
         log "web: unidade escrita em $unit_dir/jarvis-web.service (--no-start). Depois: systemctl --user enable --now jarvis-web"
         return 0
       fi
-      systemctl --user daemon-reload && systemctl --user enable --now jarvis-web.service && log "web: serviço jarvis-web ativo em $proto://localhost:$JARVIS_WEB_PORT"
+      # enable --now não reinicia uma unidade já ativa: o processo antigo (outra versão, outro ExecStart)
+      # continuaria no ar; restart garante que o que está rodando é o que a unidade descreve
+      systemctl --user daemon-reload && systemctl --user enable jarvis-web.service >/dev/null 2>&1 \
+        && systemctl --user restart jarvis-web.service && log "web: serviço jarvis-web ativo em $proto://localhost:$JARVIS_WEB_PORT"
       ;;
     Darwin)
       plist="$HOME/Library/LaunchAgents/dev.whitebeard.jarvis-web.plist"

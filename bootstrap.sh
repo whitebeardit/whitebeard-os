@@ -538,9 +538,10 @@ apply_hermes_config() {
       if ! grep -q "^$k=" "$HERMES_HOME/.env"; then
         printf '%s\n' "$line" >> "$HERMES_HOME/.env"
       else
-        # chaves que o kernel gera ou deriva mudam de valor (token do cérebro recriado, chat do dono):
-        # essas são atualizadas; as demais (segredos da pessoa) nunca são sobrescritas
-        case "$k" in GBRAIN_MCP_TOKEN|TELEGRAM_ALLOWED_USERS|VAULT_PATH|JARVIS_TENANT)
+        # chaves que o kernel gera, deriva ou cuida (token do cérebro recriado, chat do dono, o bot do
+        # Telegram ligado pelos PRIMEIROS PASSOS) são atualizadas; as demais (segredos que a pessoa pôs à
+        # mão no .env do Hermes) nunca são sobrescritas
+        case "$k" in GBRAIN_MCP_TOKEN|TELEGRAM_ALLOWED_USERS|TELEGRAM_BOT_TOKEN|TELEGRAM_HOME_CHANNEL|VAULT_PATH|JARVIS_TENANT)
           grep -qxF "$line" "$HERMES_HOME/.env" || python3 - "$HERMES_HOME/.env" "$k" "$line" <<'PY'
 import re, sys
 p, k, line = sys.argv[1:4]

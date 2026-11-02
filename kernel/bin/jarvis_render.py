@@ -125,6 +125,7 @@ def main() -> int:
             "name": name,
             "description": "referenciada no jarvis.yaml como ${...}; declare em `segredos:` para documentar",
             "required": False,
+            "implicit": True,  # não declarada: para o MCP que a usa, vazia = MCP não funciona
         })
     secrets_path = home / "secrets.env"
     current = parse_env(secrets_path)
@@ -134,6 +135,7 @@ def main() -> int:
         if s.get("generate") and not values[s["name"]]:
             values[s["name"]] = pysecrets.token_urlsafe(24)
             generated.append(s["name"])
+    implicit_names = {s["name"] for s in entries if s.get("implicit")}
     missing = [s["name"] for s in entries if s.get("required") and not values[s["name"]]]
     empty = [s["name"] for s in entries if not values[s["name"]]]
 
@@ -228,8 +230,10 @@ def main() -> int:
             name = m["name"]
             # segredo vazio em env/headers/url: o MCP ficaria registrado quebrado (valores em branco) e,
             # pior, substituiria um registro que a pessoa já tinha funcionando; fica de fora, com aviso
+            # ${VAR} não declarada em `segredos:` e vazia: o MCP não funcionaria (host, PAT, token de acesso).
+            # Uma declarada como opcional (required: false) pode ficar vazia: o tenant disse que funciona sem.
             placeholders = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", json.dumps(m))))
-            blanks = [n for n in placeholders if not values.get(n)]
+            blanks = [n for n in placeholders if not values.get(n) and n in implicit_names]
             if blanks:
                 mcp.append(f"printf '[whitebeard-os] aviso: mcp %s não registrado (segredo vazio: %s); preencha em secrets.env e rode de novo\\n' {sq(name)} {sq(', '.join(blanks))}")
                 continue

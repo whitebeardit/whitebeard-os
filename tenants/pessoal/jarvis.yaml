@@ -8,7 +8,9 @@ aceleracao: auto # GPU se houver (Metal, CUDA, Vulkan); CPU sempre funciona
 dados: .whitebeard # pasta de dados, relativa a $HOME (vira $JARVIS_DATA)
 
 interface:
-  modulos: [sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera]
+  # camera volta quando houver o app empacotado para Mac (fase 3): pelo serviço em segundo plano o macOS
+  # não dá permissão de câmera, e o painel ficaria em "conectando" para sempre. No Linux funciona; acrescente.
+  modulos: [sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos]
 
 vault:
   path: whitebeard-secondbrain # relativo a $HOME; o instalador cria se não existir (abre no Obsidian)

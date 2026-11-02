@@ -108,4 +108,4 @@ jobs:
         run: |
           cat install.sh | sh -s -- --no-start --no-prompt --skip hermes,web
           test -f "$WHITEBEARD_OS_DIR/bootstrap.sh"
-          test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/exemplo/jarvis.yaml"
+          test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/pessoal/jarvis.yaml"  # tenant padrão do install.sh

@@ -82,29 +82,49 @@ with_node() { bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && $1"; }
 
 [ -n "$TENANT" ] || { usage >&2; die "--tenant é obrigatório"; }
 [ -f "$TENANT" ] || die "tenant não encontrado: $TENANT"
-# Sem --role: os papéis do host `local` em `nos:` do tenant; sem `nos:`, tudo-em-um (desktop,core,knowledge).
-if [ -z "$ROLES" ]; then
-  ROLES=$(python3 - "$TENANT" <<'PY'
+# Leitura mínima de `nos:` sem yaml (o render valida de verdade). Esta máquina é o nó `local`/`localhost`
+# ou o nó cujo host é o seu nome: nome curto casa com nome curto, nome com domínio só com o FQDN igual.
+#   nos_query roles   → papéis do nó desta máquina ("" se nenhum nó casa; "-" se o tenant não tem nos:)
+#   nos_query others  → quantos nós de nos: são outras máquinas
+HOST_FULL=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]')
+nos_query() {
+  python3 - "$TENANT" "$HOST_FULL" "$1" <<'PY'
 import re, sys
-txt = open(sys.argv[1], encoding="utf-8").read()
-# leitura mínima sem yaml (o render valida de verdade): bloco `nos:` com host local
-roles = []
+txt, host, mode = open(sys.argv[1], encoding="utf-8").read(), sys.argv[2], sys.argv[3]
+short = host.split(".")[0]
+def is_me(name):
+    name = name.strip("\"'").lower()
+    if name in ("local", "localhost"):
+        return True
+    return name == host if "." in name else name == short
 m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
-if m:
-    for item in re.split(r"\n\s*-\s", "\n" + m.group(1)):
-        if not item.strip():
-            continue
-        host = re.search(r"host:\s*([^\s#]+)", item)
-        if host and host.group(1) not in ("local", "localhost"):
-            continue
-        for key in ("papeis", "papel"):
-            k = re.search(key + r":\s*\[([^\]]*)\]|" + key + r":\s*([^\s#\[]+)", item)
-            if k:
-                roles += [r.strip() for r in (k.group(1) or k.group(2)).split(",") if r.strip()]
-print(",".join(dict.fromkeys(roles)) if roles else "desktop,core,knowledge")
+if not m:
+    print("-" if mode == "roles" else "0"); sys.exit(0)
+roles, others = [], 0
+for item in re.split(r"\n\s*-\s", "\n" + m.group(1)):
+    if not item.strip():
+        continue
+    h = re.search(r"host:\s*([^\s#]+)", item)
+    if h and not is_me(h.group(1)):
+        others += 1
+        continue
+    for key in ("papeis", "papel"):
+        k = re.search(key + r":\s*\[([^\]]*)\]|" + key + r":\s*([^\s#\[]+)", item)
+        if k:
+            roles += [r.strip() for r in (k.group(1) or k.group(2)).split(",") if r.strip()]
+print(",".join(dict.fromkeys(roles)) if mode == "roles" else others)
 PY
-)
-  log "papéis (de nos: do tenant): $ROLES"
+}
+# Sem --role: os papéis do nó desta máquina. Sem `nos:`, tudo-em-um (desktop,core,knowledge). Com `nos:` mas
+# sem nó que seja esta máquina, é erro: instalar os três papéis num servidor de produção por engano é pior
+# do que parar e pedir --role.
+if [ -z "$ROLES" ]; then
+  ROLES=$(nos_query roles)
+  case "$ROLES" in
+    -) ROLES="desktop,core,knowledge"; log "papéis: tudo-em-um (o tenant não declara nos:)" ;;
+    "") die "nenhum nó em nos: do tenant é esta máquina (hostname $HOST_FULL). Acrescente-a em nos: ou informe --role" ;;
+    *) log "papéis (nó $HOST_FULL em nos: do tenant): $ROLES" ;;
+  esac
 fi
 old_ifs=$IFS
 IFS=,
@@ -621,6 +641,12 @@ PY
   fi
   [ -d "$vault" ] || { log "vault: criando o second brain em $vault"; mkdir -p "$vault"; }
   td="$vault/tenants/$tenant"
+  seeded=0
+  if [ -d "$td" ]; then
+    # vault que já existia, com a pasta do tenant: pastas e índices são da pessoa; nada é semeado
+    log "vault: $vault já tem tenants/$tenant; nada a semear"
+  else
+  seeded=1
   mkdir -p "$td/projects-doc" "$td/knowledge-domain" "$td/resources"
   if [ ! -f "$vault/README.md" ]; then
     cat >"$vault/README.md" <<EOF
@@ -688,12 +714,19 @@ title: Recursos brutos de $tenant
 Pouso temporário: capturas, transcrições, rascunhos e material misto que ainda vai ser organizado em
 projects-doc ou knowledge-domain.
 EOF
-  [ -f "$vault/.gitignore" ] || printf '.DS_Store\n.trash/\n.obsidian/workspace*.json\n.obsidian/cache\n# marcador interno do GBrain (dono do PGLite); não é conhecimento\n.gbrain-owner.json\n' >"$vault/.gitignore"
-  grep -q '^\.gbrain-owner\.json$' "$vault/.gitignore" 2>/dev/null || printf '.gbrain-owner.json\n' >>"$vault/.gitignore"
+  fi
+  [ -f "$vault/.gitignore" ] || { printf '.DS_Store\n.trash/\n.obsidian/workspace*.json\n.obsidian/cache\n' >"$vault/.gitignore"; seeded=1; }
+  # o GBrain nativo desta máquina grava o marcador de dono dentro do vault: não é conhecimento, não vai para o git
+  if has_role knowledge && ! grep -q '^\.gbrain-owner\.json$' "$vault/.gitignore" 2>/dev/null; then
+    printf '# marcador interno do GBrain (dono do PGLite); não é conhecimento\n.gbrain-owner.json\n' >>"$vault/.gitignore"; seeded=1
+  fi
   [ -d "$vault/.git" ] || git -C "$vault" init -q
-  git -C "$vault" add -A >/dev/null 2>&1
-  git -C "$vault" diff --cached --quiet 2>/dev/null \
-    || git -C "$vault" -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "whitebeard-os: estrutura do second brain"
+  # só o que o kernel escreveu entra no commit; o trabalho da pessoa fica como está
+  if [ "$seeded" = 1 ]; then
+    git -C "$vault" add -- .gitignore README.md "tenants/$tenant" >/dev/null 2>&1 || true
+    git -C "$vault" diff --cached --quiet 2>/dev/null \
+      || git -C "$vault" -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "whitebeard-os: estrutura do second brain"
+  fi
   log "vault: second brain em $vault (abra no Obsidian)"
 }
 
@@ -840,9 +873,11 @@ PY
   vault=$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env")
   if [ -d "$vault/.git" ]; then
     if ! env "$gb_env" "$HOME/.local/bin/gbrain" sources list 2>/dev/null | grep -q secondbrain; then
-      env "$gb_env" "$HOME/.local/bin/gbrain" sources add secondbrain --path "$vault" --name "Second brain" >/dev/null 2>&1 \
-        && log "knowledge: second brain registrado como fonte do cérebro" \
-        || log "aviso: não consegui registrar $vault como fonte do GBrain"
+      if env "$gb_env" "$HOME/.local/bin/gbrain" sources add secondbrain --path "$vault" --name "Second brain" >/dev/null 2>&1; then
+        log "knowledge: second brain registrado como fonte do cérebro"
+      else
+        log "aviso: não consegui registrar $vault como fonte do GBrain"
+      fi
     fi
     # o token só vê as fontes do seu grant: second brain primeiro (fonte de escrita) e a pasta default
     env "$gb_env" "$HOME/.local/bin/gbrain" auth rescope --token whitebeard-os --sources secondbrain,default >/dev/null 2>&1 \
@@ -922,14 +957,7 @@ install_knowledge() {
 # a conexão Claude usa a conta desta máquina (no modo autenticado ela exige um login isolado que, no macOS,
 # o Paperclip não consegue ler: o Claude Code guarda o token no Keychain).
 paperclip_bind() {
-  others=$(python3 - "$TENANT" <<'PY'
-import re, sys
-txt = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
-hosts = re.findall(r"host:\s*([^\s#]+)", m.group(1)) if m else []
-print(len([h for h in hosts if h not in ("local", "localhost")]))
-PY
-)
+  others=$(nos_query others)
   if has_role desktop && [ "$others" = 0 ]; then echo loopback; else echo lan; fi
 }
 
@@ -1066,8 +1094,8 @@ install_web() {
       log "web: baixando o JARVIS Web $JARVIS_WEB_VERSION"
       tmp=$(mktemp -d)
       fetch_verified "$JARVIS_WEB_URL" "$JARVIS_WEB_SHA256" "$tmp/web.tar.gz"
-      tar -xzf "$tmp/web.tar.gz" -C "$tmp" && rm -rf "$dir" && mkdir -p "$JARVIS_HOME/app" \
-        && mv "$tmp/jarvis-web-$JARVIS_WEB_VERSION" "$dir" || die "web: pacote do JARVIS Web inválido"
+      if ! { tar -xzf "$tmp/web.tar.gz" -C "$tmp" && rm -rf "$dir" && mkdir -p "$JARVIS_HOME/app" \
+        && mv "$tmp/jarvis-web-$JARVIS_WEB_VERSION" "$dir"; }; then die "web: pacote do JARVIS Web inválido"; fi
       rm -rf "$tmp"
     fi
     # instalação antiga por clone fica guardada, não é apagada
@@ -1238,10 +1266,11 @@ doctor() {
     st=""; for s in ollama gbrain; do
       launchctl print "gui/$(id -u)/dev.whitebeard.$s" 2>/dev/null | grep -q "state = running" && st="$st $s=running" || st="$st $s=parado"
     done
-    h=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3131/health 2>/dev/null)
+    # com --no-start nada escuta na porta: o curl falha (saída 7) e, com set -e, derrubaria o resumo
+    h=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3131/health 2>/dev/null || echo 000)
     tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
     m=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
-      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:3131/mcp 2>/dev/null)
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:3131/mcp 2>/dev/null || echo 000)
     unset tok
     c="não"; claude mcp get knowledge >/dev/null 2>&1 && c="sim"
     log "knowledge (nativo):$st | GBrain health=$h | MCP com token http=$m | MCP knowledge no Claude Code: $c"
@@ -1280,7 +1309,7 @@ finalizar() {
   if can_prompt; then
     case "$OS" in
       Darwin) open "$url" 2>/dev/null || true ;;
-      Linux) [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && have xdg-open && xdg-open "$url" >/dev/null 2>&1 || true ;;
+      Linux) if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && have xdg-open; then xdg-open "$url" >/dev/null 2>&1 || true; fi ;;
     esac
   fi
 }

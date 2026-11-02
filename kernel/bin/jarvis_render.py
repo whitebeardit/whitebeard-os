@@ -373,6 +373,7 @@ def main() -> int:
         (tenant_dir / p).resolve() for p in (data.get("skills") or {}).get("packs", []) or []
     ]
     installed: list[str] = []
+    hermes_existing = None  # mapa nome→pasta das skills já instaladas no Hermes (feito uma vez)
     not_linked: list[str] = []
     claude_skills = user_home / ".claude" / "skills"
     for pack in packs:
@@ -406,9 +407,21 @@ def main() -> int:
             hermes_skills = user_home / ".hermes" / "skills"
             if hermes_skills.is_dir():
                 hl = hermes_skills / d.name
+                # o Hermes organiza skills em categorias (skills/<categoria>/.../<nome>); uma skill com o mesmo
+                # nome já instalada em qualquer lugar é a da pessoa e vale: não se cria um duplicado
+                if hermes_existing is None:
+                    hermes_existing = {}
+                    for q in hermes_skills.rglob("SKILL.md"):
+                        sk = q.parent
+                        if sk.parent == hermes_skills and sk.is_symlink():
+                            continue  # links planos do próprio kernel
+                        hermes_existing.setdefault(sk.name.lower(), sk)
                 if hl.is_symlink():
                     hl.unlink()
-                if not hl.exists():
+                if d.name.lower() in hermes_existing:
+                    where = hermes_existing[d.name.lower()].relative_to(hermes_skills).parent
+                    log(f"skill {d.name}: o Hermes já a tem em {where}/; sem link duplicado")
+                elif not hl.exists():
                     hl.symlink_to(dest)
             installed.append(d.name)
 

@@ -103,8 +103,9 @@ jobs:
         env:
           WHITEBEARD_OS_DIR: ${{ runner.temp }}/whitebeard-os-oneline
           WHITEBEARD_OS_REPO: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          WHITEBEARD_OS_REF: ${{ github.ref_name }}
+          # em PR, ref_name é "N/merge" (ref interno, não é branch): usa o branch de origem
+          WHITEBEARD_OS_REF: ${{ github.head_ref || github.ref_name }}
         run: |
           cat install.sh | sh -s -- --no-start --no-prompt --skip hermes,web
           test -f "$WHITEBEARD_OS_DIR/bootstrap.sh"
-          test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/exemplo/jarvis.yaml"
+          test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/pessoal/jarvis.yaml"  # tenant padrão do install.sh

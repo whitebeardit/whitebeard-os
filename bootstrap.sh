@@ -18,6 +18,7 @@ DRY_RUN=0
 NO_START=0
 NO_PROMPT=0
 WITH_TELEGRAM=0
+APPLY=0
 PAPERCLIP_LOCAL=0
 # o knowledge gerou um segredo novo (token do MCP): render e MCPs precisam ser reaplicados
 RERENDER=0
@@ -47,6 +48,8 @@ uso: $0 --tenant <jarvis.yaml> [opções]
   --dry-run            valida o jarvis.yaml e mostra o que faria; não escreve nada
   --no-prompt          não pergunta segredos no terminal (CI); deixa vazios em secrets.env
   --telegram           liga o Telegram: pede o token do bot e reconhece o seu chat pela primeira mensagem
+  --apply              só reaplica a configuração de uma instalação feita (segredos novos, Telegram): render, MCPs
+                       e Hermes; não instala nada nem mexe no JARVIS Web. Tenant e papéis vêm da instalação
   --paperclip-local    migra um Paperclip já instalado (autenticado, na rede) para só esta máquina, sem login
   -h, --help           esta ajuda
 EOF
@@ -64,11 +67,19 @@ while [ $# -gt 0 ]; do
     --dry-run)        DRY_RUN=1; shift ;;
     --no-prompt)      NO_PROMPT=1; shift ;;
     --telegram)       WITH_TELEGRAM=1; shift ;;
+    --apply)          APPLY=1; shift ;;
     --paperclip-local) PAPERCLIP_LOCAL=1; shift ;;
     -h|--help)        usage; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
+# --apply: a instalação já diz qual tenant e quais papéis; quem chama (o JARVIS Web) não tem terminal
+if [ "$APPLY" = 1 ]; then
+  [ -f "$JARVIS_HOME/profile.env" ] || die "--apply: não há instalação em $JARVIS_HOME"
+  [ -n "$TENANT" ] || TENANT=$(cat "$JARVIS_HOME/tenant.path" 2>/dev/null || true)
+  [ -n "$ROLES" ] || ROLES=$(sed -n 's/^JARVIS_ROLE=//p' "$JARVIS_HOME/profile.env")
+  NO_PROMPT=1
+fi
 
 log() { printf '[whitebeard-os] %s\n' "$*"; }
 die() { printf '[whitebeard-os] ERRO: %s\n' "$*" >&2; exit 1; }
@@ -394,6 +405,8 @@ render_tenant() {
     return 0
   fi
   mkdir -p "$JARVIS_HOME"
+  # onde está este kernel: o JARVIS Web chama daqui o jarvis_setup.py e o `bootstrap.sh --apply`
+  printf '%s\n' "$SCRIPT_DIR" >"$JARVIS_HOME/kernel.path"
   uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR"
   asked=1; ask_secrets || asked=0
   telegram_setup && asked=1 && TELEGRAM_CHANGED=1
@@ -416,6 +429,10 @@ s2, n = re.subn(r"(?m)^" + re.escape(name) + r"=.*$", lambda _: name + "=" + q, 
 open(p, "w", encoding="utf-8").write(s2 if n else s + "\n" + name + "=" + q + "\n")
 PY
 }
+
+# Estado e gravação da configuração pós-instalação (segredos, Telegram), em JSON: o mesmo código que a
+# página PRIMEIROS PASSOS do JARVIS Web chama. Só biblioteca padrão do python3.
+setup_py() { python3 "$KERNEL_DIR/bin/jarvis_setup.py" --home "$JARVIS_HOME" "$@"; }
 
 # Terminal de verdade para perguntar (ssh sem -t, cron e CI têm /dev/tty que não abre).
 can_prompt() { [ "$NO_PROMPT" != 1 ] && ( : </dev/tty ) 2>/dev/null; }
@@ -441,6 +458,8 @@ telegram_setup() {
     log "telegram: para ligar, rode o instalador num terminal com --telegram"
     return 1
   fi
+  # a validação do token e o reconhecimento do chat são do jarvis_setup.py: o mesmo código que a página
+  # PRIMEIROS PASSOS do JARVIS Web usa; aqui só a conversa no terminal
   if ! grep -q '^TELEGRAM_BOT_TOKEN=.' "$s" 2>/dev/null; then
     printf '\n  Telegram: no app, abra @BotFather, mande /newbot, escolha um nome e copie o token.\n  Token do bot (Enter em branco para deixar para depois): ' >/dev/tty
     stty -echo </dev/tty 2>/dev/null || true
@@ -448,57 +467,21 @@ telegram_setup() {
     stty echo </dev/tty 2>/dev/null || true
     printf '\n' >/dev/tty
     [ -n "$value" ] || return 1
-    set_secret TELEGRAM_BOT_TOKEN "$value"
+    out=$(printf '%s' "$value" | setup_py telegram-token) || true
+    unset value
+    case "$out" in
+      *'"ok": true'*) ;;
+      *) log "aviso: o Telegram recusou o token (confira em @BotFather); nada foi guardado"; return 1 ;;
+    esac
   fi
   grep -q '^TELEGRAM_HOME_CHANNEL=.' "$s" 2>/dev/null && return 0
-  # o gateway, se já roda com este token, disputaria as mensagens: para e volta em install_services
-  if have hermes; then hermes gateway stop >/dev/null 2>&1 || true; fi
-  chat=$(python3 - "$s" <<'PY'
-import json, shlex, sys, time, urllib.error, urllib.request
-tok = ""
-for line in open(sys.argv[1], encoding="utf-8"):
-    if line.startswith("TELEGRAM_BOT_TOKEN="):
-        tok = (shlex.split(line.split("=", 1)[1]) or [""])[0]
-def api(method, **q):
-    url = f"https://api.telegram.org/bot{tok}/{method}?" + "&".join(f"{k}={v}" for k, v in q.items())
-    with urllib.request.urlopen(url, timeout=40) as r:
-        return json.load(r)["result"]
-try:
-    me = api("getMe")
-except Exception:
-    print("[whitebeard-os] aviso: o Telegram recusou o token (confira em @BotFather)", file=sys.stderr); sys.exit(0)
-print(f"\n  Mande \"oi\" para @{me['username']} no Telegram. Espero até 3 minutos...", file=open("/dev/tty", "w"))
-# o backlog do bot pode ter mensagem de qualquer pessoa: descarta tudo o que chegou antes deste momento
-started = int(time.time())
-offset = 0
-try:
-    last = api("getUpdates", offset=-1, timeout=0)
-    if last:
-        offset = last[-1]["update_id"] + 1
-except Exception:
-    pass
-deadline = time.time() + 180
-while time.time() < deadline:
-    try:
-        ups = api("getUpdates", timeout=30, offset=offset, allowed_updates='["message"]')
-    except urllib.error.HTTPError as e:
-        print(f"[whitebeard-os] aviso: o Telegram não entregou mensagens (HTTP {e.code})", file=sys.stderr); sys.exit(0)
-    for u in ups:
-        offset = u["update_id"] + 1
-        m = u.get("message") or {}
-        if m.get("date", 0) < started:
-            continue
-        if (m.get("chat") or {}).get("type") == "private" and (m.get("from") or {}).get("id"):
-            api("getUpdates", offset=offset, timeout=0)  # marca como lida: o gateway não responde a ela de novo
-            print(m["from"]["id"]); sys.exit(0)
-PY
-)
-  if [ -n "$chat" ]; then
-    set_secret TELEGRAM_HOME_CHANNEL "$chat"
-    log "telegram: seu chat foi reconhecido; o bot já responde só a você"
-  else
-    log "aviso: nenhuma mensagem chegou ao bot; rode de novo com --telegram quando quiser"
-  fi
+  bot=$(cat "$JARVIS_HOME/telegram.bot" 2>/dev/null || echo seu_bot)
+  printf '\n  Mande "oi" para @%s no Telegram. Espero até 3 minutos...\n' "$bot" >/dev/tty
+  out=$(setup_py telegram-wait --seconds 180) || true
+  case "$out" in
+    *'"ok": true'*) log "telegram: seu chat foi reconhecido; o bot já responde só a você" ;;
+    *) log "aviso: nenhuma mensagem chegou ao bot; rode de novo com --telegram quando quiser" ;;
+  esac
   return 0
 }
 
@@ -1079,25 +1062,50 @@ install_services() {
   elif [ "$bind" = loopback ]; then
     log "paperclip: instância existente em modo autenticado; para só esta máquina, sem login: ./install.sh --paperclip-local"
   fi
-  if [ "$WITH_HERMES" = 1 ] && have hermes; then
-    if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null; then
-      gw_present=0
-      case "$OS" in
-        Darwin) launchctl print "gui/$(id -u)/ai.hermes.gateway" >/dev/null 2>&1 && gw_present=1 ;;
-        Linux) systemctl --user is-enabled hermes-gateway.service >/dev/null 2>&1 && gw_present=1 ;;
-      esac
-      if [ "$gw_present" = 0 ]; then
-        hermes gateway install --start-on-login --start-now >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 && log "hermes: gateway instalado como serviço"
-      elif [ "${TELEGRAM_CHANGED:-0}" = 1 ] || [ "$HERMES_RESTART" = 1 ]; then
-        hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true
-        log "hermes: gateway reiniciado (configuração mudou)"
-      else
-        log "hermes: gateway já instalado"
-      fi
+  ensure_hermes_gateway
+}
+
+# Gateway do Hermes (Telegram) como serviço do usuário: instala na primeira vez em que há token, reinicia
+# quando a configuração mudou (segredo novo, chat reconhecido), não toca se nada mudou.
+ensure_hermes_gateway() {
+  [ "$WITH_HERMES" = 1 ] || return 0
+  have hermes || return 0
+  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null; then
+    mkdir -p "$JARVIS_HOME/logs"
+    gw_present=0
+    case "$OS" in
+      Darwin) launchctl print "gui/$(id -u)/ai.hermes.gateway" >/dev/null 2>&1 && gw_present=1 ;;
+      Linux) systemctl --user is-enabled hermes-gateway.service >/dev/null 2>&1 && gw_present=1 ;;
+    esac
+    if [ "$gw_present" = 0 ]; then
+      hermes gateway install --start-on-login --start-now >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 && log "hermes: gateway instalado como serviço"
+    elif [ "${TELEGRAM_CHANGED:-0}" = 1 ] || [ "$HERMES_RESTART" = 1 ]; then
+      hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true
+      log "hermes: gateway reiniciado (configuração mudou)"
     else
-      log "hermes: Telegram desligado (opcional; para ligar: ./install.sh --telegram)"
+      log "hermes: gateway já instalado"
     fi
+  else
+    log "hermes: Telegram desligado (opcional; ligue em PRIMEIROS PASSOS no JARVIS ou com ./install.sh --telegram)"
   fi
+}
+
+# --apply: a instalação existe; só a configuração muda (a página PRIMEIROS PASSOS gravou segredos ou o
+# Telegram). Render de novo, MCPs do Claude Code, .env e MCPs do Hermes, gateway reiniciado. Nada é
+# instalado, e o serviço do JARVIS Web (quem normalmente chama isto) não é tocado.
+apply_only() {
+  log "aplicando a configuração do tenant $TENANT (papéis $ROLES)"
+  render_tenant
+  apply_mcp
+  apply_claude_plugins
+  apply_hermes_config
+  apply_hermes_tenant
+  HERMES_RESTART=1
+  ensure_hermes_gateway
+  if has_role core && grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then
+    log "telegram: ligado"
+  fi
+  log "configuração aplicada"
 }
 
 # JARVIS Web: a interface do produto. Clona o app na ref do lockfile, instala só as dependências de
@@ -1293,7 +1301,7 @@ doctor() {
     done
     # com --no-start nada escuta na porta: o curl falha (saída 7) e, com set -e, derrubaria o resumo
     h=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3131/health 2>/dev/null || echo 000)
-    tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
+    tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env" 2>/dev/null || true)
     m=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $tok" -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
       -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' http://127.0.0.1:3131/mcp 2>/dev/null || echo 000)
     unset tok
@@ -1302,8 +1310,9 @@ doctor() {
     log "second brain: $(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env") (sincronizado a cada 2 min)"
   elif has_role knowledge && have docker; then log "knowledge: $(docker compose --project-directory "$JARVIS_HOME/compose/knowledge" ps --format '{{.Name}}={{.State}}' 2>/dev/null | tr '\n' ' ')"; fi
   if has_role desktop && [ -f "$JARVIS_HOME/app/jarvis-web/dist/index.html" ]; then
-    p=http; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && p=https
-    log "web: JARVIS Web em $p://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json; certificado em \$JARVIS_HOME/tls)"
+    # nesta máquina o JARVIS Web atende em HTTP (sem aviso de certificado); na rede, em HTTPS
+    lan=""; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && lan=" | rede local: https://$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]'):$JARVIS_WEB_PORT (certificado em \$JARVIS_HOME/tls)"
+    log "web: JARVIS Web em http://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json)$lan"
   fi
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
   [ "$KNOWLEDGE_ADIADO" = 1 ] && log "knowledge: adiado (sem Docker). Instale Docker e rode o bootstrap de novo"
@@ -1318,16 +1327,16 @@ finalizar() {
   data=$(sed -n 's/^JARVIS_DATA=//p' "$JARVIS_HOME/profile.env" 2>/dev/null)
   tok=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$data/jarvis-web.json" 2>/dev/null)
   [ -n "$tok" ] || return 0
-  proto=http; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && proto=https
-  url="$proto://localhost:$JARVIS_WEB_PORT/?token=$tok"
+  # nesta máquina o navegador fala HTTP com o serviço (sem aviso de certificado); o HTTPS é para a rede
+  url="http://localhost:$JARVIS_WEB_PORT/?token=$tok"
   printf '\n'
   printf '  Pronto! O JARVIS está no seu navegador:\n'
   printf '    %s\n' "$url"
-  printf '  (se não abriu sozinho, copie o endereço acima; o aviso de "não seguro" é do certificado local)\n'
+  printf '  (se não abriu sozinho, copie o endereço acima)\n'
   if grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then
     printf '  Telegram: ligado. Mande uma mensagem para o seu bot.\n'
   else
-    printf '  Telegram: desligado. Para ligar: %s/install.sh --telegram\n' "$SCRIPT_DIR"
+    printf '  Telegram: desligado. Ligue em PRIMEIROS PASSOS, na tela que abriu (ou: %s/install.sh --telegram)\n' "$SCRIPT_DIR"
   fi
   printf '  Seu second brain: %s (abra no Obsidian; o JARVIS lê e escreve nele)\n' "$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env" 2>/dev/null)"
   printf '  Para rodar de novo ou atualizar: o mesmo comando da instalação. Para desinstalar: %s/uninstall.sh\n\n' "$SCRIPT_DIR"
@@ -1339,7 +1348,11 @@ finalizar() {
   fi
 }
 
-log "whitebeard-os $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo dev) | $OS/$ARCH | papéis $ROLES$( [ "$DRY_RUN" = 1 ] && printf ' | dry-run' )$( [ "$NO_START" = 1 ] && printf ' | no-start' )"
+log "whitebeard-os $(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo dev) | $OS/$ARCH | papéis $ROLES$( [ "$DRY_RUN" = 1 ] && printf ' | dry-run' )$( [ "$NO_START" = 1 ] && printf ' | no-start' )$( [ "$APPLY" = 1 ] && printf ' | apply' )"
+if [ "$APPLY" = 1 ]; then
+  apply_only
+  exit 0
+fi
 check_prereqs
 install_uv
 install_node

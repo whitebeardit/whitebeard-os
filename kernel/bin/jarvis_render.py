@@ -473,6 +473,16 @@ def main() -> int:
     # módulos do JARVIS Web: o tenant escolhe; sem `interface`, só os genéricos do produto
     modulos = ((data.get("interface") or {}).get("modulos")) or MODULOS_PADRAO
     w.write(home / "render" / "web.json", json.dumps({"tenant": tenant, "modulos": list(modulos)}, ensure_ascii=False, indent=2) + "\n")
+    # catálogo dos segredos esperados (nomes e metadados, NUNCA valores): o jarvis_setup.py e a página
+    # PRIMEIROS PASSOS do JARVIS Web mostram o que falta sem ler comentários do secrets.env
+    w.write(home / "render" / "secrets.json", json.dumps([{
+        "nome": s["name"],
+        "descricao": s.get("description", ""),
+        "obter": s.get("obtain", ""),
+        "obrigatorio": bool(s.get("required")),
+        "gerado": bool(s.get("generate")),
+        "implicito": bool(s.get("implicit")),
+    } for s in entries], ensure_ascii=False, indent=2) + "\n")
     # obrigatórios ainda vazios: o bootstrap pergunta no terminal e roda o render de novo
     w.write(home / "render" / "secrets-missing.txt", "\n".join(missing) + ("\n" if missing else ""))
     w.write(home / "render" / "summary.txt", "\n".join(summary) + "\n")

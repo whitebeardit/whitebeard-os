@@ -51,7 +51,7 @@ knowledge em compose usa a GPU por CDI/NVIDIA Container Toolkit; no macOS, conta
 Ollama e Whisper rodam nativos e o compose aponta para eles.
 
 A interface gráfica do produto é **uma só: JARVIS Web**, servida pelo próprio host e aberta no browser
-(`http://localhost:8017`; na LAN ou no celular com TLS local). Não há app Electron no produto: mesma UI, sem
+(`http://localhost:8017` nesta máquina; na LAN ou no celular, `https://` com TLS local). Não há app Electron no produto: mesma UI, sem
 empacotamento nem assinatura por sistema operacional. O app lê as pastas pelo mesmo contrato do `profile.sh`
 (`JARVIS_HOME`, `JARVIS_DATA`, `HERMES_HOME`, `VAULT_PATH`), sem nome de tenant no código.
 
@@ -90,7 +90,11 @@ O que a pessoa faz:
 1. roda o comando acima num terminal;
 2. entra na conta Claude quando o navegador abrir (único passo interativo: Hermes e Paperclip usam esse login);
 3. responde se quer o JARVIS no Telegram (pode dizer não e ligar depois);
-4. no fim, o JARVIS Web abre sozinho no navegador.
+4. no fim, o JARVIS Web abre sozinho no navegador, em `http://localhost:8017`, na página **PRIMEIROS PASSOS**:
+   ali a pessoa liga o Telegram (cola o token do bot e manda um "oi"), preenche as chaves que o tenant pede,
+   vê como abrir no celular e aplica. Nada disso volta ao terminal: a página chama
+   `kernel/bin/jarvis_setup.py` (estado e gravação, só por stdin) e `bootstrap.sh --apply` (render, MCPs e
+   Hermes, sem reinstalar nada). A página fica em CONFIGURAÇÕES para voltar depois.
 
 Nada de chaves, convites ou arquivos para editar. O que não é nosso (npm, instalador do Hermes, Paperclip)
 não aparece na tela: fica em `~/.jarvis/logs/`. Tenant de uma empresa: `JARVIS_TENANT=<nome, pasta ou
@@ -109,10 +113,12 @@ cd ~/DEV/whitebeard-os
 ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # tudo-em-um
 ```
 
-Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`). O CI roda com
-`--skip web` porque o repositório do app é privado e o runner não tem a chave; num host seu, o JARVIS Web
-entra no papel desktop e sobe em `https://localhost:8017` (token em `$JARVIS_DATA/jarvis-web.json`; certificado
-autoassinado em `~/.jarvis/tls`, que o celular instala para liberar o microfone).
+Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`, `--apply` para
+só reaplicar a configuração de uma instalação feita). O CI roda com `--skip web` porque o repositório do app é
+privado e o runner não tem a chave; num host seu, o JARVIS Web entra no papel desktop e atende em
+`http://localhost:8017` nesta máquina (sem aviso de certificado) e em `https://<host>:8017` na rede local
+(token em `$JARVIS_DATA/jarvis-web.json`; certificado autoassinado em `~/.jarvis/tls`, que o celular instala
+para liberar o microfone; a página PRIMEIROS PASSOS oferece o arquivo).
 
 O bootstrap é idempotente e só escreve dentro de `$HOME`:
 

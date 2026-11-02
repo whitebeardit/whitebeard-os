@@ -211,10 +211,14 @@ def main() -> int:
     servers = tenant_mcp if "desktop" in roles else []
     # o que o kernel registrou numa execução anterior e saiu do tenant é removido (nunca o que a pessoa
     # adicionou à mão: só nomes que estiveram nesta lista); vale também quando a lista ficou vazia
+    # claude-mcp.names = só o que o KERNEL registrou (o script o escreve ao registrar; um MCP que já era da
+    # pessoa e foi mantido nunca entra nele). O render não o reescreve: senão, na execução seguinte, os MCPs
+    # da pessoa pareceriam do kernel e seriam substituídos.
     names_file = home / "render" / "claude-mcp.names"
     previous = names_file.read_text(encoding="utf-8").split() if names_file.is_file() else []
     stale = [n for n in previous if n not in {m["name"] for m in servers}]
     if servers or stale:
+        kept = [n for n in previous if n not in stale]
         mcp = [
             "#!/bin/sh",
             f"# gerado pelo whitebeard-os a partir de {tenant_path}; idempotente",
@@ -222,6 +226,9 @@ def main() -> int:
             "set -a",
             f". {sq(str(secrets_path))}",
             "set +a",
+            f"names={sq(str(names_file))}",
+            # começa pela lista do que o kernel já registrou e continua no tenant; cada registro novo acrescenta
+            "printf '%s' " + sq("".join(n + "\n" for n in kept)) + " >\"$names\"",
             "",
         ]
         for n in stale:
@@ -254,11 +261,10 @@ def main() -> int:
                 cmd += ["--env", dq(f"{k}={v}")]
             if m["transport"] == "stdio":
                 cmd += ["--", sq(m["command"])] + [sq(a) for a in m.get("args", []) or []]
-            mcp.append("  " + " ".join(cmd) + f" >/dev/null 2>&1 && printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}"
+            mcp.append("  " + " ".join(cmd) + f" >/dev/null 2>&1 && {{ printf '%s\\n' {sq(name)} >>\"$names\"; printf '[whitebeard-os] mcp %s registrado\\n' {sq(name)}; }}"
                        f" || printf '[whitebeard-os] aviso: não consegui registrar o mcp %s no Claude Code\\n' {sq(name)}")
             mcp.append("fi")
         w.write(home / "render" / "claude-mcp.sh", "\n".join(mcp) + "\n", mode=0o700)
-        w.write(names_file, "\n".join(m["name"] for m in servers) + "\n")
 
     # ---- plugins do Claude Code (papel desktop): marketplaces e plugins que o tenant declara em `claude:`.
     # Script idempotente: só adiciona o que falta. Os nomes aplicados ficam em claude-plugins.names (o

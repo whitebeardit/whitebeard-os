@@ -73,6 +73,10 @@ while [ $# -gt 0 ]; do
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
 done
+# executável que o serviço do Paperclip chama (install_paperclip escreve; `paperclipai service install` lê
+# esta variável). Fora de ~/.local/bin de propósito: ali o doctor do Paperclip o tomaria por loja gerenciada.
+PAPERCLIP_SHIM_PATH="$JARVIS_HOME/bin/paperclipai"
+export PAPERCLIP_SHIM_PATH
 # --apply: a instalação já diz qual tenant e quais papéis; quem chama (o JARVIS Web) não tem terminal
 if [ "$APPLY" = 1 ]; then
   [ -f "$JARVIS_HOME/profile.env" ] || die "--apply: não há instalação em $JARVIS_HOME"
@@ -314,6 +318,11 @@ ensure_claude_login() {
   have claude || return 0
   [ "$DRY_RUN" = 1 ] && return 0
   if claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then log "claude: conectado à sua conta"; return 0; fi
+  # por SSH o macOS não abre o Keychain da pessoa: o Claude Code parece deslogado mesmo estando conectado
+  if [ "$OS" = Darwin ] && [ -n "${SSH_CONNECTION:-}" ]; then
+    log "claude: não consigo ver o login por SSH (o macOS fecha o Keychain fora da sessão gráfica); confira num Terminal do próprio Mac"
+    return 0
+  fi
   if can_prompt; then
     log "claude: entre na sua conta Claude (vai abrir o navegador; volte aqui quando terminar)"
     claude auth login </dev/tty >/dev/tty 2>&1 || true
@@ -383,14 +392,21 @@ install_paperclip() {
     log "instalando paperclip $PAPERCLIP_VERSION"
     with_node "npm install -g --no-fund --no-audit 'paperclipai@$PAPERCLIP_VERSION' >/dev/null"
   fi
-  # `paperclipai service install` escreve a unidade apontando para ~/.local/bin/paperclipai (o atalho da loja
-  # gerenciada, que o npm não cria): sem ele o serviço morre com "no executable" e o doctor recusa subir.
-  # Atalho do kernel para o binário do npm, só quando não há atalho da pessoa (loja gerenciada) no lugar.
+  # um atalho que o kernel tenha deixado em ~/.local/bin (versões anteriores): o doctor do Paperclip toma
+  # qualquer arquivo ali por "instalação gerenciada" sem manifesto e recusa subir o serviço
+  if grep -q "whitebeard-os: atalho" "$shim" 2>/dev/null; then rm -f "$shim"; fi
+  # `paperclipai service install` grava na unidade o caminho de $PAPERCLIP_SHIM_PATH (exportado lá em cima,
+  # dentro de $JARVIS_HOME/bin), e exige que exista um executável lá. O npm não cria atalho nenhum, então o
+  # kernel escreve o seu: chama o node pelo caminho (o LaunchAgent/systemd não tem o node do nvm no PATH e
+  # `#!/usr/bin/env node` morria com "env: node: No such file or directory") e põe a pasta do node no PATH,
+  # para os filhos do Paperclip (npx, node) também o acharem.
   bin=$(with_node 'command -v paperclipai' | tail -n 1)
-  if [ -n "$bin" ] && { [ ! -e "$shim" ] || grep -q "whitebeard-os: atalho" "$shim" 2>/dev/null; }; then
-    mkdir -p "$HOME/.local/bin"
-    printf '#!/bin/sh\n# whitebeard-os: atalho para o paperclipai instalado pelo npm (nvm); refeito a cada bootstrap\nexec %s "$@"\n' "$bin" >"$shim"
-    chmod 755 "$shim"
+  if [ -n "$bin" ]; then
+    mkdir -p "$(dirname "$PAPERCLIP_SHIM_PATH")"
+    node_dir=$(dirname "$bin")
+    # shellcheck disable=SC2016  # o $PATH e o "$@" são para o atalho, não para este script
+    printf '#!/bin/sh\n# whitebeard-os: atalho para o paperclipai instalado pelo npm (nvm); refeito a cada bootstrap\nPATH=%s:$PATH\nexport PATH\nexec %s/node %s "$@"\n' "$node_dir" "$node_dir" "$bin" >"$PAPERCLIP_SHIM_PATH"
+    chmod 755 "$PAPERCLIP_SHIM_PATH"
   fi
 }
 

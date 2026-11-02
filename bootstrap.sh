@@ -595,7 +595,10 @@ apply_hermes_tenant() {
   if [ "$DRY_RUN" = 1 ]; then log "hermes: mesclaria os MCPs do tenant no config.yaml"; return 0; fi
   py="$HERMES_HOME/hermes-agent/venv/bin/python3"
   [ -x "$py" ] || { log "aviso: venv do Hermes ausente; configuração do tenant não aplicada no Hermes"; return 0; }
-  HERMES_HOME="$HERMES_HOME" "$py" - "$src" <<'PY' || log "aviso: não consegui aplicar a configuração do tenant no Hermes"
+  # PYTHONPATH: versões novas do Hermes têm módulos na raiz do repositório (hermes_yaml) que o venv só
+  # encontra rodando de dentro dela; o kernel roda de fora.
+  pypath="$HERMES_HOME/hermes-agent${PYTHONPATH:+:$PYTHONPATH}"
+  HERMES_HOME="$HERMES_HOME" PYTHONPATH="$pypath" "$py" - "$src" <<'PY' || log "aviso: não consegui aplicar a configuração do tenant no Hermes"
 import json, os, sys
 import yaml
 from hermes_cli.config import load_config, save_config

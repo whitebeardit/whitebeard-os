@@ -76,6 +76,8 @@ rm -rf "$JARVIS_HOME"
 rm -f "$HOME/.local/bin/ffmpeg" "$HOME/.local/bin/ffprobe" "$HOME/.local/bin/hermes" "$HOME/.local/bin/gbrain"
 # atalho da loja gerenciada do Paperclip (paperclipai install) que ficaria sem alvo
 if [ "$DELETE_DATA" = 1 ] && [ -f "$HOME/.local/bin/paperclipai" ] && grep -q "managed install shim" "$HOME/.local/bin/paperclipai" 2>/dev/null; then rm -f "$HOME/.local/bin/paperclipai"; fi
+# atalho do kernel para o Paperclip de versões anteriores (hoje ele mora em $JARVIS_HOME/bin, que já se foi)
+if grep -q "whitebeard-os: atalho" "$HOME/.local/bin/paperclipai" 2>/dev/null; then rm -f "$HOME/.local/bin/paperclipai"; fi
 # linha do profile nos rc (marcador "# whitebeard-os", o mesmo que o install_rc escreve)
 for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.zprofile" "$HOME/.profile"; do
   [ -f "$rc" ] || continue

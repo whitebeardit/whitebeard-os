@@ -19,7 +19,6 @@ NO_START=0
 NO_PROMPT=0
 WITH_TELEGRAM=0
 PAPERCLIP_LOCAL=0
-WEB_TLS=""
 # o knowledge gerou um segredo novo (token do MCP): render e MCPs precisam ser reaplicados
 RERENDER=0
 HERMES_RESTART=0
@@ -49,8 +48,6 @@ uso: $0 --tenant <jarvis.yaml> [opções]
   --no-prompt          não pergunta segredos no terminal (CI); deixa vazios em secrets.env
   --telegram           liga o Telegram: pede o token do bot e reconhece o seu chat pela primeira mensagem
   --paperclip-local    migra um Paperclip já instalado (autenticado, na rede) para só esta máquina, sem login
-  --no-tls             JARVIS Web em HTTP, sem certificado (padrão: HTTPS autoassinado; o microfone fora do
-                       localhost exige HTTPS). Lembrado nas próximas execuções em \$JARVIS_HOME/web.tls
   -h, --help           esta ajuda
 EOF
 }
@@ -68,7 +65,6 @@ while [ $# -gt 0 ]; do
     --no-prompt)      NO_PROMPT=1; shift ;;
     --telegram)       WITH_TELEGRAM=1; shift ;;
     --paperclip-local) PAPERCLIP_LOCAL=1; shift ;;
-    --no-tls)         WEB_TLS=0; shift ;;
     -h|--help)        usage; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
@@ -86,32 +82,49 @@ with_node() { bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && $1"; }
 
 [ -n "$TENANT" ] || { usage >&2; die "--tenant é obrigatório"; }
 [ -f "$TENANT" ] || die "tenant não encontrado: $TENANT"
-# Sem --role: os papéis do host desta máquina em `nos:` do tenant (`local`, `localhost` ou o nome do host,
-# com ou sem domínio); sem `nos:` ou sem um host que case, tudo-em-um (desktop,core,knowledge).
-HOST_SHORT=$(hostname 2>/dev/null | cut -d. -f1)
-if [ -z "$ROLES" ]; then
-  ROLES=$(python3 - "$TENANT" "$HOST_SHORT" <<'PY'
+# Leitura mínima de `nos:` sem yaml (o render valida de verdade). Esta máquina é o nó `local`/`localhost`
+# ou o nó cujo host é o seu nome: nome curto casa com nome curto, nome com domínio só com o FQDN igual.
+#   nos_query roles   → papéis do nó desta máquina ("" se nenhum nó casa; "-" se o tenant não tem nos:)
+#   nos_query others  → quantos nós de nos: são outras máquinas
+HOST_FULL=$(hostname 2>/dev/null | tr 'A-Z' 'a-z')
+nos_query() {
+  python3 - "$TENANT" "$HOST_FULL" "$1" <<'PY'
 import re, sys
-txt = open(sys.argv[1], encoding="utf-8").read()
-me = {"local", "localhost", sys.argv[2].lower()} - {""}
-# leitura mínima sem yaml (o render valida de verdade): bloco `nos:` com o host desta máquina
-roles = []
+txt, host, mode = open(sys.argv[1], encoding="utf-8").read(), sys.argv[2], sys.argv[3]
+short = host.split(".")[0]
+def is_me(name):
+    name = name.strip("\"'").lower()
+    if name in ("local", "localhost"):
+        return True
+    return name == host if "." in name else name == short
 m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
-if m:
-    for item in re.split(r"\n\s*-\s", "\n" + m.group(1)):
-        if not item.strip():
-            continue
-        host = re.search(r"host:\s*([^\s#]+)", item)
-        if host and host.group(1).lower().split(".")[0] not in me:
-            continue
-        for key in ("papeis", "papel"):
-            k = re.search(key + r":\s*\[([^\]]*)\]|" + key + r":\s*([^\s#\[]+)", item)
-            if k:
-                roles += [r.strip() for r in (k.group(1) or k.group(2)).split(",") if r.strip()]
-print(",".join(dict.fromkeys(roles)) if roles else "desktop,core,knowledge")
+if not m:
+    print("-" if mode == "roles" else "0"); sys.exit(0)
+roles, others = [], 0
+for item in re.split(r"\n\s*-\s", "\n" + m.group(1)):
+    if not item.strip():
+        continue
+    h = re.search(r"host:\s*([^\s#]+)", item)
+    if h and not is_me(h.group(1)):
+        others += 1
+        continue
+    for key in ("papeis", "papel"):
+        k = re.search(key + r":\s*\[([^\]]*)\]|" + key + r":\s*([^\s#\[]+)", item)
+        if k:
+            roles += [r.strip() for r in (k.group(1) or k.group(2)).split(",") if r.strip()]
+print(",".join(dict.fromkeys(roles)) if mode == "roles" else others)
 PY
-)
-  log "papéis (de nos: do tenant, host ${HOST_SHORT:-local}): $ROLES"
+}
+# Sem --role: os papéis do nó desta máquina. Sem `nos:`, tudo-em-um (desktop,core,knowledge). Com `nos:` mas
+# sem nó que seja esta máquina, é erro: instalar os três papéis num servidor de produção por engano é pior
+# do que parar e pedir --role.
+if [ -z "$ROLES" ]; then
+  ROLES=$(nos_query roles)
+  case "$ROLES" in
+    -) ROLES="desktop,core,knowledge"; log "papéis: tudo-em-um (o tenant não declara nos:)" ;;
+    "") die "nenhum nó em nos: do tenant é esta máquina (hostname $HOST_FULL). Acrescente-a em nos: ou informe --role" ;;
+    *) log "papéis (nó $HOST_FULL em nos: do tenant): $ROLES" ;;
+  esac
 fi
 old_ifs=$IFS
 IFS=,
@@ -628,11 +641,12 @@ PY
   fi
   [ -d "$vault" ] || { log "vault: criando o second brain em $vault"; mkdir -p "$vault"; }
   td="$vault/tenants/$tenant"
+  seeded=0
   if [ -d "$td" ]; then
-    # vault que já existia, com a pasta do tenant: nada é escrito (as pastas e índices são da pessoa)
+    # vault que já existia, com a pasta do tenant: pastas e índices são da pessoa; nada é semeado
     log "vault: $vault já tem tenants/$tenant; nada a semear"
-    return 0
-  fi
+  else
+  seeded=1
   mkdir -p "$td/projects-doc" "$td/knowledge-domain" "$td/resources"
   if [ ! -f "$vault/README.md" ]; then
     cat >"$vault/README.md" <<EOF
@@ -700,12 +714,19 @@ title: Recursos brutos de $tenant
 Pouso temporário: capturas, transcrições, rascunhos e material misto que ainda vai ser organizado em
 projects-doc ou knowledge-domain.
 EOF
-  [ -f "$vault/.gitignore" ] || printf '.DS_Store\n.trash/\n.obsidian/workspace*.json\n.obsidian/cache\n# marcador interno do GBrain (dono do PGLite); não é conhecimento\n.gbrain-owner.json\n' >"$vault/.gitignore"
-  grep -q '^\.gbrain-owner\.json$' "$vault/.gitignore" 2>/dev/null || printf '.gbrain-owner.json\n' >>"$vault/.gitignore"
+  fi
+  [ -f "$vault/.gitignore" ] || { printf '.DS_Store\n.trash/\n.obsidian/workspace*.json\n.obsidian/cache\n' >"$vault/.gitignore"; seeded=1; }
+  # o GBrain nativo desta máquina grava o marcador de dono dentro do vault: não é conhecimento, não vai para o git
+  if has_role knowledge && ! grep -q '^\.gbrain-owner\.json$' "$vault/.gitignore" 2>/dev/null; then
+    printf '# marcador interno do GBrain (dono do PGLite); não é conhecimento\n.gbrain-owner.json\n' >>"$vault/.gitignore"; seeded=1
+  fi
   [ -d "$vault/.git" ] || git -C "$vault" init -q
-  git -C "$vault" add -A >/dev/null 2>&1
-  git -C "$vault" diff --cached --quiet 2>/dev/null \
-    || git -C "$vault" -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "whitebeard-os: estrutura do second brain"
+  # só o que o kernel escreveu entra no commit; o trabalho da pessoa fica como está
+  if [ "$seeded" = 1 ]; then
+    git -C "$vault" add -- .gitignore README.md "tenants/$tenant" >/dev/null 2>&1 || true
+    git -C "$vault" diff --cached --quiet 2>/dev/null \
+      || git -C "$vault" -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "whitebeard-os: estrutura do second brain"
+  fi
   log "vault: second brain em $vault (abra no Obsidian)"
 }
 
@@ -934,15 +955,7 @@ install_knowledge() {
 # a conexão Claude usa a conta desta máquina (no modo autenticado ela exige um login isolado que, no macOS,
 # o Paperclip não consegue ler: o Claude Code guarda o token no Keychain).
 paperclip_bind() {
-  others=$(python3 - "$TENANT" "$HOST_SHORT" <<'PY'
-import re, sys
-txt = open(sys.argv[1], encoding="utf-8").read()
-me = {"local", "localhost", sys.argv[2].lower()} - {""}
-m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
-hosts = re.findall(r"host:\s*([^\s#]+)", m.group(1)) if m else []
-print(len([h for h in hosts if h.lower().split(".")[0] not in me]))
-PY
-)
+  others=$(nos_query others)
   if has_role desktop && [ "$others" = 0 ]; then echo loopback; else echo lan; fi
 }
 
@@ -1146,13 +1159,7 @@ install_web_service() {
   tls_env=""
   tls_xml=""
   proto=http
-  # a escolha fica guardada: quem instalou com --no-tls continua em HTTP ao rodar de novo sem a flag
-  [ "${WEB_TLS:-}" = 0 ] && printf 'off\n' >"$JARVIS_HOME/web.tls"
-  if [ -z "${WEB_TLS:-}" ] && [ "$(cat "$JARVIS_HOME/web.tls" 2>/dev/null)" = off ]; then WEB_TLS=0; fi
-  if [ "${WEB_TLS:-1}" = 0 ]; then
-    rm -f "$JARVIS_HOME/tls/jarvis-web.crt" "$JARVIS_HOME/tls/jarvis-web.key"
-    log "web: HTTP (--no-tls); microfone só em localhost"
-  elif ensure_web_tls; then
+  if ensure_web_tls; then
     proto=https
     tls_env="Environment=JARVIS_WEB_TLS_CERT=$JARVIS_HOME/tls/jarvis-web.crt
 Environment=JARVIS_WEB_TLS_KEY=$JARVIS_HOME/tls/jarvis-web.key"

@@ -31,8 +31,9 @@ Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o pa
 | **core** | Hermes (gateway Telegram + crons), Paperclip (Node + Postgres embutido) | host sempre ligado |
 | **knowledge** | GBrain (MCP + ingestão do vault), pgvector, Ollama (embeddings), em Docker Compose | Docker (Linux) ou Docker Desktop/OrbStack (macOS) |
 
-Sem `--role`, o `bootstrap.sh` instala os papéis do host desta máquina em `nos:` do tenant: `local`, `localhost`
-ou o nome do host (`hostname`, com ou sem domínio). Sem `nos:` ou sem host que case, os três: tudo-em-um. Um papel em outra máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do
+Sem `--role`, o `bootstrap.sh` instala os papéis do nó desta máquina em `nos:` do tenant: `local`, `localhost`
+ou o nome do host (nome curto, ou o FQDN se o tenant o escrever com domínio). Sem `nos:`, os três: tudo-em-um; com
+`nos:` mas sem nó que seja esta máquina, ele para e pede `--role`. Um papel em outra máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do
 tenant apontam para lá. Segredos obrigatórios que faltam são pedidos no terminal (`--no-prompt` desliga).
 Sem Docker, o papel knowledge é adiado com aviso e os outros seguem.
 
@@ -108,8 +109,7 @@ cd ~/DEV/whitebeard-os
 ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # tudo-em-um
 ```
 
-Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`, `--no-tls` para
-manter o JARVIS Web em HTTP). O CI roda com
+Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`). O CI roda com
 `--skip web` porque o repositório do app é privado e o runner não tem a chave; num host seu, o JARVIS Web
 entra no papel desktop e sobe em `https://localhost:8017` (token em `$JARVIS_DATA/jarvis-web.json`; certificado
 autoassinado em `~/.jarvis/tls`, que o celular instala para liberar o microfone).

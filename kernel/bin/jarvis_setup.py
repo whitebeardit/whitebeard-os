@@ -147,21 +147,26 @@ def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
         cat = []
     por_nome = {a.get("nome"): a for a in cat if isinstance(a, dict)}
     loja = load_store(home)
+    removidos = {s.get("nome") for s in loja if s.get("removido")}
+    loja = [s for s in loja if not s.get("removido")]
     nomes_loja = {s.get("nome") for s in loja}
     out_: list[dict] = []
     vistos: set[str] = set()
     for a in loja + [c for c in cat if c.get("nome") not in nomes_loja]:
         nome = a.get("nome", "")
-        if not nome or nome in vistos:
+        if not nome or nome in vistos or nome in removidos:
             continue
         vistos.add(nome)
         tipo = a.get("tipo", "")
         up = sufixo(nome)
+        # a loja é o que a pessoa decidiu (edição ainda não aplicada inclusive); o catálogo só completa
+        cat_a = por_nome.get(nome) or {}
         out_.append({
-            "nome": nome, "tipo": tipo, "descricao": a.get("descricao", ""), "bot": a.get("bot", ""),
-            "skills": (por_nome.get(nome) or a).get("skills") or [],
-            "ajustes": (por_nome.get(nome) or a).get("ajustes") or {},
+            "nome": nome, "tipo": tipo, "descricao": a.get("descricao", ""), "bot": a.get("bot", "") or cat_a.get("bot", ""),
+            "skills": a.get("skills") if a.get("skills") is not None else (cat_a.get("skills") or []),
+            "ajustes": {"computador": bool((a.get("ajustes") or {}).get("computador")), "anotar": bool((a.get("ajustes") or {}).get("anotar"))},
             "origem": "web" if nome in nomes_loja else "tenant",
+            "do_pacote": bool(a.get("do_pacote")) or (nome not in nomes_loja),
             "token": bool(filled.get(f"TELEGRAM_BOT_TOKEN_{up}", False)),
             "pessoas": bool(filled.get(f"TELEGRAM_ALLOWED_USERS_{up}", False)) if tipo in ("mim", "equipe") else None,
             "grupos": bool(filled.get(f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", False)) if tipo in ("equipe", "cliente") else None,
@@ -190,18 +195,37 @@ def cmd_assistente_add(home: Path) -> int:
     if nome == "default":
         return out({"ok": False, "erro": "esse nome é reservado"})
     itens = load_store(home)
-    if any(a.get("nome") == nome for a in itens) or (home / "render" / "hermes" / "assistentes" / nome).is_dir():
+    if any(a.get("nome") == nome and not a.get("removido") for a in itens) or (
+        (home / "render" / "hermes" / "assistentes" / nome).is_dir() and not any(a.get("nome") == nome and a.get("removido") for a in itens)
+    ):
         return out({"ok": False, "erro": f"já existe um assistente chamado {nome}"})
+    itens = [a for a in itens if a.get("nome") != nome]
     itens.append({"nome": nome, "tipo": tipo, "descricao": descricao, "criado_em": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
     save_store(home, itens)
     return out({"ok": True, "assistente": {"nome": nome, "tipo": tipo, "descricao": descricao}})
 
 
+def no_catalogo(home: Path, nome: str) -> dict | None:
+    try:
+        for a in json.loads((home / "render" / "hermes" / "assistentes.json").read_text(encoding="utf-8")):
+            if a.get("nome") == nome:
+                return a
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 def cmd_assistente_remove(home: Path, nome: str) -> int:
     itens = load_store(home)
-    if not any(a.get("nome") == nome for a in itens):
-        return out({"ok": False, "erro": "esse assistente não foi criado pelo JARVIS Web (veio do pacote); remova-o no jarvis.yaml"})
-    save_store(home, [a for a in itens if a.get("nome") != nome])
+    na_loja = any(a.get("nome") == nome and not a.get("removido") for a in itens)
+    do_pacote = (no_catalogo(home, nome) or {}).get("do_pacote") or (not na_loja and no_catalogo(home, nome) is not None)
+    if not na_loja and not do_pacote:
+        return out({"ok": False, "erro": "assistente desconhecido"})
+    itens = [a for a in itens if a.get("nome") != nome]
+    if do_pacote:
+        # o pacote continua a declará-lo; a marca faz o render ignorá-lo (e o bootstrap estaciona o perfil)
+        itens.append({"nome": nome, "removido": True})
+    save_store(home, itens)
     # revoga o acesso: token e listas somem deste computador
     up = sufixo(nome)
     env = read_env(home / "secrets.env")
@@ -211,10 +235,47 @@ def cmd_assistente_remove(home: Path, nome: str) -> int:
     return out({"ok": True})
 
 
+def cmd_assistente_update(home: Path, nome: str) -> int:
+    """Edita descrição, tipo e ajustes. Um assistente do pacote passa a ter uma cópia na loja, que vale por cima."""
+    raw = stdin_value()
+    try:
+        dados = json.loads(raw or "{}")
+    except ValueError:
+        return out({"ok": False, "erro": "dados inválidos"})
+    itens = load_store(home)
+    atual = next((a for a in itens if a.get("nome") == nome and not a.get("removido")), None)
+    if atual is None:
+        base = no_catalogo(home, nome)
+        if base is None:
+            return out({"ok": False, "erro": "assistente desconhecido"})
+        atual = {"nome": nome, "tipo": base.get("tipo", ""), "descricao": base.get("descricao", ""),
+                 "skills": base.get("skills") or [], "ajustes": base.get("ajustes") or {}, "do_pacote": True}
+        itens.append(atual)
+    if "descricao" in dados:
+        atual["descricao"] = str(dados.get("descricao") or "").strip()[:400]
+    if "tipo" in dados:
+        tipo = str(dados.get("tipo") or "")
+        if tipo not in ASSISTENTE_TIPOS:
+            return out({"ok": False, "erro": "tipo desconhecido"})
+        if tipo != atual.get("tipo"):
+            atual["tipo"] = tipo
+            atual.pop("skills", None)  # skills padrão do tipo novo
+            atual["ajustes"] = {}
+    if "ajustes" in dados:
+        aj = dados.get("ajustes") or {}
+        if atual.get("tipo") in ("cliente", "rotinas") and any(aj.values()):
+            return out({"ok": False, "erro": "este tipo não aceita ajustes"})
+        atual["ajustes"] = {k: bool(aj.get(k)) for k in ("computador", "anotar") if k in aj}
+    if "skills" in dados and isinstance(dados.get("skills"), list):
+        atual["skills"] = [str(s) for s in dados["skills"] if re.match(r"^[a-z][a-z0-9-]*$", str(s))]
+    save_store(home, itens)
+    return out({"ok": True, "assistente": {k: atual.get(k) for k in ("nome", "tipo", "descricao", "ajustes")}})
+
+
 def assistente_do_store(home: Path, nome: str) -> dict | None:
     for a in load_store(home):
         if a.get("nome") == nome:
-            return a
+            return None if a.get("removido") else a
     try:
         for a in json.loads((home / "render" / "hermes" / "assistentes.json").read_text(encoding="utf-8")):
             if a.get("nome") == nome:
@@ -851,6 +912,8 @@ def main() -> int:
     sub.add_parser("assistente-add")
     p = sub.add_parser("assistente-remove")
     p.add_argument("nome")
+    p = sub.add_parser("assistente-update")
+    p.add_argument("nome")
     p = sub.add_parser("assistente-token")
     p.add_argument("nome")
     p = sub.add_parser("assistente-wait")
@@ -883,6 +946,8 @@ def main() -> int:
         return cmd_assistente_add(home)
     if args.cmd == "assistente-remove":
         return cmd_assistente_remove(home, args.nome)
+    if args.cmd == "assistente-update":
+        return cmd_assistente_update(home, args.nome)
     if args.cmd == "assistente-token":
         return cmd_assistente_token(home, args.nome)
     if args.cmd == "assistente-wait":

@@ -197,6 +197,7 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         w.write(base / "skills.txt", "\n".join(a.get("skills") or []) + ("\n" if a.get("skills") else ""))
         catalogo.append({
             "nome": nome, "tipo": tipo, "descricao": a.get("descricao", ""), "skills": list(a.get("skills") or []),
+            "do_pacote": bool(a.get("do_pacote")),
             "ajustes": {"computador": bool(ajustes.get("computador")), "anotar": bool(ajustes.get("anotar"))},
             "segredos": {"token": f"TELEGRAM_BOT_TOKEN_{up}",
                          "pessoas": f"TELEGRAM_ALLOWED_USERS_{up}" if tipo in ("mim", "equipe") else None,
@@ -265,12 +266,19 @@ def main() -> int:
     kernel_skills = sorted(d.name for d in (kernel / "skills").iterdir() if (d / "SKILL.md").is_file())
     skills_padrao = {"mim": kernel_skills, "equipe": [s for s in ("knowledge", "knowledge-write") if s in kernel_skills], "cliente": [], "rotinas": []}
     for a in (loja if isinstance(loja, list) else []):
-        if not isinstance(a, dict) or not a.get("nome") or a.get("tipo") not in skills_padrao:
+        if not isinstance(a, dict) or not a.get("nome"):
+            continue
+        if a.get("removido"):
+            # apagado pela interface: o pacote ainda o declara, mas ele não existe mais aqui
+            assistentes = [x for x in assistentes if x.get("nome") != a["nome"]]
+            continue
+        if a.get("tipo") not in skills_padrao:
             continue
         assistentes = [x for x in assistentes if x.get("nome") != a["nome"]]
         assistentes.append({"nome": a["nome"], "tipo": a["tipo"], "descricao": a.get("descricao", ""),
                             "skills": a.get("skills") if a.get("skills") is not None else skills_padrao[a["tipo"]],
-                            **({"ajustes": a["ajustes"]} if a.get("ajustes") else {})})
+                            **({"ajustes": a["ajustes"]} if a.get("ajustes") else {}),
+                            **({"do_pacote": True} if a.get("do_pacote") else {})})
     for a in assistentes:
         up = a["nome"].upper().replace("-", "_")
         rotulo = a.get("descricao") or a["nome"]

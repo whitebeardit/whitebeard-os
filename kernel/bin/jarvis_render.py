@@ -477,6 +477,7 @@ def main() -> int:
     # PRIMEIROS PASSOS do JARVIS Web mostram o que falta sem ler comentários do secrets.env
     w.write(home / "render" / "secrets.json", json.dumps([{
         "nome": s["name"],
+        "titulo": s.get("title", ""),
         "descricao": s.get("description", ""),
         "obter": s.get("obtain", ""),
         "obrigatorio": bool(s.get("required")),

@@ -113,6 +113,7 @@ def cmd_status(home: Path) -> int:
             continue
         segredos.append({
             "nome": nome,
+            "titulo": s.get("titulo", ""),
             "descricao": s.get("descricao", ""),
             "obter": s.get("obter", ""),
             "obrigatorio": bool(s.get("obrigatorio")),

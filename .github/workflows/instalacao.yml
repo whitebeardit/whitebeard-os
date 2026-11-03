@@ -77,6 +77,18 @@ jobs:
           assert d["ok"] and d["tenant"] == "exemplo" and d["telegram"]["disponivel"] and not d["concluido"], d
           nomes = {s["nome"] for s in d["segredos"]}
           assert "EXEMPLO_TOKEN" in nomes and "TELEGRAM_BOT_TOKEN" not in nomes and "POSTGRES_PASSWORD" not in nomes, nomes'
+          # assistentes do tenant de exemplo: catálogo, perfil renderizado por tipo e segredos com título
+          python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)
+          a = {x["nome"]: x for x in d["assistentes"]}
+          assert set(a) == {"suporte", "cliente-exemplo"} and a["cliente-exemplo"]["tipo"] == "cliente" and not a["suporte"]["token"], a
+          titulos = {s["nome"]: s["titulo"] for s in d["segredos"]}
+          assert titulos.get("TELEGRAM_BOT_TOKEN_SUPORTE", "").startswith("Token do bot do assistente"), titulos'
+          test -f "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/SOUL.md"
+          grep -q "dm_policy: disabled" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
+          ! grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
+          grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/suporte/config.yaml"
           printf 'valor-de-teste\n' | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" set-secret EXEMPLO_TOKEN
           test "$(grep -c "^EXEMPLO_TOKEN='valor-de-teste'$" "$HOME/.jarvis/secrets.env")" = 1
           # só reaplica: nada instalado, serviço do JARVIS Web intocado; o segredo gravado sobrevive ao render

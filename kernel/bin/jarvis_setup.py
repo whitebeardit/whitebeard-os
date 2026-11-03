@@ -105,6 +105,26 @@ def pending_apply(home: Path) -> bool:
         return False  # instalação antiga, sem a marca: sem alarme falso
 
 
+def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
+    """Assistentes do Telegram declarados pelo tenant (render/hermes/assistentes.json) e o que falta a cada um."""
+    try:
+        cat = json.loads((home / "render" / "hermes" / "assistentes.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    out_ = []
+    for a in cat:
+        seg = a.get("segredos") or {}
+        out_.append({
+            "nome": a.get("nome", ""), "tipo": a.get("tipo", ""), "descricao": a.get("descricao", ""),
+            "skills": a.get("skills") or [], "ajustes": a.get("ajustes") or {},
+            "token": bool(filled.get(seg.get("token") or "", False)),
+            "pessoas": bool(filled.get(seg.get("pessoas") or "", False)) if seg.get("pessoas") else None,
+            "grupos": bool(filled.get(seg.get("grupos") or "", False)) if seg.get("grupos") else None,
+            "segredos": seg,
+        })
+    return out_
+
+
 def cmd_status(home: Path) -> int:
     profile = read_env(home / "profile.env")
     secrets_path = home / "secrets.env"
@@ -148,6 +168,7 @@ def cmd_status(home: Path) -> int:
             "bot": bot,
         },
         "segredos": segredos,
+        "assistentes": assistentes_status(home, filled),
         "concluido": (home / "setup.done").is_file(),
         "pendente": pending_apply(home),
     })

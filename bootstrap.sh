@@ -683,6 +683,63 @@ print(f"[whitebeard-os] hermes: mcp ({len(applied)}): {', '.join(applied) or '-'
 PY
 }
 
+# Assistentes do Telegram do tenant (`assistentes:`): um perfil isolado do Hermes por assistente, criado
+# pelo próprio Hermes (`hermes profile create`) e preenchido com o que o render escreveu em
+# render/hermes/assistentes/<nome>/ (config, variáveis, persona, skills). Idempotente: o que o kernel
+# gerencia é sobrescrito; o que a pessoa mudou à mão no perfil (SOUL.md editado, chaves próprias no .env)
+# fica. Assistente que saiu do tenant é estacionado (gateway.parked), nunca apagado: apagar é decisão
+# da pessoa. O gateway é um só por máquina e serve todos os perfis (multiplex do Hermes).
+apply_hermes_assistentes() {
+  [ "$WITH_HERMES" = 1 ] || return 0
+  skipped hermes && return 0
+  cat_="$JARVIS_HOME/render/hermes/assistentes.json"
+  [ -f "$cat_" ] || return 0
+  if [ "$DRY_RUN" = 1 ]; then log "hermes: criaria/atualizaria os perfis dos assistentes de $cat_"; return 0; fi
+  have hermes || { log "aviso: hermes ausente; assistentes não aplicados"; return 0; }
+  applied="$JARVIS_HOME/render/hermes/assistentes.applied"
+  mudou=0
+  # estaciona os que saíram do tenant (só os que o kernel criou)
+  if [ -f "$applied" ]; then
+    while IFS= read -r antigo; do
+      [ -n "$antigo" ] || continue
+      if ! python3 -c 'import json,sys; sys.exit(0 if sys.argv[2] in [a["nome"] for a in json.load(open(sys.argv[1]))] else 1)' "$cat_" "$antigo"; then
+        pdir="$HERMES_HOME/profiles/$antigo"
+        if [ -d "$pdir" ] && [ ! -f "$pdir/gateway.parked" ]; then
+          : > "$pdir/gateway.parked"; mudou=1
+          log "hermes: assistente $antigo saiu do tenant; perfil estacionado (apague com: hermes profile delete $antigo)"
+        fi
+      fi
+    done < "$applied"
+  fi
+  : > "$applied.novo"
+  # só os do catálogo atual (uma pasta renderizada antiga nunca reativa um assistente que saiu)
+  for nome in $(python3 -c 'import json,sys; print(" ".join(a["nome"] for a in json.load(open(sys.argv[1]))))' "$cat_"); do
+    dir="$JARVIS_HOME/render/hermes/assistentes/$nome/"
+    [ -d "$dir" ] || { log "aviso: assistente $nome sem pasta renderizada; pulei"; continue; }
+    pdir="$HERMES_HOME/profiles/$nome"
+    if [ ! -d "$pdir" ]; then
+      desc=$(python3 -c 'import json,sys; print(next((a.get("descricao") or a["nome"] for a in json.load(open(sys.argv[1])) if a["nome"]==sys.argv[2]), sys.argv[2]))' "$cat_" "$nome")
+      mkdir -p "$JARVIS_HOME/logs"
+      if hermes profile create "$nome" --no-alias --no-skills --description "$desc" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1; then
+        log "hermes: perfil do assistente $nome criado"; mudou=1
+      else
+        log "aviso: não consegui criar o perfil do assistente $nome (veja $JARVIS_HOME/logs/instalacao-hermes.log)"; continue
+      fi
+    fi
+    if [ -f "$pdir/gateway.parked" ]; then rm -f "$pdir/gateway.parked"; mudou=1; log "hermes: assistente $nome de volta ao tenant; perfil reativado"; fi
+    if JARVIS_HOME="$JARVIS_HOME" uv run --quiet "$KERNEL_DIR/bin/jarvis_assistente.py" "$dir" "$pdir"; then
+      mudou=1; log "hermes: assistente $nome aplicado"
+    else
+      rc=$?
+      if [ "$rc" = 3 ]; then log "hermes: assistente $nome já em dia"; else log "aviso: não consegui aplicar o assistente $nome"; fi
+    fi
+    printf '%s\n' "$nome" >> "$applied.novo"
+  done
+  mv "$applied.novo" "$applied"
+  [ "$mudou" = 1 ] && HERMES_RESTART=1
+  return 0
+}
+
 # Second brain da pessoa: a pasta VAULT_PATH do tenant (padrão ~/whitebeard-secondbrain). Com vault.repo e
 # acesso, clona; senão cria um vault local. Sempre um repositório git com a estrutura que as skills de
 # documentação esperam (tenants/<tenant>/{projects-doc,knowledge-domain,resources}); abre no Obsidian.
@@ -983,6 +1040,7 @@ apply_knowledge_render() {
   apply_mcp
   apply_hermes_config   # o .env do Hermes ganha GBRAIN_MCP_TOKEN (mescla sem sobrescrever)
   apply_hermes_tenant
+  apply_hermes_assistentes   # os assistentes do dono e da equipe também veem o cérebro
   HERMES_RESTART=1
 }
 
@@ -1132,7 +1190,7 @@ install_services() {
 ensure_hermes_gateway() {
   [ "$WITH_HERMES" = 1 ] || return 0
   have hermes || return 0
-  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null; then
+  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null || grep -qs '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME"/profiles/*/.env 2>/dev/null; then
     mkdir -p "$JARVIS_HOME/logs"
     gw_present=0
     case "$OS" in
@@ -1162,6 +1220,7 @@ apply_only() {
   apply_claude_plugins
   apply_hermes_config
   apply_hermes_tenant
+  apply_hermes_assistentes
   HERMES_RESTART=1
   ensure_hermes_gateway
   if has_role core && grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then
@@ -1439,6 +1498,7 @@ apply_mcp
 apply_claude_plugins
 apply_hermes_config
 apply_hermes_tenant
+apply_hermes_assistentes
 install_knowledge
 apply_knowledge_render
 install_web

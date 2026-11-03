@@ -256,6 +256,21 @@ def main() -> int:
     # assistentes do Telegram: cada um pede o token do próprio bot e, conforme o tipo, quem fala com ele.
     # Entram no catálogo de segredos com título em português; PRIMEIROS PASSOS mostra o que falta.
     assistentes = list(data.get("assistentes") or [])
+    # os criados pelo JARVIS Web ficam em $JARVIS_HOME/assistentes.json (o jarvis.yaml pode ser o do kernel ou de
+    # um pacote: não se edita). Skills padrão por tipo; nome repetido: o do JARVIS Web vale.
+    try:
+        loja = json.loads((home / "assistentes.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        loja = []
+    kernel_skills = sorted(d.name for d in (kernel / "skills").iterdir() if (d / "SKILL.md").is_file())
+    skills_padrao = {"mim": kernel_skills, "equipe": [s for s in ("knowledge", "knowledge-write") if s in kernel_skills], "cliente": [], "rotinas": []}
+    for a in (loja if isinstance(loja, list) else []):
+        if not isinstance(a, dict) or not a.get("nome") or a.get("tipo") not in skills_padrao:
+            continue
+        assistentes = [x for x in assistentes if x.get("nome") != a["nome"]]
+        assistentes.append({"nome": a["nome"], "tipo": a["tipo"], "descricao": a.get("descricao", ""),
+                            "skills": a.get("skills") if a.get("skills") is not None else skills_padrao[a["tipo"]],
+                            **({"ajustes": a["ajustes"]} if a.get("ajustes") else {})})
     for a in assistentes:
         up = a["nome"].upper().replace("-", "_")
         rotulo = a.get("descricao") or a["nome"]
@@ -647,6 +662,7 @@ def main() -> int:
         "obrigatorio": bool(s.get("required")),
         "gerado": bool(s.get("generate")),
         "implicito": bool(s.get("implicit")),
+        "assistente": s.get("assistente", ""),
     } for s in entries], ensure_ascii=False, indent=2) + "\n")
     # obrigatórios ainda vazios: o bootstrap pergunta no terminal e roda o render de novo
     w.write(home / "render" / "secrets-missing.txt", "\n".join(missing) + ("\n" if missing else ""))

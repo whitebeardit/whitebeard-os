@@ -98,31 +98,239 @@ def declared_secrets(home: Path) -> list[dict]:
 
 # ---------------------------------------------------------------- status
 def pending_apply(home: Path) -> bool:
-    """Há algo gravado depois da última aplicação? (secrets.env mais novo que setup.applied, que o bootstrap toca)"""
+    """Há algo gravado (segredo ou assistente) e ainda não colocado em uso: secrets.env ou assistentes.json
+    mais novos que a marca setup.applied (que o bootstrap toca ao aplicar)."""
     try:
-        return (home / "secrets.env").stat().st_mtime > (home / "setup.applied").stat().st_mtime + 1
+        aplicado = (home / "setup.applied").stat().st_mtime
     except OSError:
-        return False  # instalação antiga, sem a marca: sem alarme falso
+        return False
+    for f in (home / "secrets.env", store_path(home)):
+        try:
+            if f.stat().st_mtime > aplicado + 1:
+                return True
+        except OSError:
+            pass
+    return False
+
+
+ASSISTENTE_NOME_RE = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
+ASSISTENTE_TIPOS = ("mim", "equipe", "cliente", "rotinas")
+
+
+def store_path(home: Path) -> Path:
+    return home / "assistentes.json"
+
+
+def load_store(home: Path) -> list[dict]:
+    """Assistentes criados pelo JARVIS Web (fora do jarvis.yaml, que pode ser o do kernel ou de um pacote)."""
+    try:
+        data = json.loads(store_path(home).read_text(encoding="utf-8"))
+        return [a for a in data if isinstance(a, dict) and a.get("nome")] if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def save_store(home: Path, items: list[dict]) -> None:
+    store_path(home).write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def sufixo(nome: str) -> str:
+    return nome.upper().replace("-", "_")
 
 
 def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
-    """Assistentes do Telegram declarados pelo tenant (render/hermes/assistentes.json) e o que falta a cada um."""
+    """Assistentes do Telegram: os criados pelo JARVIS Web (loja) e os do tenant (catálogo do render), com o que
+    falta a cada um. `aplicado`: já virou perfil do Hermes (está no catálogo renderizado)."""
     try:
         cat = json.loads((home / "render" / "hermes" / "assistentes.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return []
-    out_ = []
-    for a in cat:
-        seg = a.get("segredos") or {}
+        cat = []
+    por_nome = {a.get("nome"): a for a in cat if isinstance(a, dict)}
+    loja = load_store(home)
+    nomes_loja = {s.get("nome") for s in loja}
+    out_: list[dict] = []
+    vistos: set[str] = set()
+    for a in loja + [c for c in cat if c.get("nome") not in nomes_loja]:
+        nome = a.get("nome", "")
+        if not nome or nome in vistos:
+            continue
+        vistos.add(nome)
+        tipo = a.get("tipo", "")
+        up = sufixo(nome)
         out_.append({
-            "nome": a.get("nome", ""), "tipo": a.get("tipo", ""), "descricao": a.get("descricao", ""),
-            "skills": a.get("skills") or [], "ajustes": a.get("ajustes") or {},
-            "token": bool(filled.get(seg.get("token") or "", False)),
-            "pessoas": bool(filled.get(seg.get("pessoas") or "", False)) if seg.get("pessoas") else None,
-            "grupos": bool(filled.get(seg.get("grupos") or "", False)) if seg.get("grupos") else None,
-            "segredos": seg,
+            "nome": nome, "tipo": tipo, "descricao": a.get("descricao", ""), "bot": a.get("bot", ""),
+            "skills": (por_nome.get(nome) or a).get("skills") or [],
+            "ajustes": (por_nome.get(nome) or a).get("ajustes") or {},
+            "origem": "web" if nome in nomes_loja else "tenant",
+            "token": bool(filled.get(f"TELEGRAM_BOT_TOKEN_{up}", False)),
+            "pessoas": bool(filled.get(f"TELEGRAM_ALLOWED_USERS_{up}", False)) if tipo in ("mim", "equipe") else None,
+            "grupos": bool(filled.get(f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", False)) if tipo in ("equipe", "cliente") else None,
+            "aplicado": nome in por_nome,
+            "segredos": {"token": f"TELEGRAM_BOT_TOKEN_{up}",
+                         "pessoas": f"TELEGRAM_ALLOWED_USERS_{up}" if tipo in ("mim", "equipe") else None,
+                         "grupos": f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}" if tipo in ("equipe", "cliente") else None},
         })
     return out_
+
+
+# ---------------------------------------------------------------- assistentes (criar, token, reconhecer, remover)
+def cmd_assistente_add(home: Path) -> int:
+    raw = stdin_value()
+    try:
+        dados = json.loads(raw or "{}")
+    except ValueError:
+        return out({"ok": False, "erro": "dados inválidos"})
+    nome = str(dados.get("nome") or "").strip().lower()
+    tipo = str(dados.get("tipo") or "").strip()
+    descricao = str(dados.get("descricao") or "").strip()[:400]
+    if not ASSISTENTE_NOME_RE.match(nome):
+        return out({"ok": False, "erro": "nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)"})
+    if tipo not in ASSISTENTE_TIPOS:
+        return out({"ok": False, "erro": "tipo desconhecido"})
+    if nome == "default":
+        return out({"ok": False, "erro": "esse nome é reservado"})
+    itens = load_store(home)
+    if any(a.get("nome") == nome for a in itens) or (home / "render" / "hermes" / "assistentes" / nome).is_dir():
+        return out({"ok": False, "erro": f"já existe um assistente chamado {nome}"})
+    itens.append({"nome": nome, "tipo": tipo, "descricao": descricao, "criado_em": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+    save_store(home, itens)
+    return out({"ok": True, "assistente": {"nome": nome, "tipo": tipo, "descricao": descricao}})
+
+
+def cmd_assistente_remove(home: Path, nome: str) -> int:
+    itens = load_store(home)
+    if not any(a.get("nome") == nome for a in itens):
+        return out({"ok": False, "erro": "esse assistente não foi criado pelo JARVIS Web (veio do pacote); remova-o no jarvis.yaml"})
+    save_store(home, [a for a in itens if a.get("nome") != nome])
+    # revoga o acesso: token e listas somem deste computador
+    up = sufixo(nome)
+    env = read_env(home / "secrets.env")
+    for k in (f"TELEGRAM_BOT_TOKEN_{up}", f"TELEGRAM_ALLOWED_USERS_{up}", f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}"):
+        if k in env:
+            set_secret(home / "secrets.env", k, "")
+    return out({"ok": True})
+
+
+def assistente_do_store(home: Path, nome: str) -> dict | None:
+    for a in load_store(home):
+        if a.get("nome") == nome:
+            return a
+    try:
+        for a in json.loads((home / "render" / "hermes" / "assistentes.json").read_text(encoding="utf-8")):
+            if a.get("nome") == nome:
+                return a
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def cmd_assistente_token(home: Path, nome: str) -> int:
+    a = assistente_do_store(home, nome)
+    if not a:
+        return out({"ok": False, "erro": "assistente desconhecido"})
+    token = stdin_value()
+    if not token:
+        return out({"ok": False, "erro": "token vazio"})
+    try:
+        me = tg_api(token, "getMe", http_timeout=20)
+    except TelegramError as e:
+        if e.code in (401, 404):
+            return out({"ok": False, "erro": "o Telegram recusou o token (confira em @BotFather)"})
+        return out({"ok": False, "erro": "não consegui falar com o Telegram; confira a internet e tente de novo"})
+    username = str(me.get("username") or "")
+    # o mesmo bot não pode ser dois assistentes (nem o do dono)
+    for k, v in read_env(home / "secrets.env").items():
+        if k.startswith("TELEGRAM_BOT_TOKEN") and k != f"TELEGRAM_BOT_TOKEN_{sufixo(nome)}" and v == token:
+            return out({"ok": False, "erro": "esse bot já é usado por outro assistente; crie outro no @BotFather"})
+    set_secret(home / "secrets.env", f"TELEGRAM_BOT_TOKEN_{sufixo(nome)}", token)
+    itens = load_store(home)
+    for it in itens:
+        if it.get("nome") == nome:
+            it["bot"] = username
+    save_store(home, itens)
+    return out({"ok": True, "bot": username})
+
+
+def lista_add(home: Path, chave: str, valor: str) -> None:
+    atual = [x for x in read_env(home / "secrets.env").get(chave, "").split(",") if x]
+    if valor not in atual:
+        atual.append(valor)
+    set_secret(home / "secrets.env", chave, ",".join(atual))
+
+
+def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
+    """Espera a primeira mensagem ao bot deste assistente: uma pessoa (conversa direta) vira "quem fala com
+    ele"; um grupo (mensagem no grupo, ou o bot adicionado a ele) vira "grupo dele". O que o tipo não aceita
+    é ignorado (cliente não ganha pessoas; mim não ganha grupos)."""
+    a = assistente_do_store(home, nome)
+    if not a:
+        return out({"ok": False, "erro": "assistente desconhecido"})
+    tipo = a.get("tipo", "")
+    up = sufixo(nome)
+    token = read_env(home / "secrets.env").get(f"TELEGRAM_BOT_TOKEN_{up}", "")
+    if not token:
+        return out({"ok": False, "erro": "sem token do bot deste assistente"})
+    aceita_pessoa = tipo in ("mim", "equipe")
+    aceita_grupo = tipo in ("equipe", "cliente")
+    seconds = max(5, min(seconds, 300))
+    deadline = time.time() + seconds
+    offset = 0
+    stopped_gateway = False
+
+    def reconhece(u: dict):
+        m = u.get("message") or u.get("my_chat_member") or {}
+        chat = m.get("chat") or {}
+        if m.get("date", 0) < since:
+            return None
+        if chat.get("type") == "private" and aceita_pessoa and (m.get("from") or {}).get("id"):
+            sender = m["from"]
+            lista_add(home, f"TELEGRAM_ALLOWED_USERS_{up}", str(sender["id"]))
+            return {"ok": True, "pessoa": str(sender.get("first_name") or sender.get("username") or "")}
+        if chat.get("type") in ("group", "supergroup") and aceita_grupo and chat.get("id"):
+            lista_add(home, f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", str(chat["id"]))
+            return {"ok": True, "grupo": str(chat.get("title") or "")}
+        return None
+
+    def fim(res: dict | None):
+        if offset:
+            try:
+                tg_api(token, "getUpdates", offset=offset, timeout=0)
+            except TelegramError:
+                pass
+        if stopped_gateway:
+            hermes_gateway("start")
+        return out(res or {"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
+
+    try:
+        last = tg_api(token, "getUpdates", offset=-1, timeout=0, allowed_updates='["message","my_chat_member"]')
+        if last:
+            offset = last[-1]["update_id"] + 1
+            r = reconhece(last[-1])
+            if r:
+                return fim(r)
+    except TelegramError as e:
+        if e.code != 409:
+            return out({"ok": False, "erro": "não consegui falar com o Telegram"})
+    while time.time() < deadline:
+        try:
+            ups = tg_api(token, "getUpdates", http_timeout=35, offset=offset, allowed_updates='["message","my_chat_member"]',
+                         timeout=min(25, max(1, int(deadline - time.time()))))
+        except TelegramError as e:
+            if e.code == 409:
+                if not stopped_gateway:
+                    hermes_gateway("stop")
+                    stopped_gateway = True
+                time.sleep(2)
+                continue
+            if stopped_gateway:
+                hermes_gateway("start")
+            return out({"ok": False, "erro": "o Telegram não entregou mensagens; tente de novo"})
+        for u in ups:
+            offset = u["update_id"] + 1
+            r = reconhece(u)
+            if r:
+                return fim(r)
+    return fim(None)
 
 
 def cmd_status(home: Path) -> int:
@@ -146,6 +354,7 @@ def cmd_status(home: Path) -> int:
             "obter": s.get("obter", ""),
             "obrigatorio": bool(s.get("obrigatorio")),
             "implicito": bool(s.get("implicito")),
+            "assistente": s.get("assistente") or "",
             "preenchido": filled.get(nome, False),
         })
     segredos.sort(key=lambda s: (not s["obrigatorio"], s["preenchido"], s["nome"]))
@@ -639,6 +848,15 @@ def main() -> int:
     p.add_argument("--force", action="store_true")
     sub.add_parser("update-run")
     sub.add_parser("update-status")
+    sub.add_parser("assistente-add")
+    p = sub.add_parser("assistente-remove")
+    p.add_argument("nome")
+    p = sub.add_parser("assistente-token")
+    p.add_argument("nome")
+    p = sub.add_parser("assistente-wait")
+    p.add_argument("nome")
+    p.add_argument("--seconds", type=int, default=170)
+    p.add_argument("--since", type=int, default=0)
     args = ap.parse_args()
     home = Path(args.home).expanduser()
     if not (home / "profile.env").is_file():
@@ -661,6 +879,14 @@ def main() -> int:
         return cmd_update_run(home)
     if args.cmd == "update-status":
         return cmd_update_status(home)
+    if args.cmd == "assistente-add":
+        return cmd_assistente_add(home)
+    if args.cmd == "assistente-remove":
+        return cmd_assistente_remove(home, args.nome)
+    if args.cmd == "assistente-token":
+        return cmd_assistente_token(home, args.nome)
+    if args.cmd == "assistente-wait":
+        return cmd_assistente_wait(home, args.nome, args.seconds, args.since or int(time.time()))
     return 2
 
 

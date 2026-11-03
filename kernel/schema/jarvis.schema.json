@@ -36,6 +36,7 @@
           "type": "string",
           "pattern": "^[A-Z][A-Z0-9_]*$"
         },
+        "title": { "type": "string", "description": "O que a pessoa lê na página PRIMEIROS PASSOS (ex. \"Chave da Anthropic (Claude)\"); sem ele, aparece o nome" },
         "description": {
           "type": "string"
         },

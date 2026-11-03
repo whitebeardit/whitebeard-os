@@ -5,7 +5,7 @@ idioma: pt-BR
 aceleracao: auto # GPU se houver (CUDA, Metal, Vulkan); CPU sempre funciona
 dados: .exemplo # pasta de dados do tenant, relativa a $HOME (vira $JARVIS_DATA; padrão: $JARVIS_HOME/data)
 interface:
-  modulos: [sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera] # os genéricos; instagram, midias, rastreamento, leads, analytics são integrações
+  modulos: [sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera, operacao] # os genéricos; instagram, midias, rastreamento, leads, analytics são integrações
 
 vault:
   path: whitebeard-secondbrain # relativo a $HOME; sem repo:, o instalador cria um second brain local aqui
@@ -40,7 +40,8 @@ decisoes:
 
 segredos:
   - name: EXEMPLO_TOKEN
-    description: Token fictício; mostra como um tenant declara os próprios segredos.
+    title: Token de exemplo
+    description: Token fictício; mostra como um tenant declara os próprios segredos (title é o nome que a pessoa lê).
     required: false
     obtain: não existe; deixe vazio
 

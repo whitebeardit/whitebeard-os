@@ -1125,8 +1125,13 @@ apply_only() {
   if has_role core && grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then
     log "telegram: ligado"
   fi
+  marcar_aplicado
   log "configuração aplicada"
 }
+
+# Marca de "configuração em uso": o jarvis_setup.py compara com a data do secrets.env para a página PRIMEIROS
+# PASSOS saber que há algo gravado e ainda não aplicado (mesmo depois de recarregar a página)
+marcar_aplicado() { [ "$DRY_RUN" = 1 ] || touch "$JARVIS_HOME/setup.applied" 2>/dev/null || true; }
 
 # JARVIS Web: a interface do produto. Clona o app na ref do lockfile, instala só as dependências de
 # runtime (sem Electron), constrói a UI e registra um serviço de usuário que lê $JARVIS_HOME/profile.env.
@@ -1342,6 +1347,7 @@ doctor() {
 
 # O que a pessoa precisa saber, em linguagem simples, e o JARVIS aberto no navegador.
 finalizar() {
+  marcar_aplicado
   [ "$DRY_RUN" = 1 ] || [ "$NO_START" = 1 ] && return 0
   has_role desktop || return 0
   data=$(sed -n 's/^JARVIS_DATA=//p' "$JARVIS_HOME/profile.env" 2>/dev/null)

@@ -97,6 +97,14 @@ def declared_secrets(home: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------- status
+def pending_apply(home: Path) -> bool:
+    """Há algo gravado depois da última aplicação? (secrets.env mais novo que setup.applied, que o bootstrap toca)"""
+    try:
+        return (home / "secrets.env").stat().st_mtime > (home / "setup.applied").stat().st_mtime + 1
+    except OSError:
+        return False  # instalação antiga, sem a marca: sem alarme falso
+
+
 def cmd_status(home: Path) -> int:
     profile = read_env(home / "profile.env")
     secrets_path = home / "secrets.env"
@@ -141,6 +149,7 @@ def cmd_status(home: Path) -> int:
         },
         "segredos": segredos,
         "concluido": (home / "setup.done").is_file(),
+        "pendente": pending_apply(home),
     })
 
 

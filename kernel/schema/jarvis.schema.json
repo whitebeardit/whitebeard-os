@@ -80,7 +80,7 @@
     "interface": {
       "type": "object",
       "additionalProperties": false,
-      "description": "JARVIS Web: quais módulos aparecem. Padrão do produto: os genéricos (sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera). instagram, midias, rastreamento, leads e analytics são integrações de tenant",
+      "description": "JARVIS Web: quais módulos aparecem. Padrão do produto: os genéricos (sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera, operacao). operacao = painéis de máquina e serviços na visão geral (uma empresa liga; o tenant pessoal não, para a visão geral ser a casa do JARVIS). instagram, midias, rastreamento, leads e analytics são integrações de tenant",
       "properties": {
         "modulos": {
           "type": "array",
@@ -94,6 +94,7 @@
               "ferramentas",
               "diagnosticos",
               "camera",
+              "operacao",
               "instagram",
               "midias",
               "rastreamento",

@@ -27,7 +27,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 ROLES = ("desktop", "core", "satelite", "knowledge")
-MODULOS_PADRAO = ["sistemas", "conhecimento", "arquivos", "comunicacoes", "ferramentas", "diagnosticos", "camera"]
+MODULOS_PADRAO = ["sistemas", "conhecimento", "arquivos", "comunicacoes", "ferramentas", "diagnosticos", "camera", "operacao"]
 VAR_RE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)\}")
 
 

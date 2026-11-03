@@ -101,6 +101,17 @@ não aparece na tela: fica em `~/.jarvis/logs/`. Tenant de uma empresa: `JARVIS_
 /caminho/jarvis.yaml>` antes do comando (`tenants/exemplo` mostra todos os campos). Para refazer a
 instalação, rode o mesmo comando de novo: é idempotente.
 
+**Assistentes do Telegram.** Além do bot do dono, o tenant pode declarar `assistentes:` — um bot por público,
+cada um um **perfil isolado do Hermes** (token, memória, skills, ferramentas e sessões próprias), servidos pelo
+mesmo gateway. Quatro tipos, com o limite posto por estrutura (o que o tipo não permite, o assistente não tem
+instalado): `mim` (tudo, como o do dono), `equipe` (skills e MCPs, escreve no second brain, sem computador),
+`cliente` (só as skills do papel, sem ferramentas nem MCPs, responde só no grupo permitido e com menção) e
+`rotinas` (não conversa). O render escreve um perfil por assistente em `render/hermes/assistentes/<nome>/`, o
+bootstrap cria o perfil (`hermes profile create`) e aplica config, variáveis, persona (`SOUL.md`) e skills
+(`kernel/bin/jarvis_assistente.py`); o token entra em `secrets.env` como `TELEGRAM_BOT_TOKEN_<NOME>` (PRIMEIROS
+PASSOS mostra com título), pessoas e grupos como `TELEGRAM_ALLOWED_USERS_<NOME>` e `TELEGRAM_GROUP_ALLOWED_CHATS_<NOME>`.
+Assistente que sai do tenant é estacionado, nunca apagado. `tenants/exemplo` mostra os dois tipos mais comuns.
+
 **Atualizações** chegam pelo próprio JARVIS Web: uma vez por dia ele pergunta ao kernel se a origem no GitHub
 tem commit novo ou pacote novo do JARVIS Web (`jarvis_setup.py update-check`, resposta guardada em
 `~/.jarvis/update.json`) e, se tiver, mostra a faixa "ATUALIZAÇÃO DISPONÍVEL" com as notas da release e os botões

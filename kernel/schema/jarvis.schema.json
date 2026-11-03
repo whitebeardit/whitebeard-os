@@ -36,7 +36,10 @@
           "type": "string",
           "pattern": "^[A-Z][A-Z0-9_]*$"
         },
-        "title": { "type": "string", "description": "O que a pessoa lê na página PRIMEIROS PASSOS (ex. \"Chave da Anthropic (Claude)\"); sem ele, aparece o nome" },
+        "title": {
+          "type": "string",
+          "description": "O que a pessoa lê na página PRIMEIROS PASSOS (ex. \"Chave da Anthropic (Claude)\"); sem ele, aparece o nome"
+        },
         "description": {
           "type": "string"
         },
@@ -358,6 +361,66 @@
           },
           "perfil": {
             "type": "string"
+          }
+        }
+      }
+    },
+    "assistentes": {
+      "type": "array",
+      "description": "Assistentes do Telegram: um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e ferramentas próprias). Sem este campo, só o assistente do dono (o bot de `telegram`). O token entra em secrets.env como TELEGRAM_BOT_TOKEN_<NOME>.",
+      "items": {
+        "type": "object",
+        "required": [
+          "nome",
+          "tipo"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "nome": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,30}$",
+            "description": "identificador (vira o perfil do Hermes e o sufixo dos segredos)"
+          },
+          "tipo": {
+            "enum": [
+              "mim",
+              "equipe",
+              "cliente",
+              "rotinas"
+            ],
+            "description": "mim: tudo, como o do dono; equipe: skills e MCPs, escreve no second brain, sem computador; cliente: só as skills do papel, sem ferramentas, só no grupo permitido; rotinas: não conversa, só rotinas"
+          },
+          "descricao": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "o que ele faz, em uma ou duas frases: vai para o Telegram, para o prompt e para a interface"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "description": "skills instaladas (kernel ou packs) que este assistente tem; vazio = nenhuma além do que o tipo traz"
+          },
+          "modelo": {
+            "type": "string",
+            "description": "modelo deste assistente (padrão: hermes.model)"
+          },
+          "ajustes": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "o que vem desligado por padrão e pode ser ligado com aviso; proibido para cliente e rotinas",
+            "properties": {
+              "computador": {
+                "type": "boolean",
+                "description": "pode ler arquivos e rodar comandos neste computador em nome de quem fala com ele"
+              },
+              "anotar": {
+                "type": "boolean",
+                "description": "pode escrever no second brain e criar tarefas no Paperclip"
+              }
+            }
           }
         }
       }

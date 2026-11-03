@@ -67,6 +67,20 @@ crons:
 
 servicos_monitorados: []
 
+# Assistentes do Telegram: um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e
+# ferramentas próprias). Sem este campo, só o assistente do dono. O token de cada um entra em secrets.env
+# como TELEGRAM_BOT_TOKEN_<NOME>; pessoas e grupos, como TELEGRAM_ALLOWED_USERS_<NOME> e
+# TELEGRAM_GROUP_ALLOWED_CHATS_<NOME> (a página ASSISTENTES reconhece quem manda "oi").
+assistentes:
+  - nome: suporte
+    tipo: equipe # skills e MCPs do papel; escreve no second brain; sem computador (ajustes.computador liga, com aviso)
+    descricao: Ajuda a equipe com dúvidas sobre os projetos e anota decisões no second brain.
+    skills: [knowledge, knowledge-write, exemplo-ola]
+  - nome: cliente-exemplo
+    tipo: cliente # só as skills do papel, sem ferramentas nem MCPs; responde só no grupo permitido, com menção
+    descricao: Responde ao grupo do cliente Exemplo sobre o andamento do projeto.
+    skills: [exemplo-ola]
+
 # Onde cada papel roda. Padrão do produto: tudo-em-um (os três papéis no mesmo host).
 # Para dividir, declare outros hosts, ex.: {host: servidor, papeis: [core, knowledge]}.
 nos:

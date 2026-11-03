@@ -74,6 +74,141 @@ class Writer:
         os.chmod(path, mode)
 
 
+# ---------------------------------------------------------------- assistentes do Telegram
+# Ferramentas do Hermes que cada tipo tem no Telegram (e no chat local). O que não está na lista não existe
+# para aquele assistente: o limite é estrutural, não de prompt. `mim` não restringe (é o assistente do dono).
+FERRAMENTAS_BASE = ["clarify", "memory", "session_search", "skills", "vision"]
+FERRAMENTAS_TIPO = {
+    "mim": None,
+    "equipe": FERRAMENTAS_BASE + ["todo", "web"],
+    "cliente": FERRAMENTAS_BASE,
+    "rotinas": FERRAMENTAS_BASE + ["todo", "web"],
+}
+FERRAMENTAS_COMPUTADOR = ["terminal", "file", "code_execution"]
+TIPO_NOME = {"mim": "para mim", "equipe": "para a equipe", "cliente": "para um cliente", "rotinas": "só rotinas"}
+
+
+def installed_skills_hint(kernel: Path, tenant_dir: Path, data: dict) -> set[str]:
+    """Nomes das skills que o render instala (kernel + packs do tenant), para validar `assistentes[].skills`."""
+    names: set[str] = set()
+    for pack in [kernel / "skills"] + [(tenant_dir / p).resolve() for p in (data.get("skills") or {}).get("packs", []) or []]:
+        if pack.is_dir():
+            names.update(d.name for d in pack.iterdir() if (d / "SKILL.md").is_file())
+    return names
+
+
+def soul_assistente(a: dict, tenant: str) -> str:
+    tipo = a["tipo"]
+    linhas = [f"Você é {a['nome']}, um assistente do JARVIS ({TIPO_NOME[tipo]}) do tenant {tenant}.", ""]
+    if a.get("descricao"):
+        linhas += ["O que você faz:", a["descricao"], ""]
+    linhas += ["Regras que não mudam:"]
+    if tipo == "cliente":
+        linhas += [
+            "- Você atende só o grupo em que foi colocado e só sobre o papel descrito acima. Fora disso, diga que não pode ajudar com isso.",
+            "- Você não tem acesso a arquivos, comandos, outros sistemas nem a outras conversas. Se pedirem, diga que isso fica com a equipe.",
+            "- Nunca repita dados de outras pessoas ou de outros clientes. Nunca invente o que não sabe.",
+        ]
+    elif tipo == "equipe":
+        linhas += [
+            "- Você ajuda a equipe com o papel descrito acima, usando as skills e o conhecimento que recebeu.",
+            "- Você não executa nada neste computador" + (" (exceto o que o dono liberou)." if (a.get("ajustes") or {}).get("computador") else "."),
+            "- O que você anota no second brain e no Paperclip fica marcado como seu.",
+        ]
+    elif tipo == "rotinas":
+        linhas += ["- Você não conversa: executa rotinas agendadas e publica o resultado no canal combinado."]
+    else:
+        linhas += ["- Você é o assistente do dono deste computador e age em nome dele."]
+    linhas += ["- Responda em português do Brasil, curto e direto, sem jargão.", ""]
+    return "\n".join(linhas)
+
+
+def limpar_assistentes_antigos(w: "Writer", home: Path, atuais: list[str]) -> None:
+    """Pastas renderizadas de assistentes que saíram do tenant: apagadas, senão o bootstrap os reativaria."""
+    base = home / "render" / "hermes" / "assistentes"
+    if w.dry or not base.is_dir():
+        return
+    for d in base.iterdir():
+        if d.is_dir() and d.name not in atuais:
+            shutil.rmtree(d)
+
+
+def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[dict], values: dict[str, str],
+                       tenant: str, vault_path: str, hermes_mcp: dict, skills_ok: set[str]) -> int:
+    hermes_cfg = data.get("hermes") or {}
+    nomes: list[str] = []
+    catalogo: list[dict] = []
+    for a in assistentes:
+        nome, tipo = a["nome"], a["tipo"]
+        if nome in nomes:
+            print(f"[render] assistentes: nome repetido {nome}", file=sys.stderr)
+            return 2
+        nomes.append(nome)
+        ajustes = a.get("ajustes") or {}
+        if tipo in ("cliente", "rotinas") and any(ajustes.values()):
+            print(f"[render] assistentes: {nome} é do tipo {tipo}; ajustes (computador, anotar) são proibidos nesse tipo", file=sys.stderr)
+            return 2
+        faltam = [s for s in a.get("skills") or [] if s not in skills_ok]
+        if faltam:
+            print(f"[render] assistentes: {nome} pede skills que não existem: {', '.join(faltam)}", file=sys.stderr)
+            return 2
+        up = nome.upper().replace("-", "_")
+        token = values.get(f"TELEGRAM_BOT_TOKEN_{up}", "")
+        dono = str(values.get("TELEGRAM_HOME_CHANNEL", "")).strip()
+        pessoas = [p.strip() for p in str(values.get(f"TELEGRAM_ALLOWED_USERS_{up}", "")).split(",") if p.strip()]
+        if tipo in ("mim", "equipe") and dono.isdigit() and dono not in pessoas:
+            pessoas.insert(0, dono)
+        grupos = [g.strip() for g in str(values.get(f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", "")).split(",") if g.strip()]
+        # ferramentas por plataforma: lista fechada por tipo (+ computador, só para equipe, com aviso)
+        tools = FERRAMENTAS_TIPO[tipo]
+        if tools is not None and tipo == "equipe" and ajustes.get("computador"):
+            tools = tools + FERRAMENTAS_COMPUTADOR
+        model = {"provider": hermes_cfg.get("provider", "anthropic"), "default": a.get("modelo") or hermes_cfg.get("model", "")}
+        cfg: dict = {"model": model}
+        if tools is not None:
+            cfg["platform_toolsets"] = {"telegram": sorted(tools), "cli": sorted(tools)}
+        # acesso: quem fala com ele. Cliente: só grupo, com menção; rotinas: ninguém
+        tg: dict = {"require_mention": tipo != "mim"}
+        if tipo == "mim":
+            tg.update({"dm_policy": "allowlist", "group_policy": "disabled"})
+        elif tipo == "equipe":
+            tg.update({"dm_policy": "allowlist", "group_policy": "allowlist" if grupos else "disabled"})
+        elif tipo == "cliente":
+            tg.update({"dm_policy": "disabled", "group_policy": "allowlist"})
+        else:
+            tg.update({"dm_policy": "disabled", "group_policy": "disabled"})
+        cfg["telegram"] = tg
+        # MCPs: o dono e a equipe veem os do tenant (o cérebro entre eles); cliente e rotinas, nenhum
+        if tipo in ("mim", "equipe") and hermes_mcp:
+            cfg["mcp_servers"] = hermes_mcp
+        env = [f"TELEGRAM_BOT_TOKEN={token}" if token else "TELEGRAM_BOT_TOKEN="]
+        env.append("TELEGRAM_ALLOWED_USERS=" + ",".join(pessoas))
+        env.append("TELEGRAM_GROUP_ALLOWED_CHATS=" + ",".join(grupos))
+        env.append(f"TELEGRAM_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
+        env += [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", f"WHITEBEARD_ASSISTENTE={nome}", f"WHITEBEARD_ASSISTENTE_TIPO={tipo}"]
+        if tipo in ("mim", "equipe"):
+            for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+                if values.get(k):
+                    env.append(f"{k}={values[k]}")
+        base = home / "render" / "hermes" / "assistentes" / nome
+        w.write(base / "config.yaml", "# gerado pelo whitebeard-os para o assistente " + nome + "\n" + yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
+        w.write(base / "env", "# gerado pelo whitebeard-os; variáveis do perfil do Hermes deste assistente\n" + "\n".join(env) + "\n", mode=0o600)
+        w.write(base / "SOUL.md", soul_assistente(a, tenant))
+        w.write(base / "skills.txt", "\n".join(a.get("skills") or []) + ("\n" if a.get("skills") else ""))
+        catalogo.append({
+            "nome": nome, "tipo": tipo, "descricao": a.get("descricao", ""), "skills": list(a.get("skills") or []),
+            "ajustes": {"computador": bool(ajustes.get("computador")), "anotar": bool(ajustes.get("anotar"))},
+            "segredos": {"token": f"TELEGRAM_BOT_TOKEN_{up}",
+                         "pessoas": f"TELEGRAM_ALLOWED_USERS_{up}" if tipo in ("mim", "equipe") else None,
+                         "grupos": f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}" if tipo in ("equipe", "cliente") else None},
+            "pronto": bool(token) and (tipo != "cliente" or bool(grupos)),
+        })
+    w.write(home / "render" / "hermes" / "assistentes.json", json.dumps(catalogo, ensure_ascii=False, indent=2) + "\n")
+    limpar_assistentes_antigos(w, home, nomes)
+    log(f"assistentes ({len(catalogo)}): " + ", ".join(f"{c['nome']} ({c['tipo']}{'' if c['pronto'] else ', sem token'})" for c in catalogo))
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--tenant", required=True, help="caminho do jarvis.yaml")
@@ -118,6 +253,23 @@ def main() -> int:
     for s in data.get("segredos", []) or []:
         if for_roles(s):
             entries.append(dict(s))
+    # assistentes do Telegram: cada um pede o token do próprio bot e, conforme o tipo, quem fala com ele.
+    # Entram no catálogo de segredos com título em português; PRIMEIROS PASSOS mostra o que falta.
+    assistentes = list(data.get("assistentes") or [])
+    for a in assistentes:
+        up = a["nome"].upper().replace("-", "_")
+        rotulo = a.get("descricao") or a["nome"]
+        entries.append({"name": f"TELEGRAM_BOT_TOKEN_{up}", "title": f"Token do bot do assistente {a['nome']}",
+                        "description": f"Token do bot deste assistente ({rotulo[:80]}). Um bot, um assistente.",
+                        "roles": ["core"], "required": False, "obtain": "@BotFather no Telegram: /newbot, cole o token", "assistente": a["nome"]})
+        if a["tipo"] in ("mim", "equipe"):
+            entries.append({"name": f"TELEGRAM_ALLOWED_USERS_{up}", "title": f"Quem fala com o assistente {a['nome']}",
+                            "description": "Identificações das pessoas (números, separados por vírgula). Você entra sozinho; vazio = só você.",
+                            "roles": ["core"], "required": False, "obtain": "a página ASSISTENTES reconhece quem manda 'oi' ao bot", "assistente": a["nome"]})
+        if a["tipo"] in ("equipe", "cliente"):
+            entries.append({"name": f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", "title": f"Grupos do assistente {a['nome']}",
+                            "description": "Identificações dos grupos onde ele responde (números negativos, separados por vírgula)." + (" Sem grupo, um assistente para cliente não responde a ninguém." if a["tipo"] == "cliente" else ""),
+                            "roles": ["core"], "required": False, "obtain": "adicione o bot ao grupo; a página ASSISTENTES reconhece o grupo", "assistente": a["nome"]})
     known = {s["name"] for s in entries}
     referenced = set(VAR_RE.findall(yaml.safe_dump(data, allow_unicode=True)))
     for name in sorted(referenced - known):
@@ -312,6 +464,7 @@ def main() -> int:
 
     # ---- papel core: Hermes (config inicial e variáveis), aplicados pelo bootstrap sem sobrescrever
     hermes_cfg = data.get("hermes") or {}
+    hermes_mcp: dict[str, dict] = {}
     if "core" in roles or hermes_cfg:
         if hermes_cfg:
             model = {k: hermes_cfg[k] for k in ("provider", "model") if k in hermes_cfg}
@@ -327,7 +480,6 @@ def main() -> int:
                     + yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
         # MCPs do tenant para o Hermes deste host (o agente e o painel de MCPs do JARVIS Web leem dele).
         # ${VAR} fica literal: o Hermes resolve do próprio .env em runtime, e o segredo não vai para o config.
-        hermes_mcp: dict[str, dict] = {}
         for m in tenant_mcp:
             if m["transport"] == "stdio":
                 entry = {"command": m["command"], "args": list(m.get("args", []) or [])}
@@ -353,6 +505,17 @@ def main() -> int:
         w.write(home / "render" / "hermes" / "env",
                 "# gerado pelo whitebeard-os; só chaves preenchidas em secrets.env\n" + "\n".join(env_lines) + "\n",
                 mode=0o600)
+
+    # ---- assistentes do Telegram (papel core): um perfil isolado do Hermes por assistente. O render escreve
+    # o que o perfil deve ter (config, variáveis, persona, skills); o bootstrap cria o perfil e aplica.
+    if "core" in roles and assistentes:
+        rc = render_assistentes(w, home, data, assistentes, values, tenant, vault_path, hermes_mcp if "core" in roles or hermes_cfg else {}, installed_skills_hint(kernel, tenant_dir, data))
+        if rc:
+            return rc
+    elif not args.dry_run and (home / "render" / "hermes" / "assistentes.json").exists():
+        # saíram todos do tenant: a lista vazia faz o bootstrap estacionar os perfis que ele criou
+        w.write(home / "render" / "hermes" / "assistentes.json", "[]\n")
+        limpar_assistentes_antigos(w, home, [])
 
     # ---- papel desktop: board key do Paperclip para o JARVIS Web. O serviço não recebe segredos pelo
     # ambiente (o plist do LaunchAgent é legível); o app lê este arquivo da pasta de dados.
@@ -454,6 +617,7 @@ def main() -> int:
         f"[whitebeard-os] skills instaladas ({len(installed)}): {', '.join(installed) or '-'}",
         f"[whitebeard-os] mcp ({len(servers)}): {', '.join(m['name'] for m in servers) or '-'}",
         f"[whitebeard-os] plugins ({len(plugins)}): {', '.join(plugins) or '-'}",
+        f"[whitebeard-os] assistentes ({len(assistentes)}): {', '.join(a['nome'] for a in assistentes) or 'só o do dono'}",
         f"[whitebeard-os] segredos: {len(entries)} esperados, {len(empty)} vazios"
         + (f", {len(generated)} gerados ({', '.join(generated)})" if generated else "")
         + (f"; OBRIGATÓRIOS faltando: {', '.join(missing)}" if missing else ""),

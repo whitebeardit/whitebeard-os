@@ -101,6 +101,15 @@ não aparece na tela: fica em `~/.jarvis/logs/`. Tenant de uma empresa: `JARVIS_
 /caminho/jarvis.yaml>` antes do comando (`tenants/exemplo` mostra todos os campos). Para refazer a
 instalação, rode o mesmo comando de novo: é idempotente.
 
+**Atualizações** chegam pelo próprio JARVIS Web: uma vez por dia ele pergunta ao kernel se a origem no GitHub
+tem commit novo ou pacote novo do JARVIS Web (`jarvis_setup.py update-check`, resposta guardada em
+`~/.jarvis/update.json`) e, se tiver, mostra a faixa "ATUALIZAÇÃO DISPONÍVEL" com as notas da release e os botões
+ATUALIZAR / DEPOIS (também em CONFIGURAÇÕES, com VERIFICAR AGORA). ATUALIZAR roda o `install.sh` desacoplado do
+serviço (`update-run`: unidade própria do systemd no Linux, sessão própria no macOS, porque o JARVIS Web é
+reiniciado no meio), com registro em `~/.jarvis/logs/update.log`; a página acompanha (`update-status`), espera o
+servidor voltar e recarrega. Tenant, segredos, vault e dados não são tocados. Pelo terminal é o mesmo comando da
+instalação.
+
 Para desinstalar: `~/DEV/whitebeard-os/uninstall.sh` remove serviços e programas e **mantém** o second brain e o
 `secrets.env` (com `--delete-data`, remove também os dois). O Claude Code e o seu login nunca são tocados.
 

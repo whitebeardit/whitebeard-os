@@ -14,6 +14,12 @@ $JARVIS_HOME/secrets.env (modo 600). O estado diz só se cada um está preenchid
                                                               espera a primeira mensagem ao bot e guarda o chat
   jarvis_setup.py --home ~/.jarvis telegram-off               a pessoa não quer Telegram (não perguntar de novo)
   jarvis_setup.py --home ~/.jarvis done                       marca os primeiros passos como concluídos
+  jarvis_setup.py --home ~/.jarvis update-check [--max-age S] [--force]
+                                                              há versão nova do kernel/JARVIS Web no GitHub?
+                                                              (resposta da rede guardada em update.json por S segundos)
+  jarvis_setup.py --home ~/.jarvis update-run                 roda o install.sh desacoplado (sobrevive ao reinício
+                                                              do JARVIS Web); log em logs/update.log
+  jarvis_setup.py --home ~/.jarvis update-status              andamento/resultado da atualização em curso ou da última
 """
 from __future__ import annotations
 
@@ -188,7 +194,7 @@ class TelegramConnection(http.client.HTTPSConnection):
                 err = e
                 s.close()
         if sock is None:
-            raise err or OSError("sem rota para api.telegram.org")
+            raise err or OSError(f"sem rota para {self.host}")
         sock.settimeout(self.timeout)
         self.sock = ssl.create_default_context().wrap_socket(sock, server_hostname=self.host)
 
@@ -319,6 +325,271 @@ def cmd_done(home: Path) -> int:
     return out({"ok": True})
 
 
+# ---------------------------------------------------------------- atualização
+# O kernel instalado é um clone git (install.sh). Versão nova = a origem no GitHub tem commit que este clone
+# não contém. O JARVIS Web instalado é o alvo do link app/jarvis-web (app/jarvis-web-<versão>), e a versão
+# nova vem do versions.env desse commit. A rede é consultada no máximo uma vez por --max-age (update.json);
+# a parte local é recalculada sempre, então depois de atualizar o aviso some sozinho.
+DEFAULT_REPO = "https://github.com/whitebeardit/whitebeard-os.git"
+GITHUB_RE = re.compile(r"^(?:git@github\.com:|https://github\.com/)([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
+RELEASE_RE = re.compile(r"^https://github\.com/([\w.-]+)/([\w.-]+)/releases/download/([^/]+)/")
+TOKEN_RE = re.compile(r"token=[0-9a-f]{16,}")
+
+
+def https_get(host: str, path: str, timeout: int = 15, accept: str = "*/*") -> bytes:
+    conn = TelegramConnection(host, timeout=timeout)
+    try:
+        conn.request("GET", path, headers={"User-Agent": "whitebeard-os", "Accept": accept})
+        resp = conn.getresponse()
+        body = resp.read()
+        if resp.status != 200:
+            raise OSError(f"HTTP {resp.status} em {host}{path}")
+        return body
+    finally:
+        conn.close()
+
+
+def kernel_dir(home: Path) -> Path | None:
+    try:
+        d = Path((home / "kernel.path").read_text(encoding="utf-8").strip())
+    except OSError:
+        return None
+    return d if (d / "bootstrap.sh").is_file() else None
+
+
+def git(kernel: Path, *args: str, timeout: int = 20) -> str:
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_SSH_COMMAND": "ssh -o BatchMode=yes"}
+    try:
+        r = subprocess.run(["git", "-C", str(kernel), *args], capture_output=True, text=True, timeout=timeout, env=env, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def git_ok(kernel: Path, *args: str) -> bool:
+    try:
+        return subprocess.run(["git", "-C", str(kernel), *args], capture_output=True, timeout=20, check=False).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def local_versions(home: Path, kernel: Path) -> dict:
+    web = ""
+    try:
+        name = os.path.basename(os.path.realpath(home / "app" / "jarvis-web"))
+        web = name[len("jarvis-web-"):] if name.startswith("jarvis-web-") else ""
+    except OSError:
+        pass
+    # o ramo acompanhado na origem (origin/main numa instalação); um ramo local sem origem compara com main
+    up = git(kernel, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+    branch = up.split("/", 1)[1] if up.startswith("origin/") and "/" in up else "main"
+    return {"web": web, "kernel": git(kernel, "rev-parse", "HEAD"), "ramo": branch}
+
+
+def remote_versions(kernel: Path, branch: str) -> dict:
+    m = GITHUB_RE.match(git(kernel, "remote", "get-url", "origin") or DEFAULT_REPO)
+    if not m:
+        raise OSError("a origem do kernel não está no GitHub")
+    owner, name = m.group(1), m.group(2)
+    # sempre por HTTPS: o repositório é público e o serviço não tem agente SSH
+    out_ = git(kernel, "ls-remote", f"https://github.com/{owner}/{name}.git", f"refs/heads/{branch}", timeout=25)
+    if not out_:
+        raise OSError("não consegui consultar o GitHub")
+    sha = out_.split()[0]
+    body = https_get("raw.githubusercontent.com", f"/{owner}/{name}/{sha}/kernel/versions.env").decode("utf-8", "replace")
+    vals = {}
+    for line in body.splitlines():
+        if line.startswith("JARVIS_WEB_") and "=" in line:
+            k, v = line.split("=", 1)
+            vals[k] = v.strip().strip("'\"")
+    return {"kernel": sha, "web": vals.get("JARVIS_WEB_VERSION", ""), "web_url": vals.get("JARVIS_WEB_URL", "")}
+
+
+def release_notes(web_url: str) -> str:
+    """Notas da release do pacote novo (GitHub Releases, público). Só enfeite: qualquer falha vira ''."""
+    m = RELEASE_RE.match(web_url or "")
+    if not m:
+        return ""
+    try:
+        body = https_get("api.github.com", f"/repos/{m.group(1)}/{m.group(2)}/releases/tags/{m.group(3)}",
+                         timeout=10, accept="application/vnd.github+json")
+        notas = str(json.loads(body).get("body") or "").strip()
+    except (OSError, ValueError):
+        return ""
+    return notas[:600]
+
+
+def cmd_update_check(home: Path, max_age: int, force: bool) -> int:
+    kernel = kernel_dir(home)
+    if not kernel:
+        return out({"ok": False, "erro": "kernel não encontrado (kernel.path)"})
+    local = local_versions(home, kernel)
+    cache_path = home / "update.json"
+    cached: dict = {}
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    now = int(time.time())
+    age = now - int(cached.get("verificado") or 0)
+    # uma falha de rede vale por menos tempo que uma resposta: a próxima abertura tenta de novo
+    fresh = bool(cached) and age < (min(max_age, 3600) if cached.get("erro") else max_age)
+    consultou = force or not fresh
+    if consultou:
+        try:
+            remoto = remote_versions(kernel, local["ramo"])
+            notas = release_notes(remoto["web_url"]) if remoto["web"] and remoto["web"] != local["web"] else ""
+            cached = {"verificado": now, "remoto": remoto, "notas": notas}
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            cached = {"verificado": now, "remoto": cached.get("remoto"), "notas": cached.get("notas", ""),
+                      "erro": "não consegui consultar as versões novas (sem internet?)", "detalhe": str(e)[:160]}
+        try:
+            cache_path.write_text(json.dumps(cached) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+    remoto = cached.get("remoto") or {}
+    sha = remoto.get("kernel", "")
+    # novo = a origem tem um commit que este clone não contém (um clone adiantado, de quem desenvolve, não conta)
+    kernel_novo = bool(sha) and sha != local["kernel"] and not (
+        git_ok(kernel, "cat-file", "-e", f"{sha}^{{commit}}") and git_ok(kernel, "merge-base", "--is-ancestor", sha, "HEAD"))
+    # o pacote do JARVIS Web também conta: o clone pode estar em dia sem o bootstrap ter rodado depois
+    web_novo = bool(remoto.get("web")) and remoto["web"] != local["web"]
+    disponivel = kernel_novo or web_novo
+    return out({
+        "ok": True,
+        "disponivel": disponivel,
+        "local": {"web": local["web"], "kernel": local["kernel"]},
+        "remoto": {"web": remoto.get("web", ""), "kernel": sha},
+        "notas": cached.get("notas", "") if disponivel else "",
+        "verificado": cached.get("verificado"),
+        "erro": cached.get("erro"),
+        "consultou": consultou,
+    })
+
+
+def update_paths(home: Path) -> tuple[Path, Path, Path]:
+    return home / "update.run.json", home / "update.exit", home / "logs" / "update.log"
+
+
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+def run_state(home: Path) -> dict:
+    run_path, exit_path, log_path = update_paths(home)
+    try:
+        run = json.loads(run_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"existe": False, "rodando": False, "codigo": None}
+    codigo = None
+    try:
+        codigo = int(exit_path.read_text(encoding="utf-8").strip() or -1)
+    except (OSError, ValueError):
+        pass
+    if codigo is not None:
+        rodando = False
+    elif run.get("unidade"):
+        try:
+            rodando = subprocess.run(["systemctl", "--user", "is-active", "--quiet", str(run["unidade"])],
+                                     capture_output=True, timeout=10, check=False).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            rodando = False
+    else:
+        rodando = pid_alive(int(run.get("pid") or 0))
+    if codigo is None and not rodando:
+        codigo = -1  # parou sem escrever o código: morto no meio
+    fim = None
+    if codigo is not None:
+        try:
+            fim = int(exit_path.stat().st_mtime)
+        except OSError:
+            fim = int(time.time())
+    return {"existe": True, "rodando": rodando, "codigo": codigo, "inicio": run.get("inicio"), "fim": fim, "log": str(log_path)}
+
+
+def cmd_update_run(home: Path) -> int:
+    kernel = kernel_dir(home)
+    if not kernel:
+        return out({"ok": False, "erro": "kernel não encontrado (kernel.path)"})
+    install = kernel / "install.sh"
+    if not install.is_file():
+        return out({"ok": False, "erro": "install.sh não encontrado no kernel"})
+    if run_state(home)["rodando"]:
+        return out({"ok": False, "erro": "já há uma atualização em andamento"})
+    run_path, exit_path, log_path = update_paths(home)
+    profile = read_env(home / "profile.env")
+    local = local_versions(home, kernel)
+    try:
+        tenant = (home / "tenant.path").read_text(encoding="utf-8").strip()
+    except OSError:
+        tenant = ""
+    if not tenant:
+        return out({"ok": False, "erro": "tenant.path ausente: não sei qual tenant reinstalar"})
+    args = ["sh", str(install), "--no-prompt"]
+    if profile.get("JARVIS_ROLE"):
+        args += ["--role", profile["JARVIS_ROLE"]]
+    wrapper = f"{shlex.join(args)} >{shlex.quote(str(log_path))} 2>&1; echo $? >{shlex.quote(str(exit_path))}"
+    env_extra = {"JARVIS_TENANT": tenant, "WHITEBEARD_OS_DIR": str(kernel), "WHITEBEARD_OS_REF": local["ramo"],
+                 "JARVIS_HOME": str(home), "HOME": str(Path.home())}
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    for p in (exit_path, home / "update.json"):
+        try:
+            p.unlink()
+        except OSError:
+            pass
+    now = int(time.time())
+    record: dict = {"inicio": now, "log": str(log_path), "de": local}
+    # Linux: unidade própria do systemd (o restart do jarvis-web mata o cgroup inteiro, e o filho iria junto).
+    # macOS e sem systemd: sessão nova (setsid); o launchd só derruba o grupo de processos do serviço.
+    started = False
+    if sys.platform.startswith("linux") and shutil.which("systemd-run"):
+        unit = f"whitebeard-update-{now}"
+        cmd = ["systemd-run", "--user", "--quiet", "--collect", "--unit", unit]
+        cmd += [f"--setenv={k}={v}" for k, v in env_extra.items()]
+        cmd += ["sh", "-c", wrapper]
+        try:
+            started = subprocess.run(cmd, capture_output=True, timeout=30, check=False).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            started = False
+        if started:
+            record["unidade"] = unit
+    if not started:
+        try:
+            p = subprocess.Popen(["sh", "-c", wrapper], cwd=str(kernel), env={**os.environ, **env_extra},
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
+        except OSError as e:
+            return out({"ok": False, "erro": f"não consegui iniciar a atualização: {e}"})
+        record["pid"] = p.pid
+    run_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    return out({"ok": True, "inicio": now})
+
+
+def cmd_update_status(home: Path) -> int:
+    st = run_state(home)
+    linhas: list[str] = []
+    if st["existe"]:
+        try:
+            raw = Path(st["log"]).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            raw = []
+        for line in raw[-15:]:
+            line = TOKEN_RE.sub("token=…", line.replace("[whitebeard-os] ", "").replace("[whitebeard-os/install] ", "")).rstrip()
+            if line:
+                linhas.append(line)
+    kernel = kernel_dir(home)
+    local = local_versions(home, kernel) if kernel else {"web": "", "kernel": ""}
+    return out({"ok": True, **st, "linhas": linhas, "local": {"web": local["web"], "kernel": local["kernel"]}})
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--home", default=os.environ.get("JARVIS_HOME") or str(Path.home() / ".jarvis"))
@@ -332,6 +603,11 @@ def main() -> int:
     p.add_argument("--since", type=int, default=0)
     sub.add_parser("telegram-off")
     sub.add_parser("done")
+    p = sub.add_parser("update-check")
+    p.add_argument("--max-age", type=int, default=86400)
+    p.add_argument("--force", action="store_true")
+    sub.add_parser("update-run")
+    sub.add_parser("update-status")
     args = ap.parse_args()
     home = Path(args.home).expanduser()
     if not (home / "profile.env").is_file():
@@ -348,6 +624,12 @@ def main() -> int:
         return cmd_telegram_off(home)
     if args.cmd == "done":
         return cmd_done(home)
+    if args.cmd == "update-check":
+        return cmd_update_check(home, max(0, args.max_age), args.force)
+    if args.cmd == "update-run":
+        return cmd_update_run(home)
+    if args.cmd == "update-status":
+        return cmd_update_status(home)
     return 2
 
 

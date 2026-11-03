@@ -183,7 +183,12 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
             cfg["mcp_servers"] = hermes_mcp
         env = [f"TELEGRAM_BOT_TOKEN={token}" if token else "TELEGRAM_BOT_TOKEN="]
         env.append("TELEGRAM_ALLOWED_USERS=" + ",".join(pessoas))
+        # grupos: TELEGRAM_ALLOWED_CHATS é a trava de onde ele responde; TELEGRAM_GROUP_ALLOWED_CHATS marca os
+        # grupos autorizados; e qualquer membro desses grupos pode falar com ele (TELEGRAM_GROUP_ALLOWED_USERS=*),
+        # senão o Hermes exige que cada pessoa esteja numa lista e o grupo fica mudo
+        env.append("TELEGRAM_ALLOWED_CHATS=" + ",".join(grupos))
         env.append("TELEGRAM_GROUP_ALLOWED_CHATS=" + ",".join(grupos))
+        env.append("TELEGRAM_GROUP_ALLOWED_USERS=" + ("*" if grupos else ""))
         env.append(f"TELEGRAM_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
         env += [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", f"WHITEBEARD_ASSISTENTE={nome}", f"WHITEBEARD_ASSISTENTE_TIPO={tipo}"]
         if tipo in ("mim", "equipe"):

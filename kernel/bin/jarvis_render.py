@@ -168,16 +168,27 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         if tools is not None:
             cfg["platform_toolsets"] = {"telegram": sorted(tools), "cli": sorted(tools)}
         # acesso: quem fala com ele. Cliente: só grupo, com menção; rotinas: ninguém
-        tg: dict = {"require_mention": tipo != "mim"}
+        # Conversa direta: quem não está na lista recebe UMA resposta educada dizendo onde o assistente atende,
+        # em vez de silêncio (dm_policy "disabled" ignora tudo, inclusive /start; "allowlist" + "decline" responde
+        # uma vez e some). A lista vazia vale como "ninguém".
+        tg: dict = {"require_mention": tipo != "mim", "dm_policy": "allowlist", "unauthorized_dm_behavior": "decline"}
+        rotulo_desc = (a.get("descricao") or "").strip()
         if tipo == "mim":
-            tg.update({"dm_policy": "allowlist", "group_policy": "disabled"})
+            tg["group_policy"] = "disabled"
+            recusa = "Este assistente é pessoal: atende só o dono."
         elif tipo == "equipe":
-            tg.update({"dm_policy": "allowlist", "group_policy": "allowlist" if grupos else "disabled"})
+            tg["group_policy"] = "allowlist" if grupos else "disabled"
+            recusa = "Este assistente atende a equipe. Peça ao dono para liberar você na página ASSISTENTES do JARVIS."
         elif tipo == "cliente":
-            tg.update({"dm_policy": "disabled", "group_policy": "allowlist"})
+            tg["group_policy"] = "allowlist"
+            recusa = "Eu atendo só no grupo combinado; fale comigo lá, chamando @ antes da pergunta." + (f" O que eu faço: {rotulo_desc}" if rotulo_desc else "")
         else:
-            tg.update({"dm_policy": "disabled", "group_policy": "disabled"})
+            tg["group_policy"] = "disabled"
+            recusa = "Este assistente só executa rotinas; ele não conversa."
+        tg["unauthorized_dm_decline_message"] = recusa
         cfg["telegram"] = tg
+        cfg["unauthorized_dm_behavior"] = "decline"
+        cfg["unauthorized_dm_decline_message"] = recusa
         # MCPs: o dono e a equipe veem os do tenant (o cérebro entre eles); cliente e rotinas, nenhum
         if tipo in ("mim", "equipe") and hermes_mcp:
             cfg["mcp_servers"] = hermes_mcp

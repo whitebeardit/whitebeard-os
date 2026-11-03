@@ -84,6 +84,15 @@ jobs:
           test "$(grep -c "^EXEMPLO_TOKEN='valor-de-teste'$" "$HOME/.jarvis/secrets.env")" = 1
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" done
           test -f "$HOME/.jarvis/setup.done"
+          # atualização: consulta o GitHub (ramo da origem) e responde sem erro; nada em andamento
+          python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" update-check --force | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)
+          assert d["ok"] and d["erro"] is None and d["remoto"]["kernel"] and d["local"]["kernel"], d'
+          python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" update-status | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)
+          assert d["ok"] and not d["rodando"] and d["codigo"] is None, d'
       - name: verificação do papel knowledge (compose sobe o banco e desce)
         if: contains(matrix.roles, 'knowledge')
         run: |

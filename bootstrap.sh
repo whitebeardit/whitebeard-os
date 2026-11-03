@@ -76,6 +76,7 @@ done
 # executável que o serviço do Paperclip chama (install_paperclip escreve; `paperclipai service install` lê
 # esta variável). Fora de ~/.local/bin de propósito: ali o doctor do Paperclip o tomaria por loja gerenciada.
 PAPERCLIP_SHIM_PATH="$JARVIS_HOME/bin/paperclipai"
+PAPERCLIP_FALHOU=0
 export PAPERCLIP_SHIM_PATH
 # --apply: a instalação já diz qual tenant e quais papéis; quem chama (o JARVIS Web) não tem terminal
 if [ "$APPLY" = 1 ]; then
@@ -93,7 +94,12 @@ has_role() { case ",$ROLES," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 run() {
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] %s\n' "$*"; else sh -c "$*"; fi
 }
-with_node() { bash -c ". '$NVM_DIR/nvm.sh' >/dev/null 2>&1 && $1"; }
+# Roda $1 com o Node do lockfile. O nvm, ao ser carregado, mantém o node que já estiver no PATH da pessoa
+# (um `nvm use 22` no shell dela, por exemplo) mesmo com outro padrão; por isso o `nvm use` explícito.
+# Antes de o Node fixado existir (install_node), segue com o que houver, e o install_node confere depois.
+with_node() { bash -c ". '$NVM_DIR/nvm.sh' --no-use >/dev/null 2>&1; nvm use --silent '$NODE_VERSION' >/dev/null 2>&1 || true; $1"; }
+# Pasta do Node fixado (atalhos de serviço chamam o binário por este caminho, sem depender do PATH)
+node_bin_dir() { printf '%s/versions/node/v%s/bin' "$NVM_DIR" "$NODE_VERSION"; }
 
 [ -n "$TENANT" ] || { usage >&2; die "--tenant é obrigatório"; }
 [ -f "$TENANT" ] || die "tenant não encontrado: $TENANT"
@@ -224,7 +230,11 @@ install_node() {
   fi
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] nvm install %s\n' "$NODE_VERSION"; return 0; fi
   mkdir -p "$JARVIS_HOME/logs"
-  with_node "nvm install '$NODE_VERSION' >>'$JARVIS_HOME/logs/instalacao-node.log' 2>&1 && nvm alias default '$NODE_VERSION' >/dev/null 2>&1 && printf '[whitebeard-os] node %s pronto\n' \"\$(node -v)\""
+  with_node "nvm install '$NODE_VERSION' >>'$JARVIS_HOME/logs/instalacao-node.log' 2>&1 && nvm alias default '$NODE_VERSION' >/dev/null 2>&1" \
+    || die "node $NODE_VERSION não instalou (veja $JARVIS_HOME/logs/instalacao-node.log)"
+  cur=$(with_node 'node -v' | tail -n 1)
+  [ "$cur" = "v$NODE_VERSION" ] || die "node em uso é $cur, o kernel pede v$NODE_VERSION (nvm em $NVM_DIR)"
+  log "node $cur pronto"
 }
 
 install_claude() {
@@ -400,14 +410,45 @@ install_paperclip() {
   # kernel escreve o seu: chama o node pelo caminho (o LaunchAgent/systemd não tem o node do nvm no PATH e
   # `#!/usr/bin/env node` morria com "env: node: No such file or directory") e põe a pasta do node no PATH,
   # para os filhos do Paperclip (npx, node) também o acharem.
-  bin=$(with_node 'command -v paperclipai' | tail -n 1)
-  if [ -n "$bin" ]; then
-    mkdir -p "$(dirname "$PAPERCLIP_SHIM_PATH")"
-    node_dir=$(dirname "$bin")
-    # shellcheck disable=SC2016  # o $PATH e o "$@" são para o atalho, não para este script
-    printf '#!/bin/sh\n# whitebeard-os: atalho para o paperclipai instalado pelo npm (nvm); refeito a cada bootstrap\nPATH=%s:$PATH\nexport PATH\nexec %s/node %s "$@"\n' "$node_dir" "$node_dir" "$bin" >"$PAPERCLIP_SHIM_PATH"
-    chmod 755 "$PAPERCLIP_SHIM_PATH"
-  fi
+  node_dir=$(node_bin_dir)
+  bin="$node_dir/paperclipai"
+  [ -x "$node_dir/node" ] || die "paperclip: node fixado ausente em $node_dir (etapa node pulada?)"
+  [ -x "$bin" ] || die "paperclip: o paperclipai não está no Node $NODE_VERSION ($bin); outro node no caminho? Rode de novo sem 'nvm use' no shell"
+  mkdir -p "$(dirname "$PAPERCLIP_SHIM_PATH")"
+  # shellcheck disable=SC2016  # o $PATH e o "$@" são para o atalho, não para este script
+  printf '#!/bin/sh\n# whitebeard-os: atalho para o paperclipai instalado pelo npm (nvm); refeito a cada bootstrap\nPATH=%s:$PATH\nexport PATH\nexec %s/node %s "$@"\n' "$node_dir" "$node_dir" "$bin" >"$PAPERCLIP_SHIM_PATH"
+  chmod 755 "$PAPERCLIP_SHIM_PATH"
+  log "paperclip: atalho do serviço em $PAPERCLIP_SHIM_PATH (node $NODE_VERSION)"
+}
+
+# Depois de instalar/iniciar o serviço do Paperclip: confirma que ele está mesmo rodando e respondendo.
+# Um serviço que sobe e cai (node errado, porta ocupada) fica em loop no launchd/systemd e, sem esta
+# conferência, o instalador diria "iniciado" com o JARVIS sem Paperclip. Espera até 40 s pela saúde.
+paperclip_conferir_servico() {
+  n=0
+  while [ "$n" -lt 20 ]; do
+    st=$(with_node 'paperclipai service status --json' 2>/dev/null | tail -n 40)
+    if printf '%s' "$st" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("active") and d.get("health",{}).get("ok") else 1)' 2>/dev/null; then
+      log "paperclip: serviço rodando e respondendo"
+      return 0
+    fi
+    n=$((n + 1)); sleep 2
+  done
+  detalhe=$(printf '%s' "$st" | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+print("instalado" if d.get("installed") else "não instalado", "·", "ativo" if d.get("active") else "parado", "·", d.get("detail") or "", "·", (d.get("health") or {}).get("error") or "")' 2>/dev/null)
+  log "ERRO paperclip: o serviço não ficou de pé (${detalhe:-sem status})"
+  for f in "$HOME/.paperclip/instances/default/logs/paperclipai.log" "$HOME/.paperclip/instances/default/logs/service.log" "$HOME/.paperclip/logs/paperclipai.log"; do
+    if [ -s "$f" ]; then
+      log "últimas linhas de $f:"; tail -n 12 "$f" | sed 's/^/    /'
+      break
+    fi
+  done
+  log "o atalho do serviço é $PAPERCLIP_SHIM_PATH; confira o node dele: $PAPERCLIP_SHIM_PATH --version"
+  return 1
 }
 
 render_tenant() {
@@ -1067,6 +1108,7 @@ install_services() {
     mkdir -p "$JARVIS_HOME/logs"
     with_node "$onboard </dev/null >>'$JARVIS_HOME/logs/instalacao-paperclip.log' 2>&1" \
       || log "aviso: a primeira configuração do Paperclip falhou (veja $JARVIS_HOME/logs/instalacao-paperclip.log)"
+    paperclip_conferir_servico || PAPERCLIP_FALHOU=1
   else
     if [ "$bind" = loopback ] && [ "$PAPERCLIP_LOCAL" = 1 ] && paperclip_to_loopback "$pc_config"; then
       log "paperclip: instância migrada para só esta máquina, sem login (local_trusted)"
@@ -1074,7 +1116,7 @@ install_services() {
     else
       with_node "paperclipai service install --json >/dev/null 2>&1 || true; paperclipai service start >/dev/null 2>&1 || true"
     fi
-    log "paperclip: serviço presente e iniciado"
+    paperclip_conferir_servico || PAPERCLIP_FALHOU=1
   fi
   # preparo automático só no modo local (nele a máquina é o operador; autenticado, exigiria login)
   if python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["server"].get("deploymentMode") != "local_trusted")' "$pc_config" 2>/dev/null; then
@@ -1342,6 +1384,9 @@ doctor() {
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
   [ "$KNOWLEDGE_ADIADO" = 1 ] && log "knowledge: adiado (sem Docker). Instale Docker e rode o bootstrap de novo"
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
+  if [ "$PAPERCLIP_FALHOU" = 1 ]; then
+    die "o serviço do Paperclip não subiu (motivo e log acima). Corrija e rode o mesmo comando de novo"
+  fi
   finalizar
 }
 

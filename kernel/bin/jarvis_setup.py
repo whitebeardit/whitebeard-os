@@ -138,6 +138,13 @@ def sufixo(nome: str) -> str:
     return nome.upper().replace("-", "_")
 
 
+def nomes_vivos(home: Path, nomes: object, chave: str) -> list[str]:
+    """Nomes das pessoas/grupos reconhecidos cujo id ainda está na lista do secrets.env (ordem da lista)."""
+    ids = [x for x in read_env(home / "secrets.env").get(chave, "").split(",") if x]
+    mapa = nomes if isinstance(nomes, dict) else {}
+    return [mapa.get(i) or "(sem nome)" for i in ids]
+
+
 def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
     """Assistentes do Telegram: os criados pelo JARVIS Web (loja) e os do tenant (catálogo do render), com o que
     falta a cada um. `aplicado`: já virou perfil do Hermes (está no catálogo renderizado)."""
@@ -171,6 +178,8 @@ def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
             "pessoas": bool(filled.get(f"TELEGRAM_ALLOWED_USERS_{up}", False)) if tipo in ("mim", "equipe") else None,
             "grupos": bool(filled.get(f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", False)) if tipo in ("equipe", "cliente") else None,
             "aplicado": nome in por_nome,
+            "pessoas_nomes": nomes_vivos(home, a.get("pessoas_nomes"), f"TELEGRAM_ALLOWED_USERS_{up}"),
+            "grupos_nomes": nomes_vivos(home, a.get("grupos_nomes"), f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}"),
             "segredos": {"token": f"TELEGRAM_BOT_TOKEN_{up}",
                          "pessoas": f"TELEGRAM_ALLOWED_USERS_{up}" if tipo in ("mim", "equipe") else None,
                          "grupos": f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}" if tipo in ("equipe", "cliente") else None},
@@ -338,6 +347,16 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
     offset = 0
     stopped_gateway = False
 
+    def anota(campo: str, chave: str, rotulo: str) -> None:
+        """Guarda o nome (não o id) de quem foi reconhecido, para a página mostrar; a loja é a dona."""
+        itens = load_store(home)
+        for it in itens:
+            if it.get("nome") == nome:
+                nomes = it.setdefault(campo, {})
+                if isinstance(nomes, dict):
+                    nomes[chave] = rotulo
+        save_store(home, itens)
+
     def reconhece(u: dict):
         m = u.get("message") or u.get("my_chat_member") or {}
         chat = m.get("chat") or {}
@@ -345,11 +364,15 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
             return None
         if chat.get("type") == "private" and aceita_pessoa and (m.get("from") or {}).get("id"):
             sender = m["from"]
+            rotulo = str(sender.get("first_name") or sender.get("username") or "")
             lista_add(home, f"TELEGRAM_ALLOWED_USERS_{up}", str(sender["id"]))
-            return {"ok": True, "pessoa": str(sender.get("first_name") or sender.get("username") or "")}
+            anota("pessoas_nomes", str(sender["id"]), rotulo)
+            return {"ok": True, "pessoa": rotulo}
         if chat.get("type") in ("group", "supergroup") and aceita_grupo and chat.get("id"):
+            rotulo = str(chat.get("title") or "")
             lista_add(home, f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", str(chat["id"]))
-            return {"ok": True, "grupo": str(chat.get("title") or "")}
+            anota("grupos_nomes", str(chat["id"]), rotulo)
+            return {"ok": True, "grupo": rotulo}
         return None
 
     def fim(res: dict | None):

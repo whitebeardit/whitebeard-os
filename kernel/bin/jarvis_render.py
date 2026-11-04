@@ -222,7 +222,8 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         })
     w.write(home / "render" / "hermes" / "assistentes.json", json.dumps(catalogo, ensure_ascii=False, indent=2) + "\n")
     limpar_assistentes_antigos(w, home, nomes)
-    log(f"assistentes ({len(catalogo)}): " + ", ".join(f"{c['nome']} ({c['tipo']}{'' if c['pronto'] else ', sem token'})" for c in catalogo))
+    log(f"assistentes ({len(catalogo)}): " + ", ".join(
+        f"{c['nome']} ({c['tipo']}" + ("" if c["pronto"] else (", sem token" if not values.get(c["segredos"]["token"], "") else ", sem grupo")) + ")" for c in catalogo))
     return 0
 
 

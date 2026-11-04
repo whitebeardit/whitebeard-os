@@ -181,7 +181,7 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
             recusa = "Este assistente atende a equipe. Peça ao dono para liberar você na página ASSISTENTES do JARVIS."
         elif tipo == "cliente":
             tg["group_policy"] = "allowlist"
-            recusa = "Eu atendo só no grupo combinado; fale comigo lá, chamando @ antes da pergunta." + (f" O que eu faço: {rotulo_desc}" if rotulo_desc else "")
+            recusa = "Eu atendo só no grupo combinado; fale comigo lá: escreva a pergunta com o meu @ no fim, ou responda a uma mensagem minha." + (f" O que eu faço: {rotulo_desc}" if rotulo_desc else "")
         else:
             tg["group_policy"] = "disabled"
             recusa = "Este assistente só executa rotinas; ele não conversa."

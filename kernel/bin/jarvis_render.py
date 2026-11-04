@@ -87,6 +87,31 @@ FERRAMENTAS_TIPO = {
 FERRAMENTAS_COMPUTADOR = ["terminal", "file", "code_execution"]
 TIPO_NOME = {"mim": "para mim", "equipe": "para a equipe", "cliente": "para um cliente", "rotinas": "só rotinas"}
 
+# Onde o assistente fala. Cada canal tem o prefixo das variáveis do Hermes e o nome dos três segredos por
+# assistente (token, quem fala com ele, grupos/canais onde responde). `telegram` é o padrão: um tenant sem
+# `canal` rende exatamente como antes. Novos canais entram aqui (whatsapp e slack: próximas fases).
+CANAIS = {
+    "telegram": {"nome": "Telegram", "token": "TELEGRAM_BOT_TOKEN", "pessoas": "TELEGRAM_ALLOWED_USERS", "grupos": "TELEGRAM_GROUP_ALLOWED_CHATS",
+                 "obter_token": "@BotFather no Telegram: /newbot, cole o token", "grupos_rotulo": "Grupos",
+                 "grupos_desc": "Identificações dos grupos onde ele responde (números negativos, separados por vírgula).",
+                 "obter_grupos": "adicione o bot ao grupo; a página ASSISTENTES reconhece o grupo"},
+    "discord": {"nome": "Discord", "token": "DISCORD_BOT_TOKEN", "pessoas": "DISCORD_ALLOWED_USERS", "grupos": "DISCORD_ALLOWED_CHANNELS",
+                "obter_token": "Discord Developer Portal → sua aplicação → Bot → Reset Token", "grupos_rotulo": "Canais",
+                "grupos_desc": "Identificações dos canais do Discord onde ele responde (números, separados por vírgula).",
+                "obter_grupos": "mencione o bot no canal; a página ASSISTENTES reconhece o canal"},
+}
+
+
+def canal_de(a: dict) -> str:
+    return a.get("canal") or "telegram"
+
+
+def chaves_assistente(a: dict) -> dict[str, str]:
+    """Nomes dos segredos deste assistente em secrets.env: <VAR do canal>_<NOME>."""
+    up = a["nome"].upper().replace("-", "_")
+    c = CANAIS[canal_de(a)]
+    return {"token": f"{c['token']}_{up}", "pessoas": f"{c['pessoas']}_{up}", "grupos": f"{c['grupos']}_{up}"}
+
 
 def installed_skills_hint(kernel: Path, tenant_dir: Path, data: dict) -> set[str]:
     """Nomes das skills que o render instala (kernel + packs do tenant), para validar `assistentes[].skills`."""
@@ -152,13 +177,19 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         if faltam:
             print(f"[render] assistentes: {nome} pede skills que não existem: {', '.join(faltam)}", file=sys.stderr)
             return 2
-        up = nome.upper().replace("-", "_")
-        token = values.get(f"TELEGRAM_BOT_TOKEN_{up}", "")
-        dono = str(values.get("TELEGRAM_HOME_CHANNEL", "")).strip()
-        pessoas = [p.strip() for p in str(values.get(f"TELEGRAM_ALLOWED_USERS_{up}", "")).split(",") if p.strip()]
+        canal = canal_de(a)
+        if canal not in CANAIS:
+            print(f"[render] assistentes: {nome} tem canal desconhecido {canal}", file=sys.stderr)
+            return 2
+        chaves = chaves_assistente(a)
+        token = values.get(chaves["token"], "")
+        # no Telegram o dono entra sozinho (TELEGRAM_HOME_CHANNEL); nos outros canais não há id do dono: ele
+        # é reconhecido pelo "oi" como qualquer pessoa
+        dono = str(values.get("TELEGRAM_HOME_CHANNEL", "")).strip() if canal == "telegram" else ""
+        pessoas = [p.strip() for p in str(values.get(chaves["pessoas"], "")).split(",") if p.strip()]
         if tipo in ("mim", "equipe") and dono.isdigit() and dono not in pessoas:
             pessoas.insert(0, dono)
-        grupos = [g.strip() for g in str(values.get(f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", "")).split(",") if g.strip()]
+        grupos = [g.strip() for g in str(values.get(chaves["grupos"], "")).split(",") if g.strip()]
         # ferramentas por plataforma: lista fechada por tipo (+ computador, só para equipe, com aviso)
         tools = FERRAMENTAS_TIPO[tipo]
         if tools is not None and tipo == "equipe" and ajustes.get("computador"):
@@ -166,7 +197,7 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         model = {"provider": hermes_cfg.get("provider", "anthropic"), "default": a.get("modelo") or hermes_cfg.get("model", "")}
         cfg: dict = {"model": model}
         if tools is not None:
-            cfg["platform_toolsets"] = {"telegram": sorted(tools), "cli": sorted(tools)}
+            cfg["platform_toolsets"] = {canal: sorted(tools), "cli": sorted(tools)}
         # acesso: quem fala com ele. Cliente: só grupo, com menção; rotinas: ninguém
         # Conversa direta: quem não está na lista recebe UMA resposta educada dizendo onde o assistente atende,
         # em vez de silêncio (dm_policy "disabled" ignora tudo, inclusive /start; "allowlist" + "decline" responde
@@ -186,21 +217,32 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
             tg["group_policy"] = "disabled"
             recusa = "Este assistente só executa rotinas; ele não conversa."
         tg["unauthorized_dm_decline_message"] = recusa
-        cfg["telegram"] = tg
         cfg["unauthorized_dm_behavior"] = "decline"
         cfg["unauthorized_dm_decline_message"] = recusa
         # MCPs: o dono e a equipe veem os do tenant (o cérebro entre eles); cliente e rotinas, nenhum
         if tipo in ("mim", "equipe") and hermes_mcp:
             cfg["mcp_servers"] = hermes_mcp
-        env = [f"TELEGRAM_BOT_TOKEN={token}" if token else "TELEGRAM_BOT_TOKEN="]
-        env.append("TELEGRAM_ALLOWED_USERS=" + ",".join(pessoas))
-        # grupos: TELEGRAM_ALLOWED_CHATS é a trava de onde ele responde; TELEGRAM_GROUP_ALLOWED_CHATS marca os
-        # grupos autorizados; e qualquer membro desses grupos pode falar com ele (TELEGRAM_GROUP_ALLOWED_USERS=*),
-        # senão o Hermes exige que cada pessoa esteja numa lista e o grupo fica mudo
-        env.append("TELEGRAM_ALLOWED_CHATS=" + ",".join(grupos))
-        env.append("TELEGRAM_GROUP_ALLOWED_CHATS=" + ",".join(grupos))
-        env.append("TELEGRAM_GROUP_ALLOWED_USERS=" + ("*" if grupos else ""))
-        env.append(f"TELEGRAM_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
+        env = [f"{CANAIS[canal]['token']}={token}"]
+        if canal == "telegram":
+            cfg["telegram"] = tg
+            env.append("TELEGRAM_ALLOWED_USERS=" + ",".join(pessoas))
+            # grupos: TELEGRAM_ALLOWED_CHATS é a trava de onde ele responde; TELEGRAM_GROUP_ALLOWED_CHATS marca os
+            # grupos autorizados; e qualquer membro desses grupos pode falar com ele (TELEGRAM_GROUP_ALLOWED_USERS=*),
+            # senão o Hermes exige que cada pessoa esteja numa lista e o grupo fica mudo
+            env.append("TELEGRAM_ALLOWED_CHATS=" + ",".join(grupos))
+            env.append("TELEGRAM_GROUP_ALLOWED_CHATS=" + ",".join(grupos))
+            env.append("TELEGRAM_GROUP_ALLOWED_USERS=" + ("*" if grupos else ""))
+            env.append(f"TELEGRAM_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
+        elif canal == "discord":
+            # Discord no Hermes: com DISCORD_ALLOWED_USERS preenchido, só essas pessoas falam com ele (em
+            # conversa direta e nos canais); vazio, qualquer membro dos canais em DISCORD_ALLOWED_CHANNELS fala,
+            # e ninguém em conversa direta. Então: cliente = só canais; mim = só pessoas; equipe = pessoas
+            # reconhecidas (cada uma menciona o bot uma vez) nos canais reconhecidos.
+            cfg["discord"] = {"require_mention": tipo != "mim"}
+            env.append("DISCORD_ALLOWED_USERS=" + ",".join(pessoas if tipo in ("mim", "equipe") else []))
+            env.append("DISCORD_ALLOWED_CHANNELS=" + ",".join(grupos if tipo in ("equipe", "cliente") else []))
+            env.append(f"DISCORD_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
+            env.append("DISCORD_IGNORE_NO_MENTION=true")
         env += [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", f"WHITEBEARD_ASSISTENTE={nome}", f"WHITEBEARD_ASSISTENTE_TIPO={tipo}"]
         if tipo in ("mim", "equipe"):
             for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
@@ -212,18 +254,18 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         w.write(base / "SOUL.md", soul_assistente(a, tenant))
         w.write(base / "skills.txt", "\n".join(a.get("skills") or []) + ("\n" if a.get("skills") else ""))
         catalogo.append({
-            "nome": nome, "tipo": tipo, "descricao": a.get("descricao", ""), "skills": list(a.get("skills") or []),
+            "nome": nome, "tipo": tipo, "canal": canal, "descricao": a.get("descricao", ""), "skills": list(a.get("skills") or []),
             "do_pacote": bool(a.get("do_pacote")),
             "ajustes": {"computador": bool(ajustes.get("computador")), "anotar": bool(ajustes.get("anotar"))},
-            "segredos": {"token": f"TELEGRAM_BOT_TOKEN_{up}",
-                         "pessoas": f"TELEGRAM_ALLOWED_USERS_{up}" if tipo in ("mim", "equipe") else None,
-                         "grupos": f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}" if tipo in ("equipe", "cliente") else None},
+            "segredos": {"token": chaves["token"],
+                         "pessoas": chaves["pessoas"] if tipo in ("mim", "equipe") else None,
+                         "grupos": chaves["grupos"] if tipo in ("equipe", "cliente") else None},
             "pronto": bool(token) and (tipo != "cliente" or bool(grupos)),
         })
     w.write(home / "render" / "hermes" / "assistentes.json", json.dumps(catalogo, ensure_ascii=False, indent=2) + "\n")
     limpar_assistentes_antigos(w, home, nomes)
     log(f"assistentes ({len(catalogo)}): " + ", ".join(
-        f"{c['nome']} ({c['tipo']}" + ("" if c["pronto"] else (", sem token" if not values.get(c["segredos"]["token"], "") else ", sem grupo")) + ")" for c in catalogo))
+        f"{c['nome']} ({c['tipo']}" + ("" if c["canal"] == "telegram" else f", {c['canal']}") + ("" if c["pronto"] else (", sem token" if not values.get(c["segredos"]["token"], "") else ", sem grupo")) + ")" for c in catalogo))
     return 0
 
 
@@ -304,23 +346,26 @@ def main() -> int:
             continue
         assistentes = [x for x in assistentes if x.get("nome") != a["nome"]]
         assistentes.append({"nome": a["nome"], "tipo": a["tipo"], "descricao": a.get("descricao", ""),
+                            "canal": a.get("canal") if a.get("canal") in CANAIS else "telegram",
                             "skills": a.get("skills") if a.get("skills") is not None else skills_padrao[a["tipo"]],
                             **({"ajustes": a["ajustes"]} if a.get("ajustes") else {}),
                             **({"do_pacote": True} if a.get("do_pacote") else {})})
     for a in assistentes:
-        up = a["nome"].upper().replace("-", "_")
+        if canal_de(a) not in CANAIS:
+            continue  # o render_assistentes reclama com a mensagem certa
+        c, ch = CANAIS[canal_de(a)], chaves_assistente(a)
         rotulo = a.get("descricao") or a["nome"]
-        entries.append({"name": f"TELEGRAM_BOT_TOKEN_{up}", "title": f"Token do bot do assistente {a['nome']}",
-                        "description": f"Token do bot deste assistente ({rotulo[:80]}). Um bot, um assistente.",
-                        "roles": ["core"], "required": False, "obtain": "@BotFather no Telegram: /newbot, cole o token", "assistente": a["nome"]})
+        entries.append({"name": ch["token"], "title": f"Token do bot do assistente {a['nome']}" + ("" if canal_de(a) == "telegram" else f" ({c['nome']})"),
+                        "description": f"Token do bot deste assistente no {c['nome']} ({rotulo[:80]}). Um bot, um assistente.",
+                        "roles": ["core"], "required": False, "obtain": c["obter_token"], "assistente": a["nome"]})
         if a["tipo"] in ("mim", "equipe"):
-            entries.append({"name": f"TELEGRAM_ALLOWED_USERS_{up}", "title": f"Quem fala com o assistente {a['nome']}",
-                            "description": "Identificações das pessoas (números, separados por vírgula). Você entra sozinho; vazio = só você.",
+            entries.append({"name": ch["pessoas"], "title": f"Quem fala com o assistente {a['nome']}",
+                            "description": "Identificações das pessoas (números, separados por vírgula)." + (" Você entra sozinho; vazio = só você." if canal_de(a) == "telegram" else " Vazio = ninguém ainda."),
                             "roles": ["core"], "required": False, "obtain": "a página ASSISTENTES reconhece quem manda 'oi' ao bot", "assistente": a["nome"]})
         if a["tipo"] in ("equipe", "cliente"):
-            entries.append({"name": f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", "title": f"Grupos do assistente {a['nome']}",
-                            "description": "Identificações dos grupos onde ele responde (números negativos, separados por vírgula)." + (" Sem grupo, um assistente para cliente não responde a ninguém." if a["tipo"] == "cliente" else ""),
-                            "roles": ["core"], "required": False, "obtain": "adicione o bot ao grupo; a página ASSISTENTES reconhece o grupo", "assistente": a["nome"]})
+            entries.append({"name": ch["grupos"], "title": f"{c['grupos_rotulo']} do assistente {a['nome']}",
+                            "description": c["grupos_desc"] + (" Sem isso, um assistente para cliente não responde a ninguém." if a["tipo"] == "cliente" else ""),
+                            "roles": ["core"], "required": False, "obtain": c["obter_grupos"], "assistente": a["nome"]})
     known = {s["name"] for s in entries}
     referenced = set(VAR_RE.findall(yaml.safe_dump(data, allow_unicode=True)))
     for name in sorted(referenced - known):

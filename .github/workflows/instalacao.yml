@@ -82,9 +82,18 @@ jobs:
           import json, sys
           d = json.load(sys.stdin)
           a = {x["nome"]: x for x in d["assistentes"]}
-          assert set(a) == {"suporte", "cliente-exemplo"} and a["cliente-exemplo"]["tipo"] == "cliente" and not a["suporte"]["token"], a
+          assert set(a) == {"suporte", "cliente-exemplo", "discord-exemplo"} and a["cliente-exemplo"]["tipo"] == "cliente" and not a["suporte"]["token"], a
+          assert a["suporte"]["canal"] == "telegram" and a["discord-exemplo"]["canal"] == "discord", a
+          assert a["discord-exemplo"]["segredos"]["token"] == "DISCORD_BOT_TOKEN_DISCORD_EXEMPLO", a
           titulos = {s["nome"]: s["titulo"] for s in d["segredos"]}
-          assert titulos.get("TELEGRAM_BOT_TOKEN_SUPORTE", "").startswith("Token do bot do assistente"), titulos'
+          assert titulos.get("TELEGRAM_BOT_TOKEN_SUPORTE", "").startswith("Token do bot do assistente"), titulos
+          assert "DISCORD_BOT_TOKEN_DISCORD_EXEMPLO" in titulos and "TELEGRAM_BOT_TOKEN_DISCORD_EXEMPLO" not in titulos, titulos'
+          # o assistente do Discord rende as variáveis do Discord e nenhuma do Telegram
+          grep -q "^DISCORD_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/env"
+          grep -q "^DISCORD_REQUIRE_MENTION=true" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/env"
+          ! grep -q "TELEGRAM" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/env"
+          grep -q "discord:" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/config.yaml"
+          grep -q "^TELEGRAM_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistentes/suporte/env"
           test -f "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/SOUL.md"
           grep -q "dm_policy: allowlist" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml" && grep -q "unauthorized_dm_behavior: decline" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
           ! grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"

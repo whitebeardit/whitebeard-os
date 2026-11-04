@@ -1287,10 +1287,15 @@ ensure_web_tls() {
   tls_dir="$JARVIS_HOME/tls"
   # TLS_GEN muda quando a forma de gerar muda: o certificado antigo é refeito uma vez
   TLS_GEN=3
-  if [ -s "$tls_dir/jarvis-web.crt" ] && [ -s "$tls_dir/jarvis-web.key" ] && [ "$(cat "$tls_dir/GEN" 2>/dev/null)" = "$TLS_GEN" ]; then return 0; fi
+  # o nome na rede (<host>.local, mDNS) é o endereço que vai no QR e no ícone do web app: no Mac o hostname
+  # já é assim; no Linux entra à parte. Um certificado antigo sem esse nome é refeito uma vez.
+  nome_local=$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]').local
+  if [ -s "$tls_dir/jarvis-web.crt" ] && [ -s "$tls_dir/jarvis-web.key" ] && [ "$(cat "$tls_dir/GEN" 2>/dev/null)" = "$TLS_GEN" ] \
+    && openssl x509 -in "$tls_dir/jarvis-web.crt" -noout -text 2>/dev/null | grep -qi "DNS:$nome_local"; then return 0; fi
   have openssl || { log "web: openssl ausente; JARVIS Web fica em HTTP (sem microfone fora do localhost)"; return 1; }
   mkdir -p "$tls_dir"
   san="DNS:localhost,DNS:$(hostname),IP:127.0.0.1"
+  case ",$(hostname | tr '[:upper:]' '[:lower:]')," in *",$nome_local,"*) ;; *) san="$san,DNS:$nome_local" ;; esac
   # só IPs de rede local (RFC 1918): endereços de VPN ou túnel são transitórios e não entram no SAN
   for ip in $(hostname -I 2>/dev/null || ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" {print $2}'); do
     case "$ip" in 10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) san="$san,IP:$ip" ;; esac
@@ -1305,6 +1310,9 @@ ensure_web_tls() {
   echo "$TLS_GEN" >"$tls_dir/GEN"
   san_real=$(openssl x509 -in "$tls_dir/jarvis-web.crt" -noout -ext subjectAltName 2>/dev/null | tail -n 1 | sed 's/^ *//')
   log "web: certificado TLS gerado em $tls_dir (${san_real:-SAN: $san}; válido 820 dias)"
+  if [ "$OS" = Linux ] && ! have avahi-daemon && ! systemctl is-active --quiet avahi-daemon 2>/dev/null; then
+    log "aviso: sem avahi-daemon o nome $nome_local não abre nos outros aparelhos (o QR e o ícone usam o IP). Para o nome fixo: sudo apt-get install -y avahi-daemon"
+  fi
 }
 
 install_web_service() {

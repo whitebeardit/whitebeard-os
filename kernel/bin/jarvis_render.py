@@ -234,6 +234,7 @@ def main() -> int:
     ap.add_argument("--home", required=True, help="$JARVIS_HOME")
     ap.add_argument("--kernel", required=True, help="pasta kernel/ do repositório")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--allow-fewer-roles", action="store_true", help="permite renderizar menos papéis do que os instalados (o bootstrap usa ao adiar o knowledge ou quando a pessoa passa --role)")
     args = ap.parse_args()
 
     roles = [r.strip() for r in args.role.split(",") if r.strip()]
@@ -263,6 +264,16 @@ def main() -> int:
         return 2
     tenant = data["tenant"]
     role_label = ",".join(roles)
+    # Trava: numa instalação existente, o render com MENOS papéis do que os instalados apaga do secrets.env os
+    # segredos dos papéis que ficaram de fora (e reescreve o profile.env). Só o bootstrap pode reduzir papéis,
+    # de propósito (--allow-fewer-roles); um render à mão com --role parcial para e avisa.
+    instalados = [x for x in parse_env(home / "profile.env").get("JARVIS_ROLE", "").split(",") if x]
+    faltam = [x for x in instalados if x not in roles]
+    if faltam and not args.allow_fewer_roles and not args.dry_run:
+        print(f"[render] esta instalação tem os papéis {','.join(instalados)}; renderizar só {role_label} apagaria os "
+              f"segredos de {','.join(faltam)}. Use ./bootstrap.sh --apply (lê os papéis instalados), passe todos os papéis, "
+              f"ou --allow-fewer-roles se for mesmo para reduzir.", file=sys.stderr)
+        return 2
     log(f"tenant={tenant} papéis={role_label} home={home}" + (" (dry-run)" if args.dry_run else ""))
 
     # ---- segredos: manifesto do kernel (por papel) + declarados no tenant + referenciados como ${X}

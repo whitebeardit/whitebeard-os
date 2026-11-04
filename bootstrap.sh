@@ -458,17 +458,17 @@ render_tenant() {
     die "uv é necessário para renderizar o tenant (etapa uv pulada?)"
   fi
   if [ "$DRY_RUN" = 1 ]; then
-    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --dry-run
+    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles --dry-run
     return 0
   fi
   mkdir -p "$JARVIS_HOME"
   # onde está este kernel: o JARVIS Web chama daqui o jarvis_setup.py e o `bootstrap.sh --apply`
   printf '%s\n' "$SCRIPT_DIR" >"$JARVIS_HOME/kernel.path"
-  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR"
+  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles
   asked=1; ask_secrets || asked=0
   telegram_setup && asked=1 && TELEGRAM_CHANGED=1
   if [ "$asked" = 1 ]; then
-    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" >/dev/null
+    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles >/dev/null
   fi
   return 0
 }
@@ -1036,7 +1036,7 @@ EOF
 # (Claude Code e Hermes) são reaplicados nesta mesma execução, e o gateway é reiniciado para ver o cérebro.
 apply_knowledge_render() {
   [ "$RERENDER" = 1 ] || return 0
-  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" >/dev/null
+  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles >/dev/null
   apply_mcp
   apply_hermes_config   # o .env do Hermes ganha GBRAIN_MCP_TOKEN (mescla sem sobrescrever)
   apply_hermes_tenant

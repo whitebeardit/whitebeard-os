@@ -367,7 +367,7 @@
     },
     "assistentes": {
       "type": "array",
-      "description": "Assistentes do Telegram: um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e ferramentas próprias). Sem este campo, só o assistente do dono (o bot de `telegram`). O token entra em secrets.env como TELEGRAM_BOT_TOKEN_<NOME>.",
+      "description": "Assistentes (bots do Telegram ou do Discord): um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e ferramentas próprias). Sem este campo, só o assistente do dono (o bot de `telegram`). O token entra em secrets.env como TELEGRAM_BOT_TOKEN_<NOME>.",
       "items": {
         "type": "object",
         "required": [
@@ -389,6 +389,14 @@
               "rotinas"
             ],
             "description": "mim: tudo, como o do dono; equipe: skills e MCPs, escreve no second brain, sem computador; cliente: só as skills do papel, sem ferramentas, só no grupo permitido; rotinas: não conversa, só rotinas"
+          },
+          "canal": {
+            "enum": [
+              "telegram",
+              "discord"
+            ],
+            "default": "telegram",
+            "description": "onde ele fala: telegram (padrão; token em TELEGRAM_BOT_TOKEN_<NOME>) ou discord (token em DISCORD_BOT_TOKEN_<NOME>; pessoas em DISCORD_ALLOWED_USERS_<NOME>, canais em DISCORD_ALLOWED_CHANNELS_<NOME>)"
           },
           "descricao": {
             "type": "string",

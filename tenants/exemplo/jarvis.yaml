@@ -80,6 +80,11 @@ assistentes:
     tipo: cliente # só as skills do papel, sem ferramentas nem MCPs; responde só no grupo permitido, com menção
     descricao: Responde ao grupo do cliente Exemplo sobre o andamento do projeto.
     skills: [exemplo-ola]
+  - nome: discord-exemplo
+    tipo: equipe
+    canal: discord # o mesmo isolamento, num bot do Discord (token em DISCORD_BOT_TOKEN_DISCORD_EXEMPLO)
+    descricao: Ajuda a equipe no servidor do Discord.
+    skills: [exemplo-ola]
 
 # Onde cada papel roda. Padrão do produto: tudo-em-um (os três papéis no mesmo host).
 # Para dividir, declare outros hosts, ex.: {host: servidor, papeis: [core, knowledge]}.

@@ -1185,12 +1185,12 @@ install_services() {
   ensure_hermes_gateway
 }
 
-# Gateway do Hermes (Telegram) como serviço do usuário: instala na primeira vez em que há token, reinicia
+# Gateway do Hermes (Telegram, Discord…) como serviço do usuário: instala na primeira vez em que há token, reinicia
 # quando a configuração mudou (segredo novo, chat reconhecido), não toca se nada mudou.
 ensure_hermes_gateway() {
   [ "$WITH_HERMES" = 1 ] || return 0
   have hermes || return 0
-  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null || grep -qs '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME"/profiles/*/.env 2>/dev/null; then
+  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null || grep -qsE '^(TELEGRAM|DISCORD)_BOT_TOKEN=.' "$HERMES_HOME"/profiles/*/.env 2>/dev/null; then
     mkdir -p "$JARVIS_HOME/logs"
     gw_present=0
     case "$OS" in

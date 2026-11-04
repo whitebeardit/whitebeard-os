@@ -86,7 +86,7 @@ jobs:
           titulos = {s["nome"]: s["titulo"] for s in d["segredos"]}
           assert titulos.get("TELEGRAM_BOT_TOKEN_SUPORTE", "").startswith("Token do bot do assistente"), titulos'
           test -f "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/SOUL.md"
-          grep -q "dm_policy: disabled" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
+          grep -q "dm_policy: allowlist" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml" && grep -q "unauthorized_dm_behavior: decline" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
           ! grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
           grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/suporte/config.yaml"
           printf 'valor-de-teste\n' | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" set-secret EXEMPLO_TOKEN

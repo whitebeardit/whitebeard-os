@@ -145,6 +145,25 @@ def nomes_vivos(home: Path, nomes: object, chave: str) -> list[str]:
     return [mapa.get(i) or "(sem nome)" for i in ids]
 
 
+def hermes_profile_dir(home: Path, nome: str) -> Path:
+    hermes_home = read_env(home / "profile.env").get("HERMES_HOME") or str(Path.home() / ".hermes")
+    return Path(hermes_home) / "profiles" / nome
+
+
+def limpar_esperas_velhas(home: Path) -> None:
+    """Perfil estacionado por uma espera que a página abandonou (PARAR, aba fechada): volta depois de 5 min."""
+    base = hermes_profile_dir(home, "x").parent
+    if not base.is_dir():
+        return
+    for marca in base.glob("*/.whitebeard-espera"):
+        try:
+            if time.time() - int(marca.read_text(encoding="utf-8").strip() or "0") > 300:
+                marca.unlink(missing_ok=True)
+                (marca.parent / "gateway.parked").unlink(missing_ok=True)
+        except (OSError, ValueError):
+            pass
+
+
 def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
     """Assistentes do Telegram: os criados pelo JARVIS Web (loja) e os do tenant (catálogo do render), com o que
     falta a cada um. `aplicado`: já virou perfil do Hermes (está no catálogo renderizado)."""
@@ -346,6 +365,31 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
     deadline = time.time() + seconds
     offset = 0
     stopped_gateway = False
+    # Se o gateway já serve este bot (assistente aplicado), ele consome as mensagens antes de nós e descarta as
+    # de grupos ainda não permitidos: estaciona só este perfil (gateway.parked) enquanto a espera dura. O
+    # perfil volta quando algo é reconhecido, quando a espera toda (desde `since`) termina, ou no próximo
+    # colocar em uso. A página espera em fatias; a marca .whitebeard-espera lembra que fomos nós.
+    perfil = hermes_profile_dir(home, nome)
+    parked = perfil / "gateway.parked"
+    marca_espera = perfil / ".whitebeard-espera"
+    if perfil.is_dir() and read_env(perfil / ".env").get("TELEGRAM_BOT_TOKEN") == token:
+        if not parked.exists():
+            parked.write_text("espera do JARVIS Web\n", encoding="utf-8")
+            marca_espera.write_text(str(int(time.time())) + "\n", encoding="utf-8")
+            # o gateway solta o bot em alguns segundos; espera até o Telegram parar de dar 409
+            for _ in range(15):
+                try:
+                    tg_api(token, "getUpdates", offset=-1, timeout=0)
+                    break
+                except TelegramError as e:
+                    if e.code != 409:
+                        break
+                    time.sleep(2)
+
+    def desestaciona() -> None:
+        if marca_espera.exists():
+            marca_espera.unlink(missing_ok=True)
+            parked.unlink(missing_ok=True)
 
     def anota(campo: str, chave: str, rotulo: str) -> None:
         """Guarda o nome (não o id) de quem foi reconhecido, para a página mostrar; a loja é a dona."""
@@ -383,6 +427,9 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
                 pass
         if stopped_gateway:
             hermes_gateway("start")
+        # reconheceu, ou a espera inteira da página (3 min desde `since`) acabou: devolve o bot ao gateway
+        if res or time.time() - since >= 170:
+            desestaciona()
         return out(res or {"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
 
     try:
@@ -418,6 +465,7 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
 
 
 def cmd_status(home: Path) -> int:
+    limpar_esperas_velhas(home)
     profile = read_env(home / "profile.env")
     secrets_path = home / "secrets.env"
     filled = {k: bool(v) for k, v in read_env(secrets_path).items()}

@@ -50,7 +50,7 @@ Metal (Apple Silicon) ou Vulkan na instalação e cai para CPU se não houver. O
 knowledge em compose usa a GPU por CDI/NVIDIA Container Toolkit; no macOS, containers não veem a GPU, então
 Ollama e Whisper rodam nativos e o compose aponta para eles.
 
-A interface gráfica do produto é **uma só: JARVIS Web**, servida pelo próprio host e aberta no browser
+A interface gráfica do produto é **uma só, a interface web do Whitebeard OS** (pacote `jarvis-web`; o JARVIS é o assistente com quem se fala nela), servida pelo próprio host e aberta no browser
 (`http://localhost:8017` nesta máquina; na LAN ou no celular, `https://` com TLS local). Não há app Electron no produto: mesma UI, sem
 empacotamento nem assinatura por sistema operacional. O app lê as pastas pelo mesmo contrato do `profile.sh`
 (`JARVIS_HOME`, `JARVIS_DATA`, `HERMES_HOME`, `VAULT_PATH`), sem nome de tenant no código.

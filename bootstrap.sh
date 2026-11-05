@@ -374,15 +374,15 @@ ensure_hermes_voice() {
   dir="$HERMES_HOME/hermes-agent"
   if [ "$DRY_RUN" = 1 ]; then log "hermes: garantiria os extras voice e edge-tts em $dir/venv"; return 0; fi
   if [ ! -x "$dir/venv/bin/python3" ] || [ ! -f "$dir/uv.lock" ]; then
-    log "aviso: venv ou uv.lock do Hermes ausente em $dir; voz do JARVIS Web indisponível"; return 0
+    log "aviso: venv ou uv.lock do Hermes ausente em $dir; voz da interface indisponível"; return 0
   fi
   "$dir/venv/bin/python3" -c 'import faster_whisper, edge_tts' 2>/dev/null && return 0
-  log "hermes: instalando a voz do JARVIS Web (faster-whisper, edge-tts) no venv do Hermes"
+  log "hermes: instalando a voz da interface (faster-whisper, edge-tts) no venv do Hermes"
   # mesmo isolamento do setup-hermes.sh upstream: o lock vale com o pyproject do checkout, sem config do usuário
   cfg=$(mktemp -d)
   (cd "$dir" && unset UV_NO_CONFIG UV_CONFIG_FILE && XDG_CONFIG_HOME="$cfg" XDG_CONFIG_DIRS="$cfg" \
     UV_PROJECT_ENVIRONMENT="$dir/venv" uv sync --locked --inexact --extra voice --extra edge-tts) >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 \
-    || log "aviso: não consegui instalar a voz no venv do Hermes; o JARVIS Web segue sem STT"
+    || log "aviso: não consegui instalar a voz no venv do Hermes; a interface segue sem STT"
   rmdir "$cfg" 2>/dev/null || true
 }
 
@@ -1206,7 +1206,7 @@ ensure_hermes_gateway() {
       log "hermes: gateway já instalado"
     fi
   else
-    log "hermes: Telegram desligado (opcional; ligue em PRIMEIROS PASSOS no JARVIS ou com ./install.sh --telegram)"
+    log "hermes: Telegram desligado (opcional; ligue em PRIMEIROS PASSOS no Whitebeard OS ou com ./install.sh --telegram)"
   fi
 }
 
@@ -1292,7 +1292,7 @@ ensure_web_tls() {
   nome_local=$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]').local
   if [ -s "$tls_dir/jarvis-web.crt" ] && [ -s "$tls_dir/jarvis-web.key" ] && [ "$(cat "$tls_dir/GEN" 2>/dev/null)" = "$TLS_GEN" ] \
     && openssl x509 -in "$tls_dir/jarvis-web.crt" -noout -text 2>/dev/null | grep -qi "DNS:$nome_local"; then return 0; fi
-  have openssl || { log "web: openssl ausente; JARVIS Web fica em HTTP (sem microfone fora do localhost)"; return 1; }
+  have openssl || { log "web: openssl ausente; a interface fica em HTTP (sem microfone fora do localhost)"; return 1; }
   mkdir -p "$tls_dir"
   san="DNS:localhost,DNS:$(hostname),IP:127.0.0.1"
   case ",$(hostname | tr '[:upper:]' '[:lower:]')," in *",$nome_local,"*) ;; *) san="$san,DNS:$nome_local" ;; esac
@@ -1446,7 +1446,7 @@ doctor() {
   if has_role desktop && [ -f "$JARVIS_HOME/app/jarvis-web/dist/index.html" ]; then
     # nesta máquina o JARVIS Web atende em HTTP (sem aviso de certificado); na rede, em HTTPS
     lan=""; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && lan=" | rede local: https://$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]'):$JARVIS_WEB_PORT (certificado em \$JARVIS_HOME/tls)"
-    log "web: JARVIS Web em http://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json)$lan"
+    log "web: Whitebeard OS em http://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json)$lan"
   fi
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
   [ "$KNOWLEDGE_ADIADO" = 1 ] && log "knowledge: adiado (sem Docker). Instale Docker e rode o bootstrap de novo"
@@ -1468,7 +1468,7 @@ finalizar() {
   # nesta máquina o navegador fala HTTP com o serviço (sem aviso de certificado); o HTTPS é para a rede
   url="http://localhost:$JARVIS_WEB_PORT/?token=$tok"
   printf '\n'
-  printf '  Pronto! O JARVIS está no seu navegador:\n'
+  printf '  Pronto! O Whitebeard OS está no seu navegador:\n'
   printf '    %s\n' "$url"
   printf '  (se não abriu sozinho, copie o endereço acima)\n'
   if grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then

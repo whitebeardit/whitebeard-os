@@ -30,7 +30,7 @@ def escreve(path: Path, **campos) -> None:
 
 
 def telefone_de(user: object) -> str:
-    """'5511999999999:12@s.whatsapp.net' -> '5511999999999'."""
+    """'número:dispositivo' + sufixo do WhatsApp -> só o número."""
     s = str((user or {}).get("id", "") if isinstance(user, dict) else user or "")
     return s.split(":", 1)[0].split("@", 1)[0]
 

@@ -119,7 +119,7 @@ def whatsapp_sessao(home: Path, nome: str) -> Path:
 
 
 def whatsapp_telefone(sessao: Path) -> str:
-    """Número da conta pareada (creds.json → me.id '5511…:12@s.whatsapp.net')."""
+    """Número da conta pareada (creds.json → me.id, no formato número:dispositivo + sufixo do WhatsApp)."""
     try:
         me = json.loads((sessao / "creds.json").read_text(encoding="utf-8")).get("me") or {}
         return str(me.get("id", "")).split(":", 1)[0].split("@", 1)[0]

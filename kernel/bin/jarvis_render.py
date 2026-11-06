@@ -677,8 +677,12 @@ def main() -> int:
         cfg_cargo: dict = {"model": {"provider": hermes_cfg.get("provider", "anthropic"), "default": hermes_cfg.get("model", "")},
                            "platform_toolsets": {"cli": tools}}
         mcp_cargo = dict(hermes_mcp)
+        # o servidor MCP não herda o ambiente do heartbeat: as credenciais da execução (chave do agente, id da
+        # execução e da tarefa) entram por ${VAR}, que o Hermes expande ao carregar a config dentro do heartbeat.
+        # Com elas, entregar/pedir_aprovacao são do próprio agente e não acordam o cargo de novo.
         mcp_cargo["escritorio"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_escritorio_mcp.py")],
-                                   "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api"}}
+                                   "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api", "PAPERCLIP_API_KEY": "${PAPERCLIP_API_KEY}",
+                                           "PAPERCLIP_RUN_ID": "${PAPERCLIP_RUN_ID}", "PAPERCLIP_TASK_ID": "${PAPERCLIP_TASK_ID}"}}
         cfg_cargo["mcp_servers"] = mcp_cargo
         env_cargo = [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", "WHITEBEARD_CARGO=trabalho"]
         for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):

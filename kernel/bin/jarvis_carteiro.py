@@ -19,7 +19,7 @@ import urllib.request
 from pathlib import Path
 
 API = (os.environ.get("PAPERCLIP_API_URL") or "http://127.0.0.1:3100/api").rstrip("/")
-ESTADOS = {"done": "ENTREGUE", "blocked": "AGUARDANDO VOCÊ", "cancelled": "CANCELADA"}
+ESTADOS = {"done": "ENTREGUE", "cancelled": "CANCELADA"}
 
 
 def api(path: str):
@@ -39,11 +39,15 @@ def origem_de(desc: str) -> str:
 
 
 def ultimo_comentario(issue_id: str) -> str:
+    """O último comentário do cargo (ENTREGA/PENDÊNCIA/RECUSADO); senão, o último que não é prompt do Paperclip."""
     cs = lista(api(f"/issues/{issue_id}/comments"), "comments")
     cs.sort(key=lambda c: c.get("createdAt") or "")
-    for c in reversed(cs):
-        b = (c.get("body") or "").strip()
-        if b:
+    corpos = [(c.get("body") or "").strip() for c in cs]
+    for b in reversed(corpos):
+        if b.upper().startswith(("ENTREGA:", "PENDÊNCIA:", "RECUSADO", "APROVADO")):
+            return b
+    for b in reversed(corpos):
+        if b and not b.startswith(("Query:", "Paperclip ")):
             return b
     return ""
 
@@ -104,6 +108,23 @@ def main() -> int:
     inicio = estado.get("inicio") or 0
     for it in issues:
         st = it.get("status")
+        # pendência: uma confirmação aberta na tarefa (o cargo pediu uma decisão)
+        if st in ("in_progress", "blocked", "todo"):
+            try:
+                pend = [i for i in lista(api(f"/issues/{it['id']}/interactions"), "interactions")
+                        if i.get("kind") == "request_confirmation" and i.get("status") in ("pending", "open", "awaiting")]
+            except Exception:
+                pend = []
+            for p_ in pend:
+                chave = f"{it['id']}:{p_['id']}"
+                if avisadas.get(chave):
+                    continue
+                pergunta = ((p_.get("payload") or {}).get("prompt") or "").strip()
+                numero = it.get("identifier") or it.get("id", "")[:8]
+                texto = f"⏸ Preciso que você decida: {it.get('title') or ''} ({numero})\n{pergunta}\nResponda \"aprovar {numero}\" ou \"recusar {numero}\"."
+                if enviar(origem_de(it.get("description") or ""), texto, a.dry_run, log):
+                    avisadas[chave] = "pendencia"
+                    log(f"[carteiro] avisado: {numero} PENDÊNCIA")
         if st not in ESTADOS or avisadas.get(it["id"]) == st:
             continue
         # tarefas de antes do carteiro existir não geram aviso retroativo

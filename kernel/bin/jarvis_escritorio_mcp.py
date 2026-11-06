@@ -24,6 +24,7 @@ if not API.endswith("/api"):
 CHAVE = os.environ.get("PAPERCLIP_API_KEY", "")
 RUN_ID = os.environ.get("PAPERCLIP_RUN_ID", "")
 CARGO = os.environ.get("ESCRITORIO_CARGO_ID", "")
+CARGO_NOME = os.environ.get("ESCRITORIO_CARGO_NOME", "Assistente de trabalho")
 ORIGEM = os.environ.get("ESCRITORIO_ORIGEM", "telegram")
 EMPRESA = os.environ.get("PAPERCLIP_COMPANY_ID", "")
 
@@ -83,11 +84,21 @@ def resumo_tarefa(it: dict) -> dict:
 
 
 # ---------------------------------------------------------------- ferramentas
+def cargo_id() -> str:
+    global CARGO
+    if CARGO:
+        return CARGO
+    for ag in lista(api("GET", f"/companies/{empresa_id()}/agents"), "agents"):
+        if ag.get("name") == CARGO_NOME and ag.get("status") != "terminated":
+            CARGO = ag["id"]
+            return CARGO
+    raise RuntimeError("o Escritório não tem o cargo 'Assistente de trabalho' neste computador (coloque em uso)")
+
+
 def criar_tarefa(titulo: str, pedido: str, origem: str = "") -> dict:
     if not titulo.strip():
         raise RuntimeError("a tarefa precisa de um título")
-    if not CARGO:
-        raise RuntimeError("o Escritório não tem cargo configurado neste computador")
+    CARGO = cargo_id()
     desc = (pedido or "").strip() + f"\n\n[origem: {origem.strip() or ORIGEM}]"
     it = api("POST", f"/companies/{empresa_id()}/issues",
              {"title": titulo.strip()[:200], "description": desc, "status": "todo", "priority": "medium", "assigneeAgentId": CARGO})
@@ -110,8 +121,12 @@ def comentar(tarefa: str, texto: str) -> dict:
 
 def mudar(tarefa: str, estado: str, comentario: str) -> dict:
     it = resolve_tarefa(tarefa)
-    api("POST", f"/issues/{it['id']}/comments", {"body": comentario})
-    novo = api("PATCH", f"/issues/{it['id']}", {"status": estado})
+    if RUN_ID:
+        # dentro de um heartbeat: uma escrita só, atribuída ao agente (status + comentário), que não o acorda de novo
+        novo = api("PATCH", f"/issues/{it['id']}", {"status": estado, "comment": comentario})
+    else:
+        api("POST", f"/issues/{it['id']}/comments", {"body": comentario})
+        novo = api("PATCH", f"/issues/{it['id']}", {"status": estado})
     return {"ok": True, "tarefa": resumo_tarefa(novo or it)}
 
 
@@ -120,19 +135,54 @@ def entregar(tarefa: str, resumo: str, caminho: str = "") -> dict:
     return mudar(tarefa, "done", texto)
 
 
+def pendencias_de(issue_id: str) -> list[dict]:
+    """Interações de confirmação ainda abertas na tarefa (as pendências do dono)."""
+    its = lista(api("GET", f"/issues/{issue_id}/interactions"), "interactions")
+    return [i for i in its if i.get("kind") == "request_confirmation" and i.get("status") in ("pending", "open", "awaiting")]
+
+
 def pedir_aprovacao(tarefa: str, pergunta: str) -> dict:
-    return mudar(tarefa, "blocked", "PENDÊNCIA: " + pergunta.strip())
+    """Cargo: cria a pendência (interação de confirmação do Paperclip) e a tarefa fica bloqueada até a decisão.
+    Com continuationPolicy wake_assignee, o cargo acorda sozinho depois que o dono responde."""
+    it = resolve_tarefa(tarefa)
+    api("POST", f"/issues/{it['id']}/interactions", {
+        "kind": "request_confirmation", "title": "Precisa da sua decisão", "continuationPolicy": "wake_assignee",
+        "payload": {"version": 1, "prompt": pergunta.strip()[:1000], "acceptLabel": "Aprovar", "rejectLabel": "Recusar"}})
+    try:
+        api("PATCH", f"/issues/{it['id']}", {"status": "blocked", "comment": "PENDÊNCIA: " + pergunta.strip()})
+    except RuntimeError:
+        api("POST", f"/issues/{it['id']}/comments", {"body": "PENDÊNCIA: " + pergunta.strip()})
+    return {"ok": True, "tarefa": resumo_tarefa(it), "mensagem": "Pendência registrada; o dono foi avisado. Pare por aqui: você será acordado com a resposta."}
 
 
 def aprovar(tarefa: str, nota: str = "") -> dict:
+    it = resolve_tarefa(tarefa)
+    pend = pendencias_de(it["id"])
+    if pend:
+        # a nota vai para a descrição (não acorda o cargo); o aceite da pendência é o único despertar, senão
+        # comentário + aceite viram duas execuções paralelas e duas entregas
+        if nota.strip():
+            api("PATCH", f"/issues/{it['id']}", {"description": (it.get("description") or "") + f"\n\nNota do dono ao aprovar: {nota.strip()}"})
+        for p_ in pend:
+            api("POST", f"/issues/{it['id']}/interactions/{p_['id']}/accept", {})
+        return {"ok": True, "tarefa": resumo_tarefa(it), "mensagem": "Aprovado; o cargo retoma o trabalho."}
     return mudar(tarefa, "todo", "APROVADO" + (f": {nota.strip()}" if nota.strip() else "") + "\nPode seguir com o que estava pendente.")
 
 
 def recusar(tarefa: str, motivo: str = "") -> dict:
+    it = resolve_tarefa(tarefa)
+    for p_ in pendencias_de(it["id"]):
+        api("POST", f"/issues/{it['id']}/interactions/{p_['id']}/reject", {"reason": motivo.strip() or "recusado pelo dono"})
     return mudar(tarefa, "cancelled", "RECUSADO" + (f": {motivo.strip()}" if motivo.strip() else ""))
 
 
+def ambiente() -> dict:
+    """Diagnóstico: quais variáveis do Paperclip chegaram a este servidor (só os nomes, nunca os valores)."""
+    return {"ok": True, "api": API, "presentes": [k for k in ("PAPERCLIP_API_KEY", "PAPERCLIP_RUN_ID", "PAPERCLIP_TASK_ID", "PAPERCLIP_AGENT_ID") if os.environ.get(k)]}
+
+
 FERRAMENTAS = {
+    "ambiente": (ambiente, "Diagnóstico do Escritório: diz quais variáveis do Paperclip este servidor recebeu (só nomes).", {}, []),
     "criar_tarefa": (criar_tarefa, "Delega um trabalho que demora ao Escritório. Use quando o pedido não cabe numa resposta imediata (documento, pesquisa, proposta). Diga à pessoa que anotou e que avisa quando ficar pronto.",
                      {"titulo": "título curto da tarefa", "pedido": "o que precisa ser feito, com o contexto que a pessoa deu", "origem": "opcional: canal e conversa de origem (ex.: telegram:12345)"}, ["titulo", "pedido"]),
     "minhas_tarefas": (minhas_tarefas, "Lista as tarefas do Escritório (as 20 mais recentes), com estado: todo, in_progress, blocked (aguardando decisão), done (entregue), cancelled.",

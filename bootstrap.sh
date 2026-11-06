@@ -1055,6 +1055,62 @@ apply_knowledge_render() {
   HERMES_RESTART=1
 }
 
+# Cargos do Escritório: perfis do Hermes renderizados em render/hermes/cargos/<nome>/ (o Paperclip os executa
+# com `hermes chat`, perfil fixado por HERMES_PROFILE). Mesma mecânica dos assistentes: criar, aplicar, manter.
+apply_hermes_cargos() {
+  [ "$WITH_HERMES" = 1 ] || return 0
+  skipped hermes && return 0
+  [ -d "$JARVIS_HOME/render/hermes/cargos" ] || return 0
+  if [ "$DRY_RUN" = 1 ]; then log "hermes: criaria/atualizaria os perfis dos cargos do Escritório"; return 0; fi
+  have hermes || return 0
+  for dir in "$JARVIS_HOME"/render/hermes/cargos/*/; do
+    [ -d "$dir" ] || continue
+    nome=$(basename "$dir")
+    pdir="$HERMES_HOME/profiles/$nome"
+    if [ ! -d "$pdir" ]; then
+      mkdir -p "$JARVIS_HOME/logs"
+      if hermes profile create "$nome" --no-alias --no-skills --description "cargo do Escritório (Whitebeard OS)" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1; then
+        log "hermes: perfil do cargo $nome criado"
+      else
+        log "aviso: não consegui criar o perfil do cargo $nome (veja $JARVIS_HOME/logs/instalacao-hermes.log)"; continue
+      fi
+    fi
+    # o cargo não atende canal nenhum: o gateway não precisa servi-lo
+    [ -f "$pdir/gateway.parked" ] || : > "$pdir/gateway.parked"
+    if JARVIS_HOME="$JARVIS_HOME" uv run --quiet "$KERNEL_DIR/bin/jarvis_assistente.py" "$dir" "$pdir"; then
+      log "hermes: cargo $nome aplicado"
+    else
+      rc=$?
+      if [ "$rc" = 3 ]; then log "hermes: cargo $nome já em dia"; else log "aviso: não consegui aplicar o cargo $nome"; fi
+    fi
+  done
+  return 0
+}
+
+# O Escritório: com `escritorio.ligado`, o cargo entra no Paperclip (executado pelo Hermes) e o carteiro
+# avisa no canal de origem a cada minuto. Desligado, o cargo é pausado e o carteiro removido.
+install_escritorio() {
+  has_role core || return 0
+  skipped services && return 0
+  [ "$DRY_RUN" = 1 ] && { [ -f "$JARVIS_HOME/render/escritorio.json" ] && log "escritório: criaria o cargo no Paperclip e o carteiro"; return 0; }
+  [ "$NO_START" = 1 ] && return 0
+  if grep -qs '"ligado": true' "$JARVIS_HOME/render/escritorio.json"; then
+    python3 "$KERNEL_DIR/bin/jarvis_escritorio.py" --home "$JARVIS_HOME" || log "aviso: não consegui preparar o cargo do Escritório"
+    case "$OS" in
+      Darwin) launch_agent dev.whitebeard.carteiro "$JARVIS_HOME/logs/carteiro.log" --interval 60 /usr/bin/python3 "$KERNEL_DIR/bin/jarvis_carteiro.py" --home "$JARVIS_HOME" -- "PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" "HOME=$HOME" ;;
+      Linux) user_timer whitebeard-carteiro "Whitebeard OS: carteiro do Escritório" 60 "/usr/bin/python3 $KERNEL_DIR/bin/jarvis_carteiro.py --home $JARVIS_HOME" "$JARVIS_HOME/logs/carteiro.log" ;;
+    esac
+    log "escritório: ligado (cargo no Paperclip, carteiro a cada 60 s)"
+  elif [ -f "$JARVIS_HOME/render/escritorio.json" ] && [ -f "$JARVIS_HOME/escritorio/cargo.json" ]; then
+    python3 "$KERNEL_DIR/bin/jarvis_escritorio.py" --home "$JARVIS_HOME" --desligar || true
+    case "$OS" in
+      Darwin) launchctl bootout "gui/$(id -u)/dev.whitebeard.carteiro" 2>/dev/null || true ;;
+      Linux) systemctl --user disable --now whitebeard-carteiro.timer >/dev/null 2>&1 || true ;;
+    esac
+  fi
+  return 0
+}
+
 install_knowledge() {
   has_role knowledge || return 0
   skipped knowledge && { log "knowledge: pulado"; return 0; }
@@ -1613,9 +1669,11 @@ apply_claude_plugins
 apply_hermes_config
 apply_hermes_tenant
 apply_hermes_assistentes
+apply_hermes_cargos
 install_knowledge
 apply_knowledge_render
 install_web
 install_services
+install_escritorio
 install_rc
 doctor

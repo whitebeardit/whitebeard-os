@@ -442,6 +442,18 @@
         }
       }
     },
+    "escritorio": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "O Escritório: tarefas delegadas, rotinas e aprovações com o Paperclip como motor e o Hermes como executor (cargo = perfil do Hermes com ferramentas limitadas). Desligado por padrão.",
+      "properties": {
+        "ligado": {
+          "type": "boolean",
+          "default": false,
+          "description": "liga o Escritório: cargo 'Assistente de trabalho', ferramentas criar_tarefa/aprovar nos assistentes do dono e da equipe, carteiro avisando no canal de origem"
+        }
+      }
+    },
     "servicos_monitorados": {
       "type": "array",
       "items": {

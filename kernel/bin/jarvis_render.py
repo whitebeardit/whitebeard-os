@@ -634,6 +634,11 @@ def main() -> int:
                 if m.get(k):
                     entry[k] = dict(m[k])
             hermes_mcp[m["name"]] = entry
+        # o Escritório ligado: o MCP `escritorio` (criar tarefa, aprovar, recusar) entra no Hermes do dono e nos
+        # assistentes da equipe, como qualquer MCP do tenant; o Paperclip é local e sem chave no modo local
+        if (data.get("escritorio") or {}).get("ligado") and "core" in roles:
+            hermes_mcp["escritorio"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_escritorio_mcp.py")],
+                                        "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api", "ESCRITORIO_ORIGEM": "telegram"}}
         w.write(home / "render" / "hermes" / "mcp.json",
                 json.dumps(hermes_mcp, ensure_ascii=False, indent=2) + "\n")
         mcp_refs = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", json.dumps(hermes_mcp))))
@@ -661,6 +666,43 @@ def main() -> int:
         # saíram todos do tenant: a lista vazia faz o bootstrap estacionar os perfis que ele criou
         w.write(home / "render" / "hermes" / "assistentes.json", "[]\n")
         limpar_assistentes_antigos(w, home, [])
+
+    # ---- Escritório (papel core): o cargo "Assistente de trabalho" é um perfil do Hermes executado pelo
+    # Paperclip (adapter hermes_local), com as ferramentas de um assistente de equipe e o MCP do Escritório
+    # para entregar e pedir aprovação. O bootstrap aplica como os assistentes e cria o cargo no Paperclip.
+    escritorio = data.get("escritorio") or {}
+    if "core" in roles and escritorio.get("ligado"):
+        base = home / "render" / "hermes" / "cargos" / "trabalho"
+        tools = sorted(FERRAMENTAS_TIPO["equipe"])
+        cfg_cargo: dict = {"model": {"provider": hermes_cfg.get("provider", "anthropic"), "default": hermes_cfg.get("model", "")},
+                           "platform_toolsets": {"cli": tools}}
+        mcp_cargo = dict(hermes_mcp)
+        mcp_cargo["escritorio"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_escritorio_mcp.py")],
+                                   "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api"}}
+        cfg_cargo["mcp_servers"] = mcp_cargo
+        env_cargo = [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", "WHITEBEARD_CARGO=trabalho"]
+        for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+            if values.get(k):
+                env_cargo.append(f"{k}={values[k]}")
+        soul = "\n".join([
+            "Você é o Assistente de trabalho do Escritório do Whitebeard OS, tenant " + tenant + ".",
+            "Você executa tarefas delegadas pelo JARVIS e pelos assistentes: pesquisas, documentos, propostas, resumos.",
+            "",
+            "Regras que não mudam:",
+            "- A entrega é sempre um arquivo Markdown em `entregas/` na pasta de trabalho; depois, a ferramenta `entregar`.",
+            "- Ação fora deste computador (enviar, pagar, publicar, comprar) nunca é feita por você: `pedir_aprovacao` e pare.",
+            "- Você não roda comandos neste computador e não lê o que está fora da pasta de trabalho e do second brain.",
+            "- Nunca invente dados; diga o que faltou.",
+            "- Responda em português do Brasil, curto e direto.",
+            ""])
+        w.write(base / "config.yaml", "# gerado pelo whitebeard-os para o cargo trabalho (Escritório)\n" + yaml.safe_dump(cfg_cargo, allow_unicode=True, sort_keys=False))
+        w.write(base / "env", "# gerado pelo whitebeard-os; variáveis do perfil do Hermes do cargo\n" + "\n".join(env_cargo) + "\n", mode=0o600)
+        w.write(base / "SOUL.md", soul)
+        w.write(base / "skills.txt", "\n".join(s for s in ("knowledge", "knowledge-write", "project-documentation") if s in installed_skills_hint(kernel, tenant_dir, data)) + "\n")
+        w.write(home / "render" / "escritorio.json", json.dumps({"ligado": True, "cargos": ["trabalho"]}, ensure_ascii=False) + "\n")
+        log("escritório: ligado (cargo trabalho executado pelo Hermes; MCP escritorio no JARVIS e na equipe)")
+    elif not args.dry_run and (home / "render" / "escritorio.json").exists():
+        w.write(home / "render" / "escritorio.json", json.dumps({"ligado": False, "cargos": []}) + "\n")
 
     # ---- papel desktop: board key do Paperclip para o JARVIS Web. O serviço não recebe segredos pelo
     # ambiente (o plist do LaunchAgent é legível); o app lê este arquivo da pasta de dados.

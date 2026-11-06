@@ -119,7 +119,9 @@ ASSISTENTE_TIPOS = ("mim", "equipe", "cliente", "rotinas")
 ASSISTENTE_CANAIS = {
     "telegram": {"token": "TELEGRAM_BOT_TOKEN", "pessoas": "TELEGRAM_ALLOWED_USERS", "grupos": "TELEGRAM_GROUP_ALLOWED_CHATS"},
     "discord": {"token": "DISCORD_BOT_TOKEN", "pessoas": "DISCORD_ALLOWED_USERS", "grupos": "DISCORD_ALLOWED_CHANNELS"},
+    "whatsapp": {"token": None, "pessoas": "WHATSAPP_ALLOWED_USERS", "grupos": "WHATSAPP_GROUP_ALLOWED_USERS"},
 }
+WHATSAPP_MODOS = ("bot", "self-chat")
 
 
 def canal_de(a: dict) -> str:
@@ -129,16 +131,97 @@ def canal_de(a: dict) -> str:
 
 def chaves_assistente(nome: str, canal: str) -> dict[str, str]:
     c = ASSISTENTE_CANAIS.get(canal) or ASSISTENTE_CANAIS["telegram"]
-    return {k: f"{v}_{sufixo(nome)}" for k, v in c.items()}
+    return {k: (f"{v}_{sufixo(nome)}" if v else "") for k, v in c.items()}
+
+
+def hermes_home_de(home: Path) -> Path:
+    return Path(read_env(home / "profile.env").get("HERMES_HOME") or str(Path.home() / ".hermes"))
+
+
+def whatsapp_sessao(home: Path, nome: str) -> Path:
+    return home / "assistentes" / nome / "whatsapp" / "session"
+
+
+def whatsapp_estado_path(home: Path, nome: str) -> Path:
+    return home / "assistentes" / f"{nome}.whatsapp.json"
+
+
+def whatsapp_telefone(sessao: Path) -> str:
+    try:
+        me = json.loads((sessao / "creds.json").read_text(encoding="utf-8")).get("me") or {}
+        return str(me.get("id", "")).split(":", 1)[0].split("@", 1)[0]
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def whatsapp_ponte_dir(home: Path) -> Path:
+    return hermes_home_de(home) / "hermes-agent" / "scripts" / "whatsapp-bridge"
+
+
+def whatsapp_ponte_pronta(home: Path) -> str | None:
+    """Garante a ponte (Node) do Hermes com as dependências instaladas. Devolve o erro, ou None."""
+    ponte = whatsapp_ponte_dir(home)
+    if not (ponte / "bridge.js").is_file():
+        return "a ponte do WhatsApp do Hermes não está instalada neste computador"
+    if (ponte / "node_modules").is_dir():
+        return None
+    npm = shutil.which("npm")
+    if not npm or not shutil.which("node"):
+        return "node/npm não encontrados; o kernel fixa o Node na instalação (rode o instalador de novo)"
+    try:
+        r = subprocess.run([npm, "install", "--omit=dev", "--no-audit", "--no-fund", "--silent"], cwd=str(ponte), capture_output=True, text=True, timeout=600, check=False)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"não consegui preparar a ponte do WhatsApp ({e.__class__.__name__})"
+    if r.returncode != 0:
+        return "não consegui preparar a ponte do WhatsApp (npm install falhou; veja a internet e tente de novo)"
+    return None
+
+
+def whatsapp_pareamento_vivo(home: Path, nome: str) -> dict | None:
+    """Estado do pareamento em curso (arquivo escrito por jarvis_whatsapp_pair.py), ou None se não há."""
+    try:
+        d = json.loads(whatsapp_estado_path(home, nome).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    pid = d.get("pid")
+    vivo = False
+    if isinstance(pid, int):
+        try:
+            os.kill(pid, 0)
+            vivo = True
+        except OSError:
+            vivo = False
+    if d.get("estado") == "cancelado":
+        return None
+    if d.get("estado") in ("preparando", "esperando", "qr") and not vivo:
+        d["estado"] = "erro" if d.get("estado") != "qr" else "expirado"
+        d["erro"] = d.get("erro") or "o pareamento parou; gere outro QR"
+    return d
+
+
+def whatsapp_parar_pareamento(home: Path, nome: str) -> None:
+    d = whatsapp_pareamento_vivo(home, nome) or {}
+    pid = d.get("pid")
+    if isinstance(pid, int):
+        try:
+            os.kill(pid, 15)
+            for _ in range(20):  # o processo escreve "cancelado" e sai; só então o arquivo pode ir
+                time.sleep(0.25)
+                os.kill(pid, 0)
+        except OSError:
+            pass
+    whatsapp_estado_path(home, nome).unlink(missing_ok=True)
 
 
 def apagar_segredos_assistente(home: Path, nome: str) -> None:
-    """Esquece token e listas do assistente em todos os canais (revoga o acesso)."""
+    """Esquece token e listas do assistente em todos os canais (revoga o acesso); a sessão do WhatsApp também."""
     env = read_env(home / "secrets.env")
     for canal in ASSISTENTE_CANAIS:
         for k in chaves_assistente(nome, canal).values():
-            if k in env:
+            if k and k in env:
                 set_secret(home / "secrets.env", k, "")
+    whatsapp_parar_pareamento(home, nome)
+    shutil.rmtree(whatsapp_sessao(home, nome), ignore_errors=True)
 
 
 def store_path(home: Path) -> Path:
@@ -212,20 +295,26 @@ def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
         ch = chaves_assistente(nome, canal)
         # a loja é o que a pessoa decidiu (edição ainda não aplicada inclusive); o catálogo só completa
         cat_a = por_nome.get(nome) or {}
+        wa = None
+        if canal == "whatsapp":
+            sess = whatsapp_sessao(home, nome)
+            par = whatsapp_pareamento_vivo(home, nome) or {}
+            wa = {"modo": a.get("whatsapp_modo") or "bot", "pareado": (sess / "creds.json").is_file(), "telefone": whatsapp_telefone(sess),
+                  "pareando": par.get("estado") if par.get("estado") in ("preparando", "esperando", "qr") else None}
         out_.append({
             "nome": nome, "tipo": tipo, "canal": canal, "descricao": a.get("descricao", ""), "bot": a.get("bot", "") or cat_a.get("bot", ""),
-            "app_id": a.get("app_id", ""),
+            "app_id": a.get("app_id", ""), "whatsapp": wa,
             "skills": a.get("skills") if a.get("skills") is not None else (cat_a.get("skills") or []),
             "ajustes": {"computador": bool((a.get("ajustes") or {}).get("computador")), "anotar": bool((a.get("ajustes") or {}).get("anotar"))},
             "origem": "web" if nome in nomes_loja else "tenant",
             "do_pacote": bool(a.get("do_pacote")) or (nome not in nomes_loja),
-            "token": bool(filled.get(ch["token"], False)),
+            "token": bool(wa["pareado"]) if wa else bool(filled.get(ch["token"], False)),
             "pessoas": bool(filled.get(ch["pessoas"], False)) if tipo in ("mim", "equipe") else None,
             "grupos": bool(filled.get(ch["grupos"], False)) if tipo in ("equipe", "cliente") else None,
             "aplicado": nome in por_nome and (cat_a.get("canal") or "telegram") == canal,
             "pessoas_nomes": nomes_vivos(home, a.get("pessoas_nomes"), ch["pessoas"]),
             "grupos_nomes": nomes_vivos(home, a.get("grupos_nomes"), ch["grupos"]),
-            "segredos": {"token": ch["token"],
+            "segredos": {"token": ch["token"] or None,
                          "pessoas": ch["pessoas"] if tipo in ("mim", "equipe") else None,
                          "grupos": ch["grupos"] if tipo in ("equipe", "cliente") else None},
         })
@@ -249,6 +338,9 @@ def cmd_assistente_add(home: Path) -> int:
         return out({"ok": False, "erro": "tipo desconhecido"})
     if canal not in ASSISTENTE_CANAIS:
         return out({"ok": False, "erro": "canal desconhecido"})
+    modo = str(dados.get("whatsapp_modo") or "bot")
+    if canal == "whatsapp" and modo not in WHATSAPP_MODOS:
+        return out({"ok": False, "erro": "modo do WhatsApp desconhecido"})
     if nome == "default":
         return out({"ok": False, "erro": "esse nome é reservado"})
     itens = load_store(home)
@@ -257,7 +349,8 @@ def cmd_assistente_add(home: Path) -> int:
     ):
         return out({"ok": False, "erro": f"já existe um assistente chamado {nome}"})
     itens = [a for a in itens if a.get("nome") != nome]
-    itens.append({"nome": nome, "tipo": tipo, "canal": canal, "descricao": descricao, "criado_em": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+    itens.append({"nome": nome, "tipo": tipo, "canal": canal, "descricao": descricao, "criado_em": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                  **({"whatsapp_modo": modo} if canal == "whatsapp" else {})})
     save_store(home, itens)
     return out({"ok": True, "assistente": {"nome": nome, "tipo": tipo, "canal": canal, "descricao": descricao}})
 
@@ -314,6 +407,15 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
             atual["canal"] = canal
             for k in ("bot", "app_id", "pessoas_nomes", "grupos_nomes"):
                 atual.pop(k, None)
+    if "whatsapp_modo" in dados and canal_de(atual) == "whatsapp":
+        modo = str(dados.get("whatsapp_modo") or "bot")
+        if modo not in WHATSAPP_MODOS:
+            return out({"ok": False, "erro": "modo do WhatsApp desconhecido"})
+        if modo != (atual.get("whatsapp_modo") or "bot"):
+            # trocar o modo é parear de novo (outro número)
+            apagar_segredos_assistente(home, nome)
+            atual.pop("pessoas_nomes", None); atual.pop("grupos_nomes", None)
+        atual["whatsapp_modo"] = modo
     if "descricao" in dados:
         atual["descricao"] = str(dados.get("descricao") or "").strip()[:400]
     if "tipo" in dados:
@@ -332,7 +434,7 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
     if "skills" in dados and isinstance(dados.get("skills"), list):
         atual["skills"] = [str(s) for s in dados["skills"] if re.match(r"^[a-z][a-z0-9-]*$", str(s))]
     save_store(home, itens)
-    return out({"ok": True, "assistente": {k: atual.get(k) for k in ("nome", "tipo", "canal", "descricao", "ajustes")}})
+    return out({"ok": True, "assistente": {k: atual.get(k) for k in ("nome", "tipo", "canal", "whatsapp_modo", "descricao", "ajustes")}})
 
 
 def assistente_do_store(home: Path, nome: str) -> dict | None:
@@ -358,6 +460,8 @@ def cmd_assistente_token(home: Path, nome: str) -> int:
     canal = canal_de(a)
     ch = chaves_assistente(nome, canal)
     app_id = ""
+    if canal == "whatsapp":
+        return out({"ok": False, "erro": "o WhatsApp não usa token: leia o QR na página"})
     if canal == "discord":
         try:
             me = discord_api(token, "/users/@me")
@@ -476,6 +580,158 @@ def assistente_wait_discord(home: Path, nome: str, tipo: str, token: str, second
     return out({"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
 
 
+def estaciona_perfil(home: Path, nome: str) -> None:
+    """Marca o perfil como estacionado enquanto a página usa a sessão (o gateway solta a ponte em segundos)."""
+    perfil = hermes_profile_dir(home, nome)
+    if perfil.is_dir() and not (perfil / "gateway.parked").exists():
+        (perfil / "gateway.parked").write_text("espera do Whitebeard OS\n", encoding="utf-8")
+        (perfil / ".whitebeard-espera").write_text(str(int(time.time())) + "\n", encoding="utf-8")
+        time.sleep(4)
+
+
+def desestaciona_perfil(home: Path, nome: str) -> None:
+    perfil = hermes_profile_dir(home, nome)
+    if (perfil / ".whitebeard-espera").exists():
+        (perfil / ".whitebeard-espera").unlink(missing_ok=True)
+        (perfil / "gateway.parked").unlink(missing_ok=True)
+
+
+def cmd_assistente_whatsapp_parear(home: Path, nome: str) -> int:
+    """Começa o pareamento por QR em segundo plano; a página acompanha por whatsapp-status."""
+    a = assistente_do_store(home, nome)
+    if not a or canal_de(a) != "whatsapp":
+        return out({"ok": False, "erro": "assistente desconhecido ou não é do WhatsApp"})
+    raw = stdin_value()
+    try:
+        dados = json.loads(raw or "{}")
+    except ValueError:
+        dados = {}
+    modo = str(dados.get("modo") or a.get("whatsapp_modo") or "bot")
+    if modo not in WHATSAPP_MODOS:
+        return out({"ok": False, "erro": "modo do WhatsApp desconhecido"})
+    erro = whatsapp_ponte_pronta(home)
+    if erro:
+        return out({"ok": False, "erro": erro})
+    whatsapp_parar_pareamento(home, nome)
+    sess = whatsapp_sessao(home, nome)
+    # parear de novo = sessão nova (o aparelho antigo some do WhatsApp sozinho ao ser substituído)
+    shutil.rmtree(sess, ignore_errors=True)
+    estaciona_perfil(home, nome)
+    itens = load_store(home)
+    for it in itens:
+        if it.get("nome") == nome:
+            it["whatsapp_modo"] = modo
+    save_store(home, itens)
+    script = Path(__file__).resolve().parent / "jarvis_whatsapp_pair.py"
+    estado = whatsapp_estado_path(home, nome)
+    estado.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.Popen([sys.executable, str(script), "--ponte", str(whatsapp_ponte_dir(home)), "--sessao", str(sess), "--estado", str(estado), "--modo", modo],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as e:
+        desestaciona_perfil(home, nome)
+        return out({"ok": False, "erro": f"não consegui iniciar o pareamento ({e.__class__.__name__})"})
+    return out({"ok": True, "estado": "preparando"})
+
+
+def cmd_assistente_whatsapp_status(home: Path, nome: str) -> int:
+    a = assistente_do_store(home, nome)
+    if not a or canal_de(a) != "whatsapp":
+        return out({"ok": False, "erro": "assistente desconhecido ou não é do WhatsApp"})
+    sess = whatsapp_sessao(home, nome)
+    par = whatsapp_pareamento_vivo(home, nome) or {}
+    pareado = (sess / "creds.json").is_file() and par.get("estado") in (None, "conectado")
+    if par.get("estado") in ("conectado", "erro", "expirado"):
+        desestaciona_perfil(home, nome)
+    return out({"ok": True, "pareado": pareado, "telefone": whatsapp_telefone(sess) if pareado else "", "nome": par.get("nome", ""),
+                "estado": par.get("estado") or ("conectado" if pareado else "nenhum"), "qr": par.get("qr") if par.get("estado") == "qr" else None,
+                "erro": par.get("erro"), "modo": a.get("whatsapp_modo") or "bot"})
+
+
+def cmd_assistente_whatsapp_desparear(home: Path, nome: str) -> int:
+    a = assistente_do_store(home, nome)
+    if not a or canal_de(a) != "whatsapp":
+        return out({"ok": False, "erro": "assistente desconhecido ou não é do WhatsApp"})
+    whatsapp_parar_pareamento(home, nome)
+    shutil.rmtree(whatsapp_sessao(home, nome), ignore_errors=True)
+    desestaciona_perfil(home, nome)
+    return out({"ok": True})
+
+
+def assistente_wait_whatsapp(home: Path, nome: str, a: dict, seconds: int, since: int, aceita_pessoa: bool, aceita_grupo: bool) -> int:
+    """WhatsApp: sobe a ponte com a sessão do assistente numa porta de espera e lê as mensagens que chegam:
+    conversa direta reconhece o número; mensagem num grupo reconhece o grupo. O perfil fica estacionado enquanto
+    isso (a mesma sessão não pode estar em duas pontes)."""
+    erro = whatsapp_ponte_pronta(home)
+    if erro:
+        return out({"ok": False, "erro": erro})
+    ch = chaves_assistente(nome, "whatsapp")
+    modo = a.get("whatsapp_modo") or "bot"
+    sess = whatsapp_sessao(home, nome)
+    node = shutil.which("node")
+    porta = 3998
+    estaciona_perfil(home, nome)
+    env = dict(os.environ, WHATSAPP_MODE=modo, WHATSAPP_DM_POLICY="pairing", WHATSAPP_GROUP_POLICY="open")
+    try:
+        proc = subprocess.Popen([node, str(whatsapp_ponte_dir(home) / "bridge.js"), "--session", str(sess), "--mode", modo, "--port", str(porta)],
+                                cwd=str(whatsapp_ponte_dir(home)), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError as e:
+        desestaciona_perfil(home, nome)
+        return out({"ok": False, "erro": f"não consegui subir a ponte do WhatsApp ({e.__class__.__name__})"})
+
+    def ponte_get(path: str):
+        conn = http.client.HTTPConnection("127.0.0.1", porta, timeout=10)
+        try:
+            conn.request("GET", path, headers={"Host": f"127.0.0.1:{porta}"})
+            r = conn.getresponse()
+            return json.loads(r.read()) if r.status == 200 else None
+        except (OSError, ValueError, http.client.HTTPException):
+            return None
+        finally:
+            conn.close()
+
+    res = None
+    deadline = time.time() + max(5, min(seconds, 300))
+    try:
+        while time.time() < deadline and proc.poll() is None:
+            msgs = ponte_get("/messages")
+            for m in msgs or []:
+                chat = str(m.get("chatId") or "")
+                quem = str(m.get("senderId") or chat)
+                if m.get("isGroup") or chat.endswith("@g.us"):
+                    if not aceita_grupo:
+                        continue
+                    rotulo = chat.split("@", 1)[0]
+                    meta = ponte_get(f"/chat/{chat}")
+                    if isinstance(meta, dict) and meta.get("name"):
+                        rotulo = str(meta["name"])
+                    lista_add(home, ch["grupos"], chat)
+                    anota_nome(home, nome, "grupos_nomes", chat, rotulo)
+                    res = {"ok": True, "grupo": rotulo}
+                    break
+                if aceita_pessoa and quem:
+                    numero = quem.split(":", 1)[0].split("@", 1)[0]
+                    if not numero.isdigit():
+                        continue
+                    lista_add(home, ch["pessoas"], numero)
+                    anota_nome(home, nome, "pessoas_nomes", numero, f"+{numero}")
+                    res = {"ok": True, "pessoa": f"+{numero}"}
+                    break
+            if res:
+                break
+            time.sleep(2)
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        if res or time.time() - since >= 170:
+            desestaciona_perfil(home, nome)
+    return out(res or {"ok": False, "erro": "nenhuma mensagem chegou", "tempo_esgotado": True})
+
+
 def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
     """Espera a primeira mensagem ao bot deste assistente: uma pessoa (conversa direta) vira "quem fala com
     ele"; um grupo (mensagem no grupo, ou o bot adicionado a ele) vira "grupo dele". O que o tipo não aceita
@@ -486,14 +742,16 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
     tipo = a.get("tipo", "")
     canal = canal_de(a)
     ch = chaves_assistente(nome, canal)
-    token = read_env(home / "secrets.env").get(ch["token"], "")
+    token = read_env(home / "secrets.env").get(ch["token"], "") if ch["token"] else ("pareado" if (whatsapp_sessao(home, nome) / "creds.json").is_file() else "")
     if not token:
-        return out({"ok": False, "erro": "sem token do bot deste assistente"})
+        return out({"ok": False, "erro": "sem token do bot deste assistente" if ch["token"] else "o WhatsApp deste assistente ainda não foi pareado"})
     aceita_pessoa = tipo in ("mim", "equipe")
     aceita_grupo = tipo in ("equipe", "cliente")
     seconds = max(5, min(seconds, 300))
     if canal == "discord":
         return assistente_wait_discord(home, nome, tipo, token, seconds, since, aceita_pessoa, aceita_grupo)
+    if canal == "whatsapp":
+        return assistente_wait_whatsapp(home, nome, a, seconds, since, aceita_pessoa, aceita_grupo)
     up = sufixo(nome)
     deadline = time.time() + seconds
     offset = 0
@@ -1124,6 +1382,9 @@ def main() -> int:
     p.add_argument("nome")
     p.add_argument("--seconds", type=int, default=170)
     p.add_argument("--since", type=int, default=0)
+    for c in ("assistente-whatsapp-parear", "assistente-whatsapp-status", "assistente-whatsapp-desparear"):
+        p = sub.add_parser(c)
+        p.add_argument("nome")
     args = ap.parse_args()
     home = Path(args.home).expanduser()
     if not (home / "profile.env").is_file():
@@ -1156,6 +1417,12 @@ def main() -> int:
         return cmd_assistente_token(home, args.nome)
     if args.cmd == "assistente-wait":
         return cmd_assistente_wait(home, args.nome, args.seconds, args.since or int(time.time()))
+    if args.cmd == "assistente-whatsapp-parear":
+        return cmd_assistente_whatsapp_parear(home, args.nome)
+    if args.cmd == "assistente-whatsapp-status":
+        return cmd_assistente_whatsapp_status(home, args.nome)
+    if args.cmd == "assistente-whatsapp-desparear":
+        return cmd_assistente_whatsapp_desparear(home, args.nome)
     return 2
 
 

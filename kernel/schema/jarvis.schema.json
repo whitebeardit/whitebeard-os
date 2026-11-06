@@ -367,7 +367,7 @@
     },
     "assistentes": {
       "type": "array",
-      "description": "Assistentes (bots do Telegram ou do Discord): um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e ferramentas próprias). Sem este campo, só o assistente do dono (o bot de `telegram`). O token entra em secrets.env como TELEGRAM_BOT_TOKEN_<NOME>.",
+      "description": "Assistentes (bots do Telegram, do Discord ou do WhatsApp): um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e ferramentas próprias). Sem este campo, só o assistente do dono (o bot de `telegram`). O token entra em secrets.env como TELEGRAM_BOT_TOKEN_<NOME>.",
       "items": {
         "type": "object",
         "required": [
@@ -393,10 +393,19 @@
           "canal": {
             "enum": [
               "telegram",
-              "discord"
+              "discord",
+              "whatsapp"
             ],
             "default": "telegram",
-            "description": "onde ele fala: telegram (padrão; token em TELEGRAM_BOT_TOKEN_<NOME>) ou discord (token em DISCORD_BOT_TOKEN_<NOME>; pessoas em DISCORD_ALLOWED_USERS_<NOME>, canais em DISCORD_ALLOWED_CHANNELS_<NOME>)"
+            "description": "onde ele fala: telegram (padrão; TELEGRAM_BOT_TOKEN_<NOME>), discord (DISCORD_BOT_TOKEN_<NOME>; DISCORD_ALLOWED_USERS/CHANNELS_<NOME>) ou whatsapp (sem token: sessão pareada por QR na página ASSISTENTES; WHATSAPP_ALLOWED_USERS_<NOME>, WHATSAPP_GROUP_ALLOWED_USERS_<NOME>)"
+          },
+          "whatsapp_modo": {
+            "enum": [
+              "bot",
+              "self-chat"
+            ],
+            "default": "bot",
+            "description": "só com canal whatsapp: bot = número dedicado ao assistente (recomendado); self-chat = o seu próprio número, você fala consigo mesmo (para testar)"
           },
           "descricao": {
             "type": "string",

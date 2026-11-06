@@ -111,7 +111,9 @@ bootstrap cria o perfil (`hermes profile create`) e aplica config, variáveis, p
 (`kernel/bin/jarvis_assistente.py`); o token entra em `secrets.env` como `TELEGRAM_BOT_TOKEN_<NOME>` (PRIMEIROS
 PASSOS mostra com título), pessoas e grupos como `TELEGRAM_ALLOWED_USERS_<NOME>` e `TELEGRAM_GROUP_ALLOWED_CHATS_<NOME>`.
 `canal: discord` põe o mesmo assistente num bot do Discord (`DISCORD_BOT_TOKEN_<NOME>`, `DISCORD_ALLOWED_USERS_<NOME>`,
-`DISCORD_ALLOWED_CHANNELS_<NOME>`); sem `canal`, é Telegram. Assistente que sai do tenant é estacionado, nunca apagado.
+`DISCORD_ALLOWED_CHANNELS_<NOME>`); `canal: whatsapp` usa a ponte do Hermes (Baileys, não oficial): sem token, a sessão é
+pareada por QR na página ASSISTENTES e fica em `$JARVIS_HOME/assistentes/<nome>/whatsapp/session`
+(`whatsapp_modo: bot` com número dedicado, ou `self-chat` com o próprio número); sem `canal`, é Telegram. Assistente que sai do tenant é estacionado, nunca apagado.
 `tenants/exemplo` mostra os dois tipos mais comuns e um assistente no Discord.
 
 **Atualizações** chegam pelo próprio JARVIS Web: uma vez por dia ele pergunta ao kernel se a origem no GitHub

@@ -99,7 +99,32 @@ CANAIS = {
                 "obter_token": "Discord Developer Portal → sua aplicação → Bot → Reset Token", "grupos_rotulo": "Canais",
                 "grupos_desc": "Identificações dos canais do Discord onde ele responde (números, separados por vírgula).",
                 "obter_grupos": "mencione o bot no canal; a página ASSISTENTES reconhece o canal"},
+    # WhatsApp (ponte Baileys do Hermes, não oficial): sem token; a sessão pareada por QR fica em
+    # $JARVIS_HOME/assistentes/<nome>/whatsapp/session (creds.json) e é ela que vale como "token"
+    "whatsapp": {"nome": "WhatsApp", "token": None, "pessoas": "WHATSAPP_ALLOWED_USERS", "grupos": "WHATSAPP_GROUP_ALLOWED_USERS",
+                 "obter_token": "leia o QR na página ASSISTENTES", "grupos_rotulo": "Grupos",
+                 "grupos_desc": "Identificações dos grupos do WhatsApp onde ele responde (terminam em @g.us, separadas por vírgula).",
+                 "obter_grupos": "mande uma mensagem no grupo enquanto a página ASSISTENTES espera"},
 }
+
+
+def hermes_home_de(home: Path) -> Path:
+    return Path(parse_env(home / "profile.env").get("HERMES_HOME") or str(Path.home() / ".hermes"))
+
+
+def whatsapp_sessao(home: Path, nome: str) -> Path:
+    """A sessão fica numa pasta do kernel (não no perfil do Hermes, que só existe depois de colocar em uso);
+    o config.yaml do perfil aponta para ela (whatsapp.session_path)."""
+    return home / "assistentes" / nome / "whatsapp" / "session"
+
+
+def whatsapp_telefone(sessao: Path) -> str:
+    """Número da conta pareada (creds.json → me.id '5511…:12@s.whatsapp.net')."""
+    try:
+        me = json.loads((sessao / "creds.json").read_text(encoding="utf-8")).get("me") or {}
+        return str(me.get("id", "")).split(":", 1)[0].split("@", 1)[0]
+    except (OSError, ValueError, AttributeError):
+        return ""
 
 
 def canal_de(a: dict) -> str:
@@ -110,7 +135,7 @@ def chaves_assistente(a: dict) -> dict[str, str]:
     """Nomes dos segredos deste assistente em secrets.env: <VAR do canal>_<NOME>."""
     up = a["nome"].upper().replace("-", "_")
     c = CANAIS[canal_de(a)]
-    return {"token": f"{c['token']}_{up}", "pessoas": f"{c['pessoas']}_{up}", "grupos": f"{c['grupos']}_{up}"}
+    return {"token": f"{c['token']}_{up}" if c["token"] else "", "pessoas": f"{c['pessoas']}_{up}", "grupos": f"{c['grupos']}_{up}"}
 
 
 def installed_skills_hint(kernel: Path, tenant_dir: Path, data: dict) -> set[str]:
@@ -182,7 +207,8 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
             print(f"[render] assistentes: {nome} tem canal desconhecido {canal}", file=sys.stderr)
             return 2
         chaves = chaves_assistente(a)
-        token = values.get(chaves["token"], "")
+        sessao = whatsapp_sessao(home, nome) if canal == "whatsapp" else None
+        token = ("pareado" if (sessao / "creds.json").is_file() else "") if sessao else values.get(chaves["token"], "")
         # no Telegram o dono entra sozinho (TELEGRAM_HOME_CHANNEL); nos outros canais não há id do dono: ele
         # é reconhecido pelo "oi" como qualquer pessoa
         dono = str(values.get("TELEGRAM_HOME_CHANNEL", "")).strip() if canal == "telegram" else ""
@@ -222,7 +248,7 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         # MCPs: o dono e a equipe veem os do tenant (o cérebro entre eles); cliente e rotinas, nenhum
         if tipo in ("mim", "equipe") and hermes_mcp:
             cfg["mcp_servers"] = hermes_mcp
-        env = [f"{CANAIS[canal]['token']}={token}"]
+        env = [f"{CANAIS[canal]['token']}={token}"] if CANAIS[canal]["token"] else []
         if canal == "telegram":
             cfg["telegram"] = tg
             env.append("TELEGRAM_ALLOWED_USERS=" + ",".join(pessoas))
@@ -243,6 +269,26 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
             env.append("DISCORD_ALLOWED_CHANNELS=" + ",".join(grupos if tipo in ("equipe", "cliente") else []))
             env.append(f"DISCORD_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
             env.append("DISCORD_IGNORE_NO_MENTION=true")
+        elif canal == "whatsapp":
+            # modo bot (número dedicado) ou self-chat (o próprio número, a pessoa fala consigo mesma). As
+            # políticas do Hermes: dm allowlist (pessoas) ou disabled; grupos allowlist (ids) ou disabled; a
+            # ponte só sobe com WHATSAPP_ENABLED. Cada assistente tem a sua porta de ponte e a sua sessão.
+            modo = a.get("whatsapp_modo") or "bot"
+            if modo == "self-chat" and (tel := whatsapp_telefone(sessao)) and tel not in pessoas:
+                pessoas.insert(0, tel)
+            wa_pessoas = pessoas if tipo in ("mim", "equipe") else []
+            wa_grupos = grupos if tipo in ("equipe", "cliente") and modo == "bot" else []
+            cfg["whatsapp"] = {"bridge_port": 3100 + sorted(x["nome"] for x in assistentes if canal_de(x) == "whatsapp").index(nome),
+                               "session_path": str(sessao), "dm_policy": "allowlist" if wa_pessoas else "disabled",
+                               "group_policy": "allowlist" if wa_grupos else "disabled", "require_mention": tipo != "mim",
+                               "unauthorized_dm_behavior": "ignore"}
+            env.append("WHATSAPP_ENABLED=true" if token else "WHATSAPP_ENABLED=false")
+            env.append(f"WHATSAPP_MODE={modo}")
+            env.append("WHATSAPP_ALLOWED_USERS=" + ",".join(wa_pessoas))
+            env.append("WHATSAPP_GROUP_ALLOWED_USERS=" + ",".join(wa_grupos))
+            env.append("WHATSAPP_DM_POLICY=" + ("allowlist" if wa_pessoas else "disabled"))
+            env.append("WHATSAPP_GROUP_POLICY=" + ("allowlist" if wa_grupos else "disabled"))
+            env.append(f"WHATSAPP_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
         env += [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", f"WHITEBEARD_ASSISTENTE={nome}", f"WHITEBEARD_ASSISTENTE_TIPO={tipo}"]
         if tipo in ("mim", "equipe"):
             for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
@@ -257,15 +303,16 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
             "nome": nome, "tipo": tipo, "canal": canal, "descricao": a.get("descricao", ""), "skills": list(a.get("skills") or []),
             "do_pacote": bool(a.get("do_pacote")),
             "ajustes": {"computador": bool(ajustes.get("computador")), "anotar": bool(ajustes.get("anotar"))},
-            "segredos": {"token": chaves["token"],
+            "segredos": {"token": chaves["token"] or None,
                          "pessoas": chaves["pessoas"] if tipo in ("mim", "equipe") else None,
                          "grupos": chaves["grupos"] if tipo in ("equipe", "cliente") else None},
+            **({"whatsapp": {"modo": a.get("whatsapp_modo") or "bot", "sessao": str(sessao), "telefone": whatsapp_telefone(sessao)}} if sessao else {}),
             "pronto": bool(token) and (tipo != "cliente" or bool(grupos)),
         })
     w.write(home / "render" / "hermes" / "assistentes.json", json.dumps(catalogo, ensure_ascii=False, indent=2) + "\n")
     limpar_assistentes_antigos(w, home, nomes)
     log(f"assistentes ({len(catalogo)}): " + ", ".join(
-        f"{c['nome']} ({c['tipo']}" + ("" if c["canal"] == "telegram" else f", {c['canal']}") + ("" if c["pronto"] else (", sem token" if not values.get(c["segredos"]["token"], "") else ", sem grupo")) + ")" for c in catalogo))
+        f"{c['nome']} ({c['tipo']}" + ("" if c["canal"] == "telegram" else f", {c['canal']}") + ("" if c["pronto"] else ((", sem token" if c["canal"] != "whatsapp" else ", sem parear") if not values.get(c["segredos"]["token"] or "", "") and not (c.get("whatsapp") or {}).get("telefone") else ", sem grupo")) + ")" for c in catalogo))
     return 0
 
 
@@ -347,6 +394,7 @@ def main() -> int:
         assistentes = [x for x in assistentes if x.get("nome") != a["nome"]]
         assistentes.append({"nome": a["nome"], "tipo": a["tipo"], "descricao": a.get("descricao", ""),
                             "canal": a.get("canal") if a.get("canal") in CANAIS else "telegram",
+                            **({"whatsapp_modo": a["whatsapp_modo"]} if a.get("whatsapp_modo") in ("bot", "self-chat") else {}),
                             "skills": a.get("skills") if a.get("skills") is not None else skills_padrao[a["tipo"]],
                             **({"ajustes": a["ajustes"]} if a.get("ajustes") else {}),
                             **({"do_pacote": True} if a.get("do_pacote") else {})})
@@ -355,9 +403,10 @@ def main() -> int:
             continue  # o render_assistentes reclama com a mensagem certa
         c, ch = CANAIS[canal_de(a)], chaves_assistente(a)
         rotulo = a.get("descricao") or a["nome"]
-        entries.append({"name": ch["token"], "title": f"Token do bot do assistente {a['nome']}" + ("" if canal_de(a) == "telegram" else f" ({c['nome']})"),
-                        "description": f"Token do bot deste assistente no {c['nome']} ({rotulo[:80]}). Um bot, um assistente.",
-                        "roles": ["core"], "required": False, "obtain": c["obter_token"], "assistente": a["nome"]})
+        if ch["token"]:
+            entries.append({"name": ch["token"], "title": f"Token do bot do assistente {a['nome']}" + ("" if canal_de(a) == "telegram" else f" ({c['nome']})"),
+                            "description": f"Token do bot deste assistente no {c['nome']} ({rotulo[:80]}). Um bot, um assistente.",
+                            "roles": ["core"], "required": False, "obtain": c["obter_token"], "assistente": a["nome"]})
         if a["tipo"] in ("mim", "equipe"):
             entries.append({"name": ch["pessoas"], "title": f"Quem fala com o assistente {a['nome']}",
                             "description": "Identificações das pessoas (números, separados por vírgula)." + (" Você entra sozinho; vazio = só você." if canal_de(a) == "telegram" else " Vazio = ninguém ainda."),

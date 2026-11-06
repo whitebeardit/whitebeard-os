@@ -711,6 +711,17 @@ apply_hermes_assistentes() {
       fi
     done < "$applied"
   fi
+  # assistente no WhatsApp: a ponte (Node) do Hermes precisa das dependências instaladas uma vez
+  if grep -qs '"canal": "whatsapp"' "$cat_"; then
+    ponte="$HERMES_HOME/hermes-agent/scripts/whatsapp-bridge"
+    if [ -f "$ponte/bridge.js" ] && [ ! -d "$ponte/node_modules" ]; then
+      if with_node "cd '$ponte' && npm install --omit=dev --no-audit --no-fund --silent" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1; then
+        log "hermes: ponte do WhatsApp preparada"
+      else
+        log "aviso: não consegui preparar a ponte do WhatsApp (veja $JARVIS_HOME/logs/instalacao-hermes.log)"
+      fi
+    fi
+  fi
   : > "$applied.novo"
   # só os do catálogo atual (uma pasta renderizada antiga nunca reativa um assistente que saiu)
   for nome in $(python3 -c 'import json,sys; print(" ".join(a["nome"] for a in json.load(open(sys.argv[1]))))' "$cat_"); do
@@ -1281,7 +1292,8 @@ install_services() {
 ensure_hermes_gateway() {
   [ "$WITH_HERMES" = 1 ] || return 0
   have hermes || return 0
-  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null || grep -qsE '^(TELEGRAM|DISCORD)_BOT_TOKEN=.' "$HERMES_HOME"/profiles/*/.env 2>/dev/null; then
+  if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null || grep -qsE '^(TELEGRAM|DISCORD)_BOT_TOKEN=.' "$HERMES_HOME"/profiles/*/.env 2>/dev/null \
+    || ls "$JARVIS_HOME"/assistentes/*/whatsapp/session/creds.json >/dev/null 2>&1; then
     mkdir -p "$JARVIS_HOME/logs"
     gw_present=0
     case "$OS" in

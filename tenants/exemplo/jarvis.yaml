@@ -85,6 +85,12 @@ assistentes:
     canal: discord # o mesmo isolamento, num bot do Discord (token em DISCORD_BOT_TOKEN_DISCORD_EXEMPLO)
     descricao: Ajuda a equipe no servidor do Discord.
     skills: [exemplo-ola]
+  - nome: zap-exemplo
+    tipo: cliente
+    canal: whatsapp # sem token: a sessão é pareada por QR na página ASSISTENTES (ponte Baileys do Hermes, não oficial)
+    whatsapp_modo: bot
+    descricao: Atende o grupo do cliente Exemplo no WhatsApp.
+    skills: [exemplo-ola]
 
 # Onde cada papel roda. Padrão do produto: tudo-em-um (os três papéis no mesmo host).
 # Para dividir, declare outros hosts, ex.: {host: servidor, papeis: [core, knowledge]}.

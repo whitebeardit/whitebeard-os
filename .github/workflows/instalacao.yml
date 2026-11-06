@@ -82,7 +82,8 @@ jobs:
           import json, sys
           d = json.load(sys.stdin)
           a = {x["nome"]: x for x in d["assistentes"]}
-          assert set(a) == {"suporte", "cliente-exemplo", "discord-exemplo"} and a["cliente-exemplo"]["tipo"] == "cliente" and not a["suporte"]["token"], a
+          assert set(a) == {"suporte", "cliente-exemplo", "discord-exemplo", "zap-exemplo"} and a["cliente-exemplo"]["tipo"] == "cliente" and not a["suporte"]["token"], a
+          assert a["zap-exemplo"]["canal"] == "whatsapp" and a["zap-exemplo"]["segredos"]["token"] is None and a["zap-exemplo"]["whatsapp"]["pareado"] is False, a
           assert a["suporte"]["canal"] == "telegram" and a["discord-exemplo"]["canal"] == "discord", a
           assert a["discord-exemplo"]["segredos"]["token"] == "DISCORD_BOT_TOKEN_DISCORD_EXEMPLO", a
           titulos = {s["nome"]: s["titulo"] for s in d["segredos"]}
@@ -94,6 +95,11 @@ jobs:
           ! grep -q "TELEGRAM" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/env"
           grep -q "discord:" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/config.yaml"
           grep -q "^TELEGRAM_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistentes/suporte/env"
+          # o assistente do WhatsApp: sem token, ponte desligada até parear, sessão e porta próprias
+          grep -q "^WHATSAPP_ENABLED=false" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/env"
+          grep -q "^WHATSAPP_MODE=bot" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/env"
+          grep -q "session_path:.*assistentes/zap-exemplo/whatsapp/session" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/config.yaml"
+          ! grep -q "TELEGRAM\|DISCORD" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/env"
           test -f "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/SOUL.md"
           grep -q "dm_policy: allowlist" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml" && grep -q "unauthorized_dm_behavior: decline" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
           ! grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"

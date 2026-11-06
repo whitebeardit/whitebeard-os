@@ -9,7 +9,8 @@ if [ ! -f /root/.gbrain/config.json ]; then
   "database_url": "${DATABASE_URL}",
   "schema_pack": "gbrain-base-v2",
   "embedding_model": "ollama:${EMBED_MODEL:-bge-m3}",
-  "embedding_dimensions": 1024
+  "embedding_dimensions": 1024,
+  "self_upgrade": {"mode": "off", "mode_prompted": true}
 }
 CFG
   chmod 600 /root/.gbrain/config.json

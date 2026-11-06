@@ -1074,6 +1074,97 @@ install_knowledge() {
   # shellcheck disable=SC2086
   docker compose --project-directory "$dest" $files up -d --build
   log "knowledge: GBrain em http://localhost:$(sed -n 's/^GBRAIN_PORT=//p' "$dest/.env") (MCP em /mcp); Ollama baixando $EMBED_MODEL"
+  knowledge_compose_apply "$dest"
+}
+
+# O que o cérebro em Docker precisa além de subir (espelho do caminho nativo): o token do MCP, o second brain
+# registrado como fonte (montado só para leitura em /vault) e a sincronização a cada 2 min pelo host, que
+# commita o vault e manda o GBrain do container sincronizar. Sem isto o cérebro sobe vazio para sempre.
+knowledge_compose_apply() {
+  dest=$1
+  port=$(sed -n 's/^GBRAIN_PORT=//p' "$dest/.env")
+  gb="docker compose --project-directory $dest exec -T gbrain gbrain"
+  wait_http "http://127.0.0.1:${port:-3131}/health" 180 || { log "aviso: o GBrain ainda não respondeu em 127.0.0.1:${port:-3131}; fonte e token ficam para a próxima execução"; return 0; }
+  # token do MCP (uma vez). Nunca vai para o log.
+  tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
+  if [ -z "$tok" ] || ! $gb auth list 2>/dev/null | grep whitebeard-os | grep -qv REVOKED; then
+    # um token com esse nome que sobrou de uma instalação anterior (secrets.env refeito) é revogado antes:
+    # dois ativos com o mesmo nome deixam o rescope ambíguo
+    for id in $($gb auth list 2>/dev/null | awk '$2 == "whitebeard-os" && $NF == "active" {print $1}'); do
+      $gb auth revoke --id "$id" >/dev/null 2>&1 || true
+    done
+    tok=$($gb auth create whitebeard-os --scopes read,write 2>/dev/null | grep -oE 'gbrain_[A-Za-z0-9]{40,}' | head -n 1)
+    if [ -n "$tok" ]; then
+      set_secret GBRAIN_MCP_TOKEN "$tok"
+      RERENDER=1
+      log "knowledge: token do MCP criado (guardado em secrets.env)"
+    else
+      log "aviso: não consegui criar o token do MCP do GBrain (o Claude Code e o Hermes ficam sem o cérebro)"
+    fi
+  fi
+  unset tok
+  vault=$(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env")
+  [ -d "$vault/.git" ] || return 0
+  if ! $gb sources list 2>/dev/null | grep -q secondbrain; then
+    if $gb sources add secondbrain --path /vault --name "Second brain" >/dev/null 2>&1; then
+      log "knowledge: second brain registrado como fonte do cérebro"
+    else
+      log "aviso: não consegui registrar o second brain como fonte do GBrain"
+    fi
+  fi
+  $gb auth rescope --token whitebeard-os --sources secondbrain,default >/dev/null 2>&1 \
+    || log "aviso: não consegui dar ao token do MCP acesso ao second brain"
+  $gb sync --no-pull --working-tree >>"$JARVIS_HOME/logs/vault-sync.log" 2>&1 || log "aviso: primeira sincronização do second brain falhou (veja logs/vault-sync.log)"
+  # a cada 2 min: commit do que mudou no second brain e sincronização pelo GBrain do container
+  mkdir -p "$JARVIS_HOME/bin" "$JARVIS_HOME/logs"
+  docker_bin=$(command -v docker)
+  cat >"$JARVIS_HOME/bin/vault-sync.sh" <<EOF
+#!/bin/sh
+# gerado pelo whitebeard-os: commita o que mudou no second brain e sincroniza com o GBrain (Docker)
+export PATH="$(dirname "$docker_bin"):/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" HOME="$HOME"
+cd "$vault" || exit 0
+git add -A >/dev/null 2>&1
+git diff --cached --quiet || git -c user.name="Whitebeard OS" -c user.email="whitebeard-os@localhost" commit -q -m "auto: \$(date '+%Y-%m-%d %H:%M')"
+curl -fs -o /dev/null "http://127.0.0.1:${port:-3131}/health" || exit 0
+exec docker compose --project-directory "$dest" exec -T gbrain gbrain sync --no-pull --working-tree
+EOF
+  chmod +x "$JARVIS_HOME/bin/vault-sync.sh"
+  user_timer whitebeard-vault-sync "Whitebeard OS: sincronização do second brain com o GBrain" 120 "$JARVIS_HOME/bin/vault-sync.sh" "$JARVIS_HOME/logs/vault-sync.log"
+}
+
+# Tarefa periódica do usuário no Linux (systemd --user): serviço + timer. Par do launch_agent --interval do macOS.
+user_timer() {
+  name=$1; desc=$2; every=$3; cmd=$4; logf=$5
+  unit_dir="$HOME/.config/systemd/user"
+  mkdir -p "$unit_dir"
+  cat >"$unit_dir/$name.service" <<EOF
+[Unit]
+Description=$desc
+
+[Service]
+Type=oneshot
+ExecStart=$cmd
+StandardOutput=append:$logf
+StandardError=append:$logf
+EOF
+  cat >"$unit_dir/$name.timer" <<EOF
+[Unit]
+Description=$desc (a cada ${every}s)
+
+[Timer]
+OnBootSec=${every}s
+OnUnitActiveSec=${every}s
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
+EOF
+  if ! systemctl --user daemon-reload 2>/dev/null; then log "aviso: systemd --user indisponível; $name não agendado"; return 0; fi
+  if systemctl --user enable --now "$name.timer" >/dev/null 2>&1; then
+    log "$name: a cada ${every}s (systemd --user)"
+  else
+    log "aviso: não consegui ativar $name.timer"
+  fi
 }
 
 # Paperclip só precisa da rede quando outro host do tenant fala com ele (desktop ou satélite em outra
@@ -1442,7 +1533,10 @@ doctor() {
     c="não"; claude mcp get knowledge >/dev/null 2>&1 && c="sim"
     log "knowledge (nativo):$st | GBrain health=$h | MCP com token http=$m | MCP knowledge no Claude Code: $c"
     log "second brain: $(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env") (sincronizado a cada 2 min)"
-  elif has_role knowledge && have docker; then log "knowledge: $(docker compose --project-directory "$JARVIS_HOME/compose/knowledge" ps --format '{{.Name}}={{.State}}' 2>/dev/null | tr '\n' ' ')"; fi
+  elif has_role knowledge && have docker; then
+    log "knowledge: $(docker compose --project-directory "$JARVIS_HOME/compose/knowledge" ps --format '{{.Name}}={{.State}}' 2>/dev/null | tr '\n' ' ')"
+    [ -x "$JARVIS_HOME/bin/vault-sync.sh" ] && log "second brain: $(sed -n 's/^VAULT_PATH=//p' "$JARVIS_HOME/profile.env") (sincronizado a cada 2 min pelo GBrain em Docker)"
+  fi
   if has_role desktop && [ -f "$JARVIS_HOME/app/jarvis-web/dist/index.html" ]; then
     # nesta máquina o JARVIS Web atende em HTTP (sem aviso de certificado); na rede, em HTTPS
     lan=""; [ -s "$JARVIS_HOME/tls/jarvis-web.crt" ] && lan=" | rede local: https://$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]'):$JARVIS_WEB_PORT (certificado em \$JARVIS_HOME/tls)"

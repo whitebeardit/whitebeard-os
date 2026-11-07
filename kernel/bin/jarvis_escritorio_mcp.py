@@ -225,7 +225,7 @@ FERRAMENTAS = {
                       "cargo": "opcional: nome do cargo que executa (veja a lista na descrição); vazio: o Assistente de trabalho"}, ["titulo", "pedido"]),
     "minhas_tarefas": (minhas_tarefas, "Lista as tarefas do Escritório (as 20 mais recentes), com estado: todo, in_progress, blocked (aguardando decisão), done (entregue), cancelled.",
                        {"estado": "opcional: filtrar por estado"}, []),
-    "aprovar": (aprovar, "Aprova uma pendência de uma tarefa bloqueada; o cargo retoma o trabalho.", {"tarefa": "número (PES-12), id ou parte do título", "nota": "opcional"}, ["tarefa"]),
+    "aprovar": (aprovar, "Aprova uma pendência de uma tarefa bloqueada; o cargo retoma o trabalho. Pedir um ajuste é aprovar com nota: a nota vai para o cargo, que retoma com ela (não existe um comando 'ajustar').", {"tarefa": "número (PES-12), id ou parte do título", "nota": "opcional: o que mudar antes de entregar"}, ["tarefa"]),
     "recusar": (recusar, "Recusa uma pendência e cancela a tarefa.", {"tarefa": "número, id ou parte do título", "motivo": "opcional"}, ["tarefa"]),
     "comentar": (comentar, "Acrescenta um comentário a uma tarefa (progresso, dúvida).", {"tarefa": "número ou id", "texto": "o comentário"}, ["tarefa", "texto"]),
     "entregar": (entregar, "Cargo: conclui a tarefa com o resumo da entrega e o caminho do arquivo entregue.", {"tarefa": "número ou id", "resumo": "o que foi entregue, em duas ou três frases", "caminho": "caminho do arquivo da entrega"}, ["tarefa", "resumo"]),

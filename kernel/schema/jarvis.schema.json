@@ -445,12 +445,85 @@
     "escritorio": {
       "type": "object",
       "additionalProperties": false,
-      "description": "O Escritório: tarefas delegadas, rotinas e aprovações com o Paperclip como motor e o Hermes como executor (cargo = perfil do Hermes com ferramentas limitadas). Desligado por padrão.",
+      "description": "O Escritório: tarefas delegadas, rotinas e aprovações com o Paperclip como motor e o Hermes como executor (cargo = perfil do Hermes com ferramentas limitadas). Desligado por padrão. O cargo `trabalho` (Assistente de trabalho) e a rotina `resumo-da-semana` existem sempre que o Escritório está ligado; a página ESCRITÓRIO cria outros em $JARVIS_HOME/escritorio.json e escritorio/rotinas.json (valem por cima destes).",
       "properties": {
         "ligado": {
           "type": "boolean",
           "default": false,
           "description": "liga o Escritório: cargo 'Assistente de trabalho', ferramentas criar_tarefa/aprovar nos assistentes do dono e da equipe, carteiro avisando no canal de origem"
+        },
+        "cargos": {
+          "type": "array",
+          "description": "Cargos além do `trabalho`: cada um é um perfil do Hermes (mesmas ferramentas de um assistente de equipe, sem terminal) e um agente no Paperclip. O que muda entre cargos é o que ele faz (vai para a cabeça dele).",
+          "items": {
+            "type": "object",
+            "required": [
+              "nome",
+              "titulo"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "nome": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$",
+                "description": "identificador curto (vira o nome do perfil do Hermes)"
+              },
+              "titulo": {
+                "type": "string",
+                "description": "como aparece na página e no Paperclip (ex.: Redator)"
+              },
+              "faz": {
+                "type": "string",
+                "description": "uma ou duas frases: o que este cargo faz e como entrega"
+              }
+            }
+          }
+        },
+        "rotinas": {
+          "type": "array",
+          "description": "Rotinas: uma tarefa criada sozinha num horário, executada por um cargo, com a entrega publicada onde a rotina diz. O carteiro agenda (a cada minuto); não precisa de 'colocar em uso'.",
+          "items": {
+            "type": "object",
+            "required": [
+              "nome",
+              "titulo",
+              "faz",
+              "quando"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "nome": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "titulo": {
+                "type": "string",
+                "description": "título da tarefa criada a cada vez (ex.: Resumo da semana)"
+              },
+              "faz": {
+                "type": "string",
+                "description": "o pedido, como você diria ao JARVIS"
+              },
+              "quando": {
+                "type": "string",
+                "description": "expressão cron de 5 campos (minuto hora dia mês dia-da-semana), no fuso deste computador; ex.: '0 8 * * 1' = toda segunda às 8h"
+              },
+              "onde": {
+                "type": "string",
+                "default": "telegram",
+                "description": "onde a entrega é publicada: 'telegram' (sua conversa com o JARVIS) ou 'assistente:<nome>' (o grupo de um assistente do Telegram ou do Discord)"
+              },
+              "cargo": {
+                "type": "string",
+                "default": "trabalho",
+                "description": "nome do cargo que executa"
+              },
+              "ligada": {
+                "type": "boolean",
+                "default": true
+              }
+            }
+          }
         }
       }
     },

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """jarvis_carteiro.py — o carteiro do Escritório: avisa no canal de origem quando uma tarefa foi entregue,
-parou numa pendência ou foi recusada. Roda a cada minuto (serviço do usuário) e lembra o que já avisou em
-$JARVIS_HOME/escritorio/carteiro.json. Só biblioteca padrão; manda pelo `hermes send` (credenciais do Hermes).
+parou numa pendência ou foi recusada, e é o relógio das rotinas (cria a tarefa de cada rotina no horário dela).
+Roda a cada minuto (serviço do usuário) e lembra o que já avisou e disparou em $JARVIS_HOME/escritorio/carteiro.json.
+Só biblioteca padrão; manda pelo `hermes send` (credenciais do Hermes; `hermes -p <assistente> send` para publicar
+pelo bot de um assistente).
 
 Uso: jarvis_carteiro.py --home <JARVIS_HOME> [--dry-run]
 """
@@ -66,13 +68,56 @@ def mensagem(it: dict, comentario: str) -> str:
     return f"✖ Cancelada: {titulo} ({numero})\n{corpo}".strip()
 
 
-def enviar(destino: str, texto: str, dry: bool, log) -> bool:
+def destino_assistente(home: Path, nome: str) -> tuple[str, str] | None:
+    """Para onde um assistente publica: (perfil, alvo do hermes send) = o primeiro grupo/canal onde ele responde.
+    O canal vem do catálogo do render; os ids dos grupos, do .env do perfil dele (não são segredos)."""
+    canal = "telegram"
+    try:
+        for a in json.loads((home / "render" / "hermes" / "assistentes.json").read_text(encoding="utf-8")):
+            if a.get("nome") == nome:
+                canal = a.get("canal") or "telegram"
+                break
+        else:
+            return None
+    except (OSError, ValueError):
+        return None
+    hermes_home = Path.home() / ".hermes"
+    try:
+        for line in (home / "profile.env").read_text(encoding="utf-8").splitlines():
+            if line.startswith("HERMES_HOME="):
+                hermes_home = Path(line.split("=", 1)[1].strip().strip("'\""))
+    except OSError:
+        pass
+    chave = {"telegram": "TELEGRAM_GROUP_ALLOWED_CHATS", "discord": "DISCORD_ALLOWED_CHANNELS"}.get(canal)
+    if not chave:
+        return None
+    try:
+        for line in (hermes_home / "profiles" / nome / ".env").read_text(encoding="utf-8").splitlines():
+            if line.startswith(chave + "="):
+                ids = [x.strip() for x in line.split("=", 1)[1].split(",") if x.strip()]
+                if ids:
+                    return nome, f"{canal}:{ids[0]}"
+    except OSError:
+        pass
+    return None
+
+
+def enviar(destino: str, texto: str, dry: bool, log, home: Path | None = None) -> bool:
+    perfil = ""
+    if destino.startswith("assistente:") and home is not None:
+        alvo = destino_assistente(home, destino.split(":", 1)[1].strip())
+        if not alvo:
+            log(f"[carteiro] não sei onde o {destino} publica (assistente sem grupo reconhecido); aviso vai para o telegram do dono")
+            destino = "telegram"
+        else:
+            perfil, destino = alvo
     if dry:
-        log(f"[carteiro] (dry-run) para {destino}: {texto[:120]!r}")
+        log(f"[carteiro] (dry-run) para {destino}{' pelo ' + perfil if perfil else ''}: {texto[:120]!r}")
         return True
     hermes = shutil.which("hermes") or str(Path.home() / ".local" / "bin" / "hermes")
+    cmd = [hermes] + (["-p", perfil] if perfil else []) + ["send", "--to", destino, "-q", texto]
     try:
-        r = subprocess.run([hermes, "send", "--to", destino, "-q", texto], capture_output=True, text=True, timeout=60, check=False)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as e:
         log(f"[carteiro] falha ao enviar para {destino}: {e.__class__.__name__}")
         return False
@@ -97,6 +142,14 @@ def main() -> int:
         estado = {"avisadas": {}, "inicio": int(time.time())}
     avisadas = estado.setdefault("avisadas", {})
     log = lambda m: print(time.strftime("%Y-%m-%d %H:%M:%S"), m, flush=True)  # noqa: E731
+    # o relógio das rotinas: cria a tarefa de cada rotina no horário dela (a entrega volta pelo caminho normal)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import jarvis_rotinas
+        if jarvis_rotinas.agendar(home, estado, log=log, dry=a.dry_run):
+            estado_path.write_text(json.dumps(estado, ensure_ascii=False, indent=2), encoding="utf-8")
+    except ImportError:
+        log("[carteiro] jarvis_rotinas.py ausente: rotinas não agendadas")
     try:
         comp = lista(api("/companies"), "companies")
         if not comp:
@@ -122,7 +175,7 @@ def main() -> int:
                 pergunta = ((p_.get("payload") or {}).get("prompt") or "").strip()
                 numero = it.get("identifier") or it.get("id", "")[:8]
                 texto = f"⏸ Preciso que você decida: {it.get('title') or ''} ({numero})\n{pergunta}\nResponda \"aprovar {numero}\" ou \"recusar {numero}\"."
-                if enviar(origem_de(it.get("description") or ""), texto, a.dry_run, log):
+                if enviar(origem_de(it.get("description") or ""), texto, a.dry_run, log, home):
                     avisadas[chave] = "pendencia"
                     log(f"[carteiro] avisado: {numero} PENDÊNCIA")
         if st not in ESTADOS or avisadas.get(it["id"]) == st:
@@ -141,7 +194,7 @@ def main() -> int:
         except Exception as e:
             log(f"[carteiro] não li a tarefa {it.get('identifier')}: {e.__class__.__name__}")
             continue
-        if enviar(origem_de(it.get("description") or ""), texto, a.dry_run, log):
+        if enviar(origem_de(it.get("description") or ""), texto, a.dry_run, log, home):
             avisadas[it["id"]] = st
             log(f"[carteiro] avisado: {it.get('identifier')} {ESTADOS[st]}")
     estado_path.write_text(json.dumps(estado, ensure_ascii=False, indent=2), encoding="utf-8")

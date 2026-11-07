@@ -103,6 +103,25 @@ jobs:
           test -f "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/SOUL.md"
           grep -q "dm_policy: allowlist" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml" && grep -q "unauthorized_dm_behavior: decline" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
           ! grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
+          # o Escritório do tenant de exemplo: cargo padrão + redator renderizados, rotina padrão + status-diario no catálogo
+          python3 -c '
+          import json
+          d = json.load(open("'"$HOME"'/.jarvis/render/escritorio.json"))
+          assert d["ligado"] and [c["nome"] for c in d["cargos"]] == ["trabalho", "redator"] and d["cargos"][1]["faz"], d
+          assert [r["nome"] for r in d["rotinas"]] == ["resumo-da-semana", "status-diario"] and d["rotinas"][1]["onde"] == "assistente:suporte", d'
+          grep -q "cargo Redator" "$HOME/.jarvis/render/hermes/cargos/redator/SOUL.md"
+          grep -q "escritorio:" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
+          ! grep -q "terminal" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
+          python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
+          import json, sys
+          e = json.load(sys.stdin)["escritorio"]
+          assert e["ligado"] and [c["nome"] for c in e["cargos"]] == ["trabalho", "redator"], e
+          r = {x["nome"]: x for x in e["rotinas"]}
+          assert r["status-diario"]["quando_texto"] == "de segunda a sexta às 08:30" and r["resumo-da-semana"]["padrao"], r'
+          # rotina criada pela página: vale sem colocar em uso; agenda inválida é recusada
+          echo "{\"nome\":\"ping\",\"titulo\":\"Ping\",\"faz\":\"Diga oi.\",\"quando\":\"*/5 * * * *\",\"cargo\":\"redator\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": true"
+          echo "{\"nome\":\"ruim\",\"titulo\":\"Ruim\",\"faz\":\"x\",\"quando\":\"99 * * * *\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": false"
+          python3 kernel/bin/jarvis_carteiro.py --home "$HOME/.jarvis" --dry-run | grep -q "rotina ping dispararia"
           grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/suporte/config.yaml"
           printf 'valor-de-teste\n' | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" set-secret EXEMPLO_TOKEN
           test "$(grep -c "^EXEMPLO_TOKEN='valor-de-teste'$" "$HOME/.jarvis/secrets.env")" = 1

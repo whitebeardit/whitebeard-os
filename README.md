@@ -201,9 +201,22 @@ se o compose estiver no ar), `claude` (configurações) e `vault` (só referênc
 ## O que entra no `jarvis.yaml`
 
 Parâmetros do tenant: identificador, idioma, pasta de dados (`dados`), módulos do JARVIS Web (`interface`),
-vault, servidores MCP, pacotes de skills, modelo do Hermes, perfis, crons, serviços monitorados, nós. Segredos **nunca** entram no yaml: entram como `${NOME}` e são
+vault, servidores MCP, pacotes de skills, modelo do Hermes, perfis, crons, serviços monitorados, nós, assistentes
+(`assistentes`) e o Escritório (`escritorio`: ligado, cargos, rotinas). Segredos **nunca** entram no yaml: entram como `${NOME}` e são
 preenchidos em `secrets.env` a partir do manifesto. Esquema completo em `kernel/schema/jarvis.schema.json`;
 exemplo em `tenants/exemplo/jarvis.yaml`.
+
+### O Escritório (cargos e rotinas)
+
+Com `escritorio.ligado: true`, o trabalho que demora sai do chat: "JARVIS, monte a proposta da Acme" vira uma
+tarefa, um **cargo** executa (um perfil do Hermes com as ferramentas de um assistente de equipe, sem terminal, pelo
+Paperclip por baixo), a entrega fica em `projects-doc/escritorio/entregas/` no second brain e volta no chat de origem
+pelo carteiro (`kernel/bin/jarvis_carteiro.py`, a cada minuto). O que exigir enviar, pagar ou publicar para e pergunta.
+O cargo `trabalho` (Assistente de trabalho) existe sempre; outros cargos entram em `escritorio.cargos` (ou pela página
+ESCRITÓRIO) e passam a valer depois de "colocar em uso". **Rotinas** (`escritorio.rotinas` ou pela página) criam a
+tarefa sozinhas no horário (cron de 5 campos, fuso do computador) e publicam a entrega na sua conversa com o JARVIS
+(`onde: telegram`) ou no grupo de um assistente (`onde: assistente:<nome>`); valem na hora, sem colocar em uso. A rotina
+`resumo-da-semana` (segunda, 8h) vem por padrão.
 
 ## Componentes externos e licenças
 

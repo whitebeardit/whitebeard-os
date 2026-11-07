@@ -874,32 +874,71 @@ def escritorio_desejado(home: Path) -> bool | None:
 
 
 def escritorio_status(home: Path, roles: list[str]) -> dict:
-    """Ligado?, aplicado?, o cargo e as tarefas (lidas do Paperclip local, se estiver no ar)."""
-    out_: dict = {"disponivel": "core" in roles, "ligado": bool(escritorio_desejado(home)), "aplicado": False, "cargo": None, "tarefas": [], "erro": None}
+    """Ligado?, aplicado?, os cargos (catálogo + estado no Paperclip), as rotinas (catálogo + última/próxima) e as
+    tarefas (lidas do Paperclip local, se estiver no ar)."""
+    out_: dict = {"disponivel": "core" in roles, "ligado": bool(escritorio_desejado(home)), "aplicado": False, "cargo": None,
+                  "cargos": [], "rotinas": [], "tarefas": [], "erro": None}
     try:
         out_["aplicado"] = bool(json.loads((home / "render" / "escritorio.json").read_text(encoding="utf-8")).get("ligado"))
     except (OSError, ValueError):
         pass
-    if not out_["aplicado"]:
-        return out_
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     try:
         import jarvis_escritorio_mcp as esc  # mesmo diretório; só stdlib
+        import jarvis_rotinas as rot
     except ImportError:
         return out_
-    try:
-        cargo = json.loads((home / "escritorio" / "cargo.json").read_text(encoding="utf-8"))
-        ag = esc.api("GET", f"/agents/{cargo['id']}")
-        out_["cargo"] = {"nome": cargo.get("nome"), "estado": ag.get("status"), "pasta": cargo.get("pasta"), "gasto_mes_centavos": ag.get("spentMonthlyCents")}
-    except (OSError, ValueError, RuntimeError, KeyError):
-        pass
+    if not out_["ligado"] and not out_["aplicado"]:
+        return out_
+    from datetime import datetime
+    cat = rot.catalogo(home)
+    ids = rot.cargos_ids(home)
+    agentes: dict = {}
+    if out_["aplicado"]:
+        try:
+            for ag in esc.lista(esc.api("GET", f"/companies/{esc.empresa_id()}/agents"), "agents"):
+                agentes[ag.get("id")] = ag
+        except RuntimeError as e:
+            out_["erro"] = str(e)[:200]
+    por_agente: dict = {}
+    for c in cat["cargos"]:
+        reg = ids.get(c["nome"]) or {}
+        ag = agentes.get(reg.get("id")) or {}
+        item = {"nome": c["nome"], "titulo": c["titulo"], "faz": c["faz"], "limite_mes_centavos": c["limite_mes_centavos"], "padrao": c["padrao"],
+                "aplicado": bool(reg.get("id")) and c["aplicado"], "estado": ag.get("status") or "", "gasto_mes_centavos": ag.get("spentMonthlyCents") or 0,
+                "tarefas_feitas": 0}
+        if reg.get("id"):
+            por_agente[reg["id"]] = item
+        out_["cargos"].append(item)
+    padrao = next((c for c in out_["cargos"] if c["nome"] == "trabalho"), None)
+    if padrao and padrao["aplicado"]:
+        pasta = str(Path(read_env(home / "profile.env").get("VAULT_PATH") or (Path.home() / "whitebeard-secondbrain")) / "tenants" / (read_env(home / "profile.env").get("JARVIS_TENANT") or "pessoal") / "projects-doc" / "escritorio")
+        out_["cargo"] = {"nome": padrao["titulo"], "estado": padrao["estado"], "pasta": pasta, "gasto_mes_centavos": padrao["gasto_mes_centavos"]}
+    estado_carteiro = rot.ler_json(home / "escritorio" / "carteiro.json", {})
+    feitas = (estado_carteiro.get("rotinas") if isinstance(estado_carteiro, dict) else None) or {}
+    agora = datetime.now()
+    for r in cat["rotinas"]:
+        reg = feitas.get(r["nome"]) or {}
+        try:
+            prox = rot.proxima(r["quando"], agora) if r["ligada"] else None
+        except ValueError:
+            prox = None
+        out_["rotinas"].append({**r, "quando_texto": rot.quando_texto(r["quando"]), "ultima": reg.get("ultima") or "", "ultima_tarefa": reg.get("tarefa") or "",
+                                "proxima": prox.strftime("%Y-%m-%dT%H:%M") if prox else ""})
+    if not out_["aplicado"]:
+        return out_
     try:
         itens = esc.lista(esc.api("GET", f"/companies/{esc.empresa_id()}/issues"), "issues")
         itens.sort(key=lambda i: i.get("updatedAt") or "", reverse=True)
+        for it in itens:
+            if it.get("status") == "done" and it.get("assigneeAgentId") in por_agente:
+                por_agente[it["assigneeAgentId"]]["tarefas_feitas"] += 1
         for it in itens[:40]:
+            desc = it.get("description") or ""
             t = {"id": it.get("id"), "numero": it.get("identifier"), "titulo": it.get("title"), "estado": it.get("status"),
                  "criada_em": it.get("createdAt"), "atualizada_em": it.get("updatedAt"),
-                 "origem": (re.search(r"\[origem:\s*([^\]]+)\]", it.get("description") or "") or [None, ""])[1] if "[origem:" in (it.get("description") or "") else "",
+                 "origem": (re.search(r"\[origem:\s*([^\]]+)\]", desc) or [None, ""])[1] if "[origem:" in desc else "",
+                 "rotina": rot.rotina_de_tarefa(desc), "cargo": (por_agente.get(it.get("assigneeAgentId")) or {}).get("titulo") or "",
                  "entrega": "", "pergunta": "", "pendencia_id": ""}
             if it.get("status") in ("done", "cancelled", "blocked", "in_progress"):
                 cs = esc.lista(esc.api("GET", f"/issues/{it['id']}/comments"), "comments")
@@ -927,8 +966,119 @@ def cmd_escritorio_set(home: Path) -> int:
     except ValueError:
         return out({"ok": False, "erro": "dados inválidos"})
     ligado = bool(dados.get("ligado"))
-    (home / "escritorio.json").write_text(json.dumps({"ligado": ligado}, ensure_ascii=False) + "\n", encoding="utf-8")
+    loja = loja_escritorio(home)
+    loja["ligado"] = ligado
+    gravar_loja_escritorio(home, loja)
     return out({"ok": True, "ligado": ligado})
+
+
+def loja_escritorio(home: Path) -> dict:
+    try:
+        d = json.loads((home / "escritorio.json").read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def gravar_loja_escritorio(home: Path, loja: dict) -> None:
+    (home / "escritorio.json").write_text(json.dumps(loja, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def dados_stdin() -> dict | None:
+    try:
+        d = json.loads(stdin_value() or "{}")
+        return d if isinstance(d, dict) else None
+    except ValueError:
+        return None
+
+
+def cmd_escritorio_cargo(home: Path, acao: str, nome: str = "") -> int:
+    """Cargos criados pela página: ficam em escritorio.json (cargos) e passam a valer depois de COLOCAR EM USO
+    (perfil do Hermes + agente no Paperclip). O cargo `trabalho` não se apaga."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import jarvis_rotinas as rot
+    loja = loja_escritorio(home)
+    cargos = [c for c in (loja.get("cargos") or []) if isinstance(c, dict) and c.get("nome")]
+    if acao == "remove":
+        if nome == "trabalho":
+            return out({"ok": False, "erro": "o Assistente de trabalho é o cargo padrão: não se apaga"})
+        existe = any(c["nome"] == nome and not c.get("removido") for c in cargos) or any(c["nome"] == nome for c in rot.catalogo(home)["cargos"])
+        if not existe:
+            return out({"ok": False, "erro": f"não há cargo chamado {nome}"})
+        cargos = [c for c in cargos if c["nome"] != nome] + [{"nome": nome, "removido": True}]
+        loja["cargos"] = cargos
+        gravar_loja_escritorio(home, loja)
+        return out({"ok": True, "nome": nome})
+    dados = dados_stdin()
+    if dados is None:
+        return out({"ok": False, "erro": "dados inválidos"})
+    if acao == "add":
+        nome = str(dados.get("nome") or "").strip().lower()
+        if not rot.NOME_RE.match(nome):
+            return out({"ok": False, "erro": "nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)"})
+        if nome == "trabalho" or any(c["nome"] == nome for c in rot.catalogo(home)["cargos"]):
+            return out({"ok": False, "erro": f"já existe um cargo chamado {nome}"})
+        if (hermes_profile_dir(home, nome)).is_dir() or any(a.get("nome") == nome and not a.get("removido") for a in load_store(home)):
+            return out({"ok": False, "erro": f"já existe um assistente ou perfil chamado {nome}; escolha outro nome"})
+        novo = rot.normaliza_cargo({**dados, "nome": nome})
+    else:
+        atual = next((c for c in rot.catalogo(home)["cargos"] if c["nome"] == nome), None)
+        if atual is None:
+            return out({"ok": False, "erro": f"não há cargo chamado {nome}"})
+        novo = rot.normaliza_cargo({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz", "limite_mes_centavos")}, "nome": nome})
+    if not novo["titulo"]:
+        return out({"ok": False, "erro": "o cargo precisa de um título"})
+    cargos = [c for c in cargos if c["nome"] != nome] + [novo]
+    loja["cargos"] = cargos
+    gravar_loja_escritorio(home, loja)
+    return out({"ok": True, "cargo": novo})
+
+
+def cmd_escritorio_rotina(home: Path, acao: str, nome: str = "") -> int:
+    """Rotinas criadas pela página: escritorio/rotinas.json. Valem na hora (o carteiro lê de lá a cada minuto)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import jarvis_rotinas as rot
+    cat = rot.catalogo(home)
+    loja = rot.loja_rotinas(home)
+    if acao == "run":
+        r = next((x for x in cat["rotinas"] if x["nome"] == nome), None)
+        if r is None:
+            return out({"ok": False, "erro": f"não há rotina chamada {nome}"})
+        try:
+            t = rot.disparar(home, r)
+        except RuntimeError as e:
+            return out({"ok": False, "erro": str(e)[:200]})
+        estado_path = home / "escritorio" / "carteiro.json"
+        estado = rot.ler_json(estado_path, {})
+        if isinstance(estado, dict):
+            estado.setdefault("rotinas", {})[nome] = {**(estado.get("rotinas", {}).get(nome) or {}), "tarefa": t.get("numero") or "", "em": int(time.time()), "manual": True}
+            rot.gravar_json(estado_path, estado)
+        return out({"ok": True, "tarefa": t})
+    if acao == "remove":
+        if not any(x["nome"] == nome for x in cat["rotinas"]):
+            return out({"ok": False, "erro": f"não há rotina chamada {nome}"})
+        loja = [x for x in loja if x["nome"] != nome] + [{"nome": nome, "removido": True}]
+        rot.gravar_json(home / "escritorio" / "rotinas.json", loja)
+        return out({"ok": True, "nome": nome})
+    dados = dados_stdin()
+    if dados is None:
+        return out({"ok": False, "erro": "dados inválidos"})
+    if acao == "add":
+        nome = str(dados.get("nome") or "").strip().lower()
+        if any(x["nome"] == nome for x in cat["rotinas"]):
+            return out({"ok": False, "erro": f"já existe uma rotina chamada {nome}"})
+        nova = rot.normaliza_rotina({**dados, "nome": nome})
+    else:
+        atual = next((x for x in cat["rotinas"] if x["nome"] == nome), None)
+        if atual is None:
+            return out({"ok": False, "erro": f"não há rotina chamada {nome}"})
+        nova = rot.normaliza_rotina({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz", "quando", "onde", "cargo", "ligada")}, "nome": nome})
+    erro = rot.valida_rotina(nova, cat["cargos"])
+    if erro:
+        return out({"ok": False, "erro": erro})
+    loja = [x for x in loja if x["nome"] != nome] + [nova]
+    rot.gravar_json(home / "escritorio" / "rotinas.json", loja)
+    return out({"ok": True, "rotina": nova})
 
 
 def cmd_escritorio_decidir(home: Path, tarefa: str, aprovar: bool) -> int:
@@ -1480,6 +1630,11 @@ def main() -> int:
     for c in ("escritorio-aprovar", "escritorio-recusar"):
         p = sub.add_parser(c)
         p.add_argument("tarefa")
+    sub.add_parser("escritorio-cargo-add")
+    sub.add_parser("escritorio-rotina-add")
+    for c in ("escritorio-cargo-update", "escritorio-cargo-remove", "escritorio-rotina-update", "escritorio-rotina-remove", "escritorio-rotina-run"):
+        p = sub.add_parser(c)
+        p.add_argument("nome")
     args = ap.parse_args()
     home = Path(args.home).expanduser()
     if not (home / "profile.env").is_file():
@@ -1524,6 +1679,10 @@ def main() -> int:
         return cmd_escritorio_decidir(home, args.tarefa, True)
     if args.cmd == "escritorio-recusar":
         return cmd_escritorio_decidir(home, args.tarefa, False)
+    if args.cmd.startswith("escritorio-cargo-"):
+        return cmd_escritorio_cargo(home, args.cmd.rsplit("-", 1)[1], getattr(args, "nome", ""))
+    if args.cmd.startswith("escritorio-rotina-"):
+        return cmd_escritorio_rotina(home, args.cmd.rsplit("-", 1)[1], getattr(args, "nome", ""))
     return 2
 
 

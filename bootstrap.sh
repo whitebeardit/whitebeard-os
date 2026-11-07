@@ -1087,21 +1087,22 @@ apply_hermes_cargos() {
   return 0
 }
 
-# O Escritório: com `escritorio.ligado`, o cargo entra no Paperclip (executado pelo Hermes) e o carteiro
-# avisa no canal de origem a cada minuto. Desligado, o cargo é pausado e o carteiro removido.
+# O Escritório: com `escritorio.ligado`, os cargos do catálogo entram no Paperclip (executados pelo Hermes) e o
+# carteiro, a cada minuto, avisa no canal de origem e dispara as rotinas no horário. Desligado, os cargos são
+# pausados e o carteiro removido.
 install_escritorio() {
   has_role core || return 0
   skipped services && return 0
-  [ "$DRY_RUN" = 1 ] && { [ -f "$JARVIS_HOME/render/escritorio.json" ] && log "escritório: criaria o cargo no Paperclip e o carteiro"; return 0; }
+  [ "$DRY_RUN" = 1 ] && { [ -f "$JARVIS_HOME/render/escritorio.json" ] && log "escritório: criaria os cargos no Paperclip e o carteiro"; return 0; }
   [ "$NO_START" = 1 ] && return 0
   if grep -qs '"ligado": true' "$JARVIS_HOME/render/escritorio.json"; then
-    python3 "$KERNEL_DIR/bin/jarvis_escritorio.py" --home "$JARVIS_HOME" || log "aviso: não consegui preparar o cargo do Escritório"
+    python3 "$KERNEL_DIR/bin/jarvis_escritorio.py" --home "$JARVIS_HOME" || log "aviso: não consegui preparar os cargos do Escritório"
     case "$OS" in
       Darwin) launch_agent dev.whitebeard.carteiro "$JARVIS_HOME/logs/carteiro.log" --interval 60 /usr/bin/python3 "$KERNEL_DIR/bin/jarvis_carteiro.py" --home "$JARVIS_HOME" -- "PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" "HOME=$HOME" ;;
       Linux) user_timer whitebeard-carteiro "Whitebeard OS: carteiro do Escritório" 60 "/usr/bin/python3 $KERNEL_DIR/bin/jarvis_carteiro.py --home $JARVIS_HOME" "$JARVIS_HOME/logs/carteiro.log" ;;
     esac
-    log "escritório: ligado (cargo no Paperclip, carteiro a cada 60 s)"
-  elif [ -f "$JARVIS_HOME/render/escritorio.json" ] && [ -f "$JARVIS_HOME/escritorio/cargo.json" ]; then
+    log "escritório: ligado (cargos no Paperclip; carteiro a cada 60 s: avisos e rotinas)"
+  elif [ -f "$JARVIS_HOME/render/escritorio.json" ] && { [ -f "$JARVIS_HOME/escritorio/cargos.json" ] || [ -f "$JARVIS_HOME/escritorio/cargo.json" ]; }; then
     python3 "$KERNEL_DIR/bin/jarvis_escritorio.py" --home "$JARVIS_HOME" --desligar || true
     case "$OS" in
       Darwin) launchctl bootout "gui/$(id -u)/dev.whitebeard.carteiro" 2>/dev/null || true ;;

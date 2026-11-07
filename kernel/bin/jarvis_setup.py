@@ -104,7 +104,7 @@ def pending_apply(home: Path) -> bool:
         aplicado = (home / "setup.applied").stat().st_mtime
     except OSError:
         return False
-    for f in (home / "secrets.env", store_path(home)):
+    for f in (home / "secrets.env", store_path(home), home / "escritorio.json"):
         try:
             if f.stat().st_mtime > aplicado + 1:
                 return True
@@ -855,6 +855,96 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
     return fim(None)
 
 
+# ---------------------------------------------------------------- Escritório (Paperclip como motor, Hermes como executor)
+def escritorio_desejado(home: Path) -> bool | None:
+    """O que a pessoa decidiu na página (loja) ou, sem decisão, o que o tenant diz."""
+    try:
+        loja = json.loads((home / "escritorio.json").read_text(encoding="utf-8"))
+        if isinstance(loja, dict) and "ligado" in loja:
+            return bool(loja["ligado"])
+    except (OSError, ValueError):
+        pass
+    for cand in (Path((home / "tenant.path").read_text(encoding="utf-8").strip()) if (home / "tenant.path").is_file() else None, home / "jarvis.yaml"):
+        try:
+            if cand and cand.is_file():
+                return re.search(r"^escritorio:\s*\n(?:\s+.*\n)*?\s+ligado:\s*true", cand.read_text(encoding="utf-8"), re.M) is not None
+        except OSError:
+            continue
+    return None
+
+
+def escritorio_status(home: Path, roles: list[str]) -> dict:
+    """Ligado?, aplicado?, o cargo e as tarefas (lidas do Paperclip local, se estiver no ar)."""
+    out_: dict = {"disponivel": "core" in roles, "ligado": bool(escritorio_desejado(home)), "aplicado": False, "cargo": None, "tarefas": [], "erro": None}
+    try:
+        out_["aplicado"] = bool(json.loads((home / "render" / "escritorio.json").read_text(encoding="utf-8")).get("ligado"))
+    except (OSError, ValueError):
+        pass
+    if not out_["aplicado"]:
+        return out_
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import jarvis_escritorio_mcp as esc  # mesmo diretório; só stdlib
+    except ImportError:
+        return out_
+    try:
+        cargo = json.loads((home / "escritorio" / "cargo.json").read_text(encoding="utf-8"))
+        ag = esc.api("GET", f"/agents/{cargo['id']}")
+        out_["cargo"] = {"nome": cargo.get("nome"), "estado": ag.get("status"), "pasta": cargo.get("pasta"), "gasto_mes_centavos": ag.get("spentMonthlyCents")}
+    except (OSError, ValueError, RuntimeError, KeyError):
+        pass
+    try:
+        itens = esc.lista(esc.api("GET", f"/companies/{esc.empresa_id()}/issues"), "issues")
+        itens.sort(key=lambda i: i.get("updatedAt") or "", reverse=True)
+        for it in itens[:40]:
+            t = {"id": it.get("id"), "numero": it.get("identifier"), "titulo": it.get("title"), "estado": it.get("status"),
+                 "criada_em": it.get("createdAt"), "atualizada_em": it.get("updatedAt"),
+                 "origem": (re.search(r"\[origem:\s*([^\]]+)\]", it.get("description") or "") or [None, ""])[1] if "[origem:" in (it.get("description") or "") else "",
+                 "entrega": "", "pergunta": "", "pendencia_id": ""}
+            if it.get("status") in ("done", "cancelled", "blocked", "in_progress"):
+                cs = esc.lista(esc.api("GET", f"/issues/{it['id']}/comments"), "comments")
+                cs.sort(key=lambda c: c.get("createdAt") or "")
+                for c in reversed(cs):
+                    b = (c.get("body") or "").strip()
+                    if b.upper().startswith(("ENTREGA:", "PENDÊNCIA:", "RECUSADO")):
+                        t["entrega"] = b[:600]
+                        break
+            if it.get("status") in ("blocked", "in_progress", "todo"):
+                for p_ in esc.pendencias_de(it["id"]):
+                    t["pergunta"] = ((p_.get("payload") or {}).get("prompt") or "")[:600]
+                    t["pendencia_id"] = p_.get("id", "")
+                    break
+            out_["tarefas"].append(t)
+    except RuntimeError as e:
+        out_["erro"] = str(e)[:200]
+    return out_
+
+
+def cmd_escritorio_set(home: Path) -> int:
+    raw = stdin_value()
+    try:
+        dados = json.loads(raw or "{}")
+    except ValueError:
+        return out({"ok": False, "erro": "dados inválidos"})
+    ligado = bool(dados.get("ligado"))
+    (home / "escritorio.json").write_text(json.dumps({"ligado": ligado}, ensure_ascii=False) + "\n", encoding="utf-8")
+    return out({"ok": True, "ligado": ligado})
+
+
+def cmd_escritorio_decidir(home: Path, tarefa: str, aprovar: bool) -> int:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import jarvis_escritorio_mcp as esc
+    except ImportError:
+        return out({"ok": False, "erro": "ferramentas do Escritório ausentes"})
+    nota = stdin_value()
+    try:
+        r = esc.aprovar(tarefa, nota) if aprovar else esc.recusar(tarefa, nota)
+    except RuntimeError as e:
+        return out({"ok": False, "erro": str(e)[:200]})
+    return out(r)
+
+
 def cmd_status(home: Path) -> int:
     limpar_esperas_velhas(home)
     profile = read_env(home / "profile.env")
@@ -901,6 +991,7 @@ def cmd_status(home: Path) -> int:
         },
         "segredos": segredos,
         "assistentes": assistentes_status(home, filled),
+        "escritorio": escritorio_status(home, roles),
         "concluido": (home / "setup.done").is_file(),
         "pendente": pending_apply(home),
     })
@@ -1385,6 +1476,10 @@ def main() -> int:
     for c in ("assistente-whatsapp-parear", "assistente-whatsapp-status", "assistente-whatsapp-desparear"):
         p = sub.add_parser(c)
         p.add_argument("nome")
+    sub.add_parser("escritorio-set")
+    for c in ("escritorio-aprovar", "escritorio-recusar"):
+        p = sub.add_parser(c)
+        p.add_argument("tarefa")
     args = ap.parse_args()
     home = Path(args.home).expanduser()
     if not (home / "profile.env").is_file():
@@ -1423,6 +1518,12 @@ def main() -> int:
         return cmd_assistente_whatsapp_status(home, args.nome)
     if args.cmd == "assistente-whatsapp-desparear":
         return cmd_assistente_whatsapp_desparear(home, args.nome)
+    if args.cmd == "escritorio-set":
+        return cmd_escritorio_set(home)
+    if args.cmd == "escritorio-aprovar":
+        return cmd_escritorio_decidir(home, args.tarefa, True)
+    if args.cmd == "escritorio-recusar":
+        return cmd_escritorio_decidir(home, args.tarefa, False)
     return 2
 
 

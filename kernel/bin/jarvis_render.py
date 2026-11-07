@@ -108,6 +108,17 @@ CANAIS = {
 }
 
 
+def escritorio_ligado(home: Path, data: dict) -> bool:
+    """A página liga/desliga em $JARVIS_HOME/escritorio.json (vale por cima do tenant, como os assistentes)."""
+    try:
+        loja = json.loads((home / "escritorio.json").read_text(encoding="utf-8"))
+        if isinstance(loja, dict) and "ligado" in loja:
+            return bool(loja["ligado"])
+    except (OSError, ValueError):
+        pass
+    return bool((data.get("escritorio") or {}).get("ligado"))
+
+
 def hermes_home_de(home: Path) -> Path:
     return Path(parse_env(home / "profile.env").get("HERMES_HOME") or str(Path.home() / ".hermes"))
 
@@ -636,7 +647,7 @@ def main() -> int:
             hermes_mcp[m["name"]] = entry
         # o Escritório ligado: o MCP `escritorio` (criar tarefa, aprovar, recusar) entra no Hermes do dono e nos
         # assistentes da equipe, como qualquer MCP do tenant; o Paperclip é local e sem chave no modo local
-        if (data.get("escritorio") or {}).get("ligado") and "core" in roles:
+        if escritorio_ligado(home, data) and "core" in roles:
             hermes_mcp["escritorio"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_escritorio_mcp.py")],
                                         "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api", "ESCRITORIO_ORIGEM": "telegram"}}
         w.write(home / "render" / "hermes" / "mcp.json",
@@ -670,8 +681,7 @@ def main() -> int:
     # ---- Escritório (papel core): o cargo "Assistente de trabalho" é um perfil do Hermes executado pelo
     # Paperclip (adapter hermes_local), com as ferramentas de um assistente de equipe e o MCP do Escritório
     # para entregar e pedir aprovação. O bootstrap aplica como os assistentes e cria o cargo no Paperclip.
-    escritorio = data.get("escritorio") or {}
-    if "core" in roles and escritorio.get("ligado"):
+    if "core" in roles and escritorio_ligado(home, data):
         base = home / "render" / "hermes" / "cargos" / "trabalho"
         tools = sorted(FERRAMENTAS_TIPO["equipe"])
         cfg_cargo: dict = {"model": {"provider": hermes_cfg.get("provider", "anthropic"), "default": hermes_cfg.get("model", "")},

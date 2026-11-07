@@ -107,7 +107,7 @@ jobs:
           python3 -c '
           import json
           d = json.load(open("'"$HOME"'/.jarvis/render/escritorio.json"))
-          assert d["ligado"] and [c["nome"] for c in d["cargos"]] == ["trabalho", "redator"] and d["cargos"][1]["limite_mes_centavos"] == 2000, d
+          assert d["ligado"] and [c["nome"] for c in d["cargos"]] == ["trabalho", "redator"] and d["cargos"][1]["faz"], d
           assert [r["nome"] for r in d["rotinas"]] == ["resumo-da-semana", "status-diario"] and d["rotinas"][1]["onde"] == "assistente:suporte", d'
           grep -q "cargo Redator" "$HOME/.jarvis/render/hermes/cargos/redator/SOUL.md"
           grep -q "escritorio:" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"

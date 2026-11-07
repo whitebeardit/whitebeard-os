@@ -146,21 +146,17 @@ def main() -> int:
             "timeoutSec": 900,
             "maxTurnsPerRun": 40,
         }
-        try:
-            limite = max(0, int(c.get("limite_mes_centavos") or 0))
-        except (TypeError, ValueError):
-            limite = 0
         cargo = agente_de(c)
         corpo = {"name": titulo, "role": "general", "adapterType": "hermes_local", "adapterConfig": cfg,
-                 "runtimeConfig": {"heartbeat": {"enabled": False}}, "budgetMonthlyCents": limite or None}
+                 "runtimeConfig": {"heartbeat": {"enabled": False}}}
         if cargo is None:
-            cargo = api("POST", f"/companies/{cid}/agents", {k: v for k, v in corpo.items() if v is not None})
+            cargo = api("POST", f"/companies/{cid}/agents", corpo)
             print(f"[whitebeard-os] escritório: cargo '{titulo}' criado (executado pelo Hermes, perfil {nome})")
         else:
             mudou = (cargo.get("adapterType") != "hermes_local" or (cargo.get("adapterConfig") or {}) != cfg or cargo.get("status") == "paused"
-                     or cargo.get("name") != titulo or (cargo.get("budgetMonthlyCents") or 0) != limite)
+                     or cargo.get("name") != titulo)
             if mudou:
-                api("PATCH", f"/agents/{cargo['id']}", {"name": titulo, "adapterType": "hermes_local", "adapterConfig": cfg, "status": "idle", "budgetMonthlyCents": limite or None})
+                api("PATCH", f"/agents/{cargo['id']}", {"name": titulo, "adapterType": "hermes_local", "adapterConfig": cfg, "status": "idle"})
                 print(f"[whitebeard-os] escritório: cargo '{titulo}' atualizado")
         novos_ids[nome] = {"id": cargo["id"], "titulo": titulo, "empresa": cid}
     # cargos que saíram do catálogo: pausados (as tarefas e o histórico ficam)

@@ -904,16 +904,15 @@ def escritorio_status(home: Path, roles: list[str]) -> dict:
     for c in cat["cargos"]:
         reg = ids.get(c["nome"]) or {}
         ag = agentes.get(reg.get("id")) or {}
-        item = {"nome": c["nome"], "titulo": c["titulo"], "faz": c["faz"], "limite_mes_centavos": c["limite_mes_centavos"], "padrao": c["padrao"],
-                "aplicado": bool(reg.get("id")) and c["aplicado"], "estado": ag.get("status") or "", "gasto_mes_centavos": ag.get("spentMonthlyCents") or 0,
-                "tarefas_feitas": 0}
+        item = {"nome": c["nome"], "titulo": c["titulo"], "faz": c["faz"], "padrao": c["padrao"],
+                "aplicado": bool(reg.get("id")) and c["aplicado"], "estado": ag.get("status") or "", "tarefas_feitas": 0}
         if reg.get("id"):
             por_agente[reg["id"]] = item
         out_["cargos"].append(item)
     padrao = next((c for c in out_["cargos"] if c["nome"] == "trabalho"), None)
     if padrao and padrao["aplicado"]:
         pasta = str(Path(read_env(home / "profile.env").get("VAULT_PATH") or (Path.home() / "whitebeard-secondbrain")) / "tenants" / (read_env(home / "profile.env").get("JARVIS_TENANT") or "pessoal") / "projects-doc" / "escritorio")
-        out_["cargo"] = {"nome": padrao["titulo"], "estado": padrao["estado"], "pasta": pasta, "gasto_mes_centavos": padrao["gasto_mes_centavos"]}
+        out_["cargo"] = {"nome": padrao["titulo"], "estado": padrao["estado"], "pasta": pasta}
     estado_carteiro = rot.ler_json(home / "escritorio" / "carteiro.json", {})
     feitas = (estado_carteiro.get("rotinas") if isinstance(estado_carteiro, dict) else None) or {}
     agora = datetime.now()
@@ -1025,7 +1024,7 @@ def cmd_escritorio_cargo(home: Path, acao: str, nome: str = "") -> int:
         atual = next((c for c in rot.catalogo(home)["cargos"] if c["nome"] == nome), None)
         if atual is None:
             return out({"ok": False, "erro": f"não há cargo chamado {nome}"})
-        novo = rot.normaliza_cargo({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz", "limite_mes_centavos")}, "nome": nome})
+        novo = rot.normaliza_cargo({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz")}, "nome": nome})
     if not novo["titulo"]:
         return out({"ok": False, "erro": "o cargo precisa de um título"})
     cargos = [c for c in cargos if c["nome"] != nome] + [novo]

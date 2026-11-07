@@ -121,7 +121,7 @@ def escritorio_ligado(home: Path, data: dict) -> bool:
 
 CARGO_NOME_RE = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 CARGO_PADRAO = {"nome": "trabalho", "titulo": "Assistente de trabalho",
-                "faz": "Executa o que o JARVIS e os assistentes delegam: pesquisas, documentos, propostas, resumos.", "limite_mes_centavos": 0}
+                "faz": "Executa o que o JARVIS e os assistentes delegam: pesquisas, documentos, propostas, resumos."}
 ROTINA_PADRAO = {"nome": "resumo-da-semana", "titulo": "Resumo da semana", "quando": "0 8 * * 1", "onde": "telegram", "cargo": "trabalho", "ligada": True,
                  "faz": ("Faça o resumo da semana do Escritório e do second brain: o que foi entregue, o que está pendente ou parado, "
                          "e o que mudou nas páginas do second brain nos últimos sete dias. Em tópicos curtos, em português do Brasil.")}
@@ -136,8 +136,7 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
     for c in esc.get("cargos") or []:
         if isinstance(c, dict) and CARGO_NOME_RE.match(str(c.get("nome") or "")):
             cargos = [x for x in cargos if x["nome"] != c["nome"]]
-            cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600],
-                           "limite_mes_centavos": int(c.get("limite_mes_centavos") or 0)})
+            cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600]})
     try:
         loja = json.loads((home / "escritorio.json").read_text(encoding="utf-8"))
         loja_cargos = loja.get("cargos") if isinstance(loja, dict) else []
@@ -149,11 +148,7 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
         cargos = [x for x in cargos if x["nome"] != c["nome"]]
         if c.get("removido"):
             continue
-        try:
-            limite = max(0, int(c.get("limite_mes_centavos") or 0))
-        except (TypeError, ValueError):
-            limite = 0
-        cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600], "limite_mes_centavos": limite})
+        cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600]})
     if not any(c["nome"] == "trabalho" for c in cargos):
         cargos.insert(0, dict(CARGO_PADRAO))
     rotinas: list[dict] = [dict(ROTINA_PADRAO)]

@@ -26,7 +26,7 @@ from pathlib import Path
 API = (os.environ.get("PAPERCLIP_API_URL") or "http://127.0.0.1:3100/api").rstrip("/")
 NOME_RE = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 CARGO_PADRAO = {"nome": "trabalho", "titulo": "Assistente de trabalho",
-                "faz": "Executa o que o JARVIS e os assistentes delegam: pesquisas, documentos, propostas, resumos.", "limite_mes_centavos": 0}
+                "faz": "Executa o que o JARVIS e os assistentes delegam: pesquisas, documentos, propostas, resumos."}
 ROTINA_PADRAO = {"nome": "resumo-da-semana", "titulo": "Resumo da semana", "quando": "0 8 * * 1", "onde": "telegram", "cargo": "trabalho", "ligada": True,
                  "faz": ("Faça o resumo da semana do Escritório e do second brain: o que foi entregue, o que está pendente ou parado, "
                          "e o que mudou nas páginas do second brain nos últimos sete dias. Em tópicos curtos, em português do Brasil.")}
@@ -58,12 +58,8 @@ def loja_cargos(home: Path) -> list[dict]:
 
 
 def normaliza_cargo(c: dict) -> dict:
-    try:
-        limite = max(0, int(c.get("limite_mes_centavos") or 0))
-    except (TypeError, ValueError):
-        limite = 0
     return {"nome": str(c.get("nome") or "").strip(), "titulo": str(c.get("titulo") or c.get("nome") or "").strip()[:80],
-            "faz": str(c.get("faz") or "").strip()[:600], "limite_mes_centavos": limite}
+            "faz": str(c.get("faz") or "").strip()[:600]}
 
 
 def normaliza_rotina(r: dict) -> dict:

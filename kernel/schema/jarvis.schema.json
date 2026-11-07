@@ -454,7 +454,7 @@
         },
         "cargos": {
           "type": "array",
-          "description": "Cargos além do `trabalho`: cada um é um perfil do Hermes (mesmas ferramentas de um assistente de equipe, sem terminal) e um agente no Paperclip. O que muda entre cargos é o que ele faz (vai para a cabeça dele) e o limite de gasto.",
+          "description": "Cargos além do `trabalho`: cada um é um perfil do Hermes (mesmas ferramentas de um assistente de equipe, sem terminal) e um agente no Paperclip. O que muda entre cargos é o que ele faz (vai para a cabeça dele).",
           "items": {
             "type": "object",
             "required": [
@@ -475,11 +475,6 @@
               "faz": {
                 "type": "string",
                 "description": "uma ou duas frases: o que este cargo faz e como entrega"
-              },
-              "limite_mes_centavos": {
-                "type": "integer",
-                "minimum": 0,
-                "description": "limite de gasto do mês em centavos (do Paperclip); 0 ou ausente: sem limite"
               }
             }
           }

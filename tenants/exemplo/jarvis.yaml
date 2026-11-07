@@ -102,7 +102,6 @@ escritorio:
     - nome: redator
       titulo: Redator
       faz: Escreve documentos, propostas e textos a partir do second brain, prontos para enviar.
-      limite_mes_centavos: 2000 # limite de gasto do mês no Paperclip; 0 ou ausente: sem limite
   rotinas:
     - nome: status-diario
       titulo: Status diário dos projetos

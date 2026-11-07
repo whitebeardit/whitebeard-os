@@ -27,6 +27,29 @@ CARGO = os.environ.get("ESCRITORIO_CARGO_ID", "")
 CARGO_NOME = os.environ.get("ESCRITORIO_CARGO_NOME", "Assistente de trabalho")
 ORIGEM = os.environ.get("ESCRITORIO_ORIGEM", "telegram")
 EMPRESA = os.environ.get("PAPERCLIP_COMPANY_ID", "")
+JARVIS_HOME = os.environ.get("JARVIS_HOME", "")
+
+
+def cargos_catalogo() -> list[dict]:
+    """Os cargos em uso neste computador: nome, título, o que faz e o id do agente (de $JARVIS_HOME/escritorio/cargos.json)."""
+    if not JARVIS_HOME:
+        return []
+    try:
+        ids = json.loads(open(os.path.join(JARVIS_HOME, "escritorio", "cargos.json"), encoding="utf-8").read())
+    except (OSError, ValueError):
+        ids = {}
+    try:
+        render = json.loads(open(os.path.join(JARVIS_HOME, "render", "escritorio.json"), encoding="utf-8").read())
+        cargos = [c for c in (render.get("cargos") or []) if isinstance(c, dict) and c.get("nome")]
+    except (OSError, ValueError, AttributeError):
+        cargos = []
+    if not any(c.get("nome") == "trabalho" for c in cargos):
+        cargos.insert(0, {"nome": "trabalho", "titulo": CARGO_NOME, "faz": "pesquisas, documentos, propostas, resumos"})
+    out = []
+    for c in cargos:
+        reg = ids.get(c["nome"]) if isinstance(ids, dict) else None
+        out.append({"nome": c["nome"], "titulo": c.get("titulo") or c["nome"], "faz": c.get("faz") or "", "id": (reg or {}).get("id", "")})
+    return out
 
 
 def api(method: str, path: str, body: dict | None = None):
@@ -95,14 +118,28 @@ def cargo_id() -> str:
     raise RuntimeError("o Escritório não tem o cargo 'Assistente de trabalho' neste computador (coloque em uso)")
 
 
-def criar_tarefa(titulo: str, pedido: str, origem: str = "") -> dict:
+def cargo_escolhido(cargo: str) -> tuple[str, str]:
+    """(id do agente, título) do cargo pedido, pelo nome ou pelo título; vazio ou desconhecido: o cargo padrão."""
+    ref = (cargo or "").strip().lower()
+    cat = cargos_catalogo()
+    if ref:
+        for c in cat:
+            if ref in (c["nome"].lower(), c["titulo"].lower()) and c.get("id"):
+                return c["id"], c["titulo"]
+    padrao = next((c for c in cat if c["nome"] == "trabalho" and c.get("id")), None)
+    if padrao:
+        return padrao["id"], padrao["titulo"]
+    return cargo_id(), CARGO_NOME
+
+
+def criar_tarefa(titulo: str, pedido: str, origem: str = "", cargo: str = "") -> dict:
     if not titulo.strip():
         raise RuntimeError("a tarefa precisa de um título")
-    CARGO = cargo_id()
+    agente, titulo_cargo = cargo_escolhido(cargo)
     desc = (pedido or "").strip() + f"\n\n[origem: {origem.strip() or ORIGEM}]"
     it = api("POST", f"/companies/{empresa_id()}/issues",
-             {"title": titulo.strip()[:200], "description": desc, "status": "todo", "priority": "medium", "assigneeAgentId": CARGO})
-    return {"ok": True, "tarefa": resumo_tarefa(it), "mensagem": f"Tarefa {it.get('identifier')} anotada. Aviso quando ficar pronta."}
+             {"title": titulo.strip()[:200], "description": desc, "status": "todo", "priority": "medium", "assigneeAgentId": agente})
+    return {"ok": True, "tarefa": resumo_tarefa(it), "cargo": titulo_cargo, "mensagem": f"Tarefa {it.get('identifier')} anotada com o cargo {titulo_cargo}. Aviso quando ficar pronta."}
 
 
 def minhas_tarefas(estado: str = "") -> dict:
@@ -184,7 +221,8 @@ def ambiente() -> dict:
 FERRAMENTAS = {
     "ambiente": (ambiente, "Diagnóstico do Escritório: diz quais variáveis do Paperclip este servidor recebeu (só nomes).", {}, []),
     "criar_tarefa": (criar_tarefa, "Delega um trabalho que demora ao Escritório. Use quando o pedido não cabe numa resposta imediata (documento, pesquisa, proposta). Diga à pessoa que anotou e que avisa quando ficar pronto.",
-                     {"titulo": "título curto da tarefa", "pedido": "o que precisa ser feito, com o contexto que a pessoa deu", "origem": "opcional: canal e conversa de origem (ex.: telegram:12345)"}, ["titulo", "pedido"]),
+                     {"titulo": "título curto da tarefa", "pedido": "o que precisa ser feito, com o contexto que a pessoa deu", "origem": "opcional: canal e conversa de origem (ex.: telegram:12345)",
+                      "cargo": "opcional: nome do cargo que executa (veja a lista na descrição); vazio: o Assistente de trabalho"}, ["titulo", "pedido"]),
     "minhas_tarefas": (minhas_tarefas, "Lista as tarefas do Escritório (as 20 mais recentes), com estado: todo, in_progress, blocked (aguardando decisão), done (entregue), cancelled.",
                        {"estado": "opcional: filtrar por estado"}, []),
     "aprovar": (aprovar, "Aprova uma pendência de uma tarefa bloqueada; o cargo retoma o trabalho.", {"tarefa": "número (PES-12), id ou parte do título", "nota": "opcional"}, ["tarefa"]),
@@ -197,6 +235,10 @@ FERRAMENTAS = {
 
 def esquema(nome: str) -> dict:
     _, desc, props, req = FERRAMENTAS[nome]
+    if nome == "criar_tarefa":
+        cat = [c for c in cargos_catalogo() if c.get("id")]
+        if len(cat) > 1:
+            desc += " Cargos disponíveis: " + "; ".join(f"{c['nome']} ({c['titulo']}: {c['faz'] or 'tarefas em geral'})" for c in cat) + "."
     return {"name": nome, "description": desc,
             "inputSchema": {"type": "object", "properties": {k: {"type": "string", "description": v} for k, v in props.items()}, "required": req}}
 

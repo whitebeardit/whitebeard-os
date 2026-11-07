@@ -119,6 +119,48 @@ def escritorio_ligado(home: Path, data: dict) -> bool:
     return bool((data.get("escritorio") or {}).get("ligado"))
 
 
+CARGO_NOME_RE = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
+CARGO_PADRAO = {"nome": "trabalho", "titulo": "Assistente de trabalho",
+                "faz": "Executa o que o JARVIS e os assistentes delegam: pesquisas, documentos, propostas, resumos."}
+ROTINA_PADRAO = {"nome": "resumo-da-semana", "titulo": "Resumo da semana", "quando": "0 8 * * 1", "onde": "telegram", "cargo": "trabalho", "ligada": True,
+                 "faz": ("Faça o resumo da semana do Escritório e do second brain: o que foi entregue, o que está pendente ou parado, "
+                         "e o que mudou nas páginas do second brain nos últimos sete dias. Em tópicos curtos, em português do Brasil.")}
+
+
+def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]:
+    """Cargos e rotinas do Escritório: os do tenant com os da página por cima (escritorio.json: cargos; nome repetido
+    vale o da página; `removido` esconde). O cargo `trabalho` e a rotina `resumo-da-semana` existem sempre. As rotinas
+    da página ficam em escritorio/rotinas.json e não passam pelo render: o carteiro lê de lá direto."""
+    esc = data.get("escritorio") or {}
+    cargos: list[dict] = [dict(CARGO_PADRAO)]
+    for c in esc.get("cargos") or []:
+        if isinstance(c, dict) and CARGO_NOME_RE.match(str(c.get("nome") or "")):
+            cargos = [x for x in cargos if x["nome"] != c["nome"]]
+            cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600]})
+    try:
+        loja = json.loads((home / "escritorio.json").read_text(encoding="utf-8"))
+        loja_cargos = loja.get("cargos") if isinstance(loja, dict) else []
+    except (OSError, ValueError):
+        loja_cargos = []
+    for c in loja_cargos or []:
+        if not isinstance(c, dict) or not CARGO_NOME_RE.match(str(c.get("nome") or "")) or c["nome"] == "trabalho" and c.get("removido"):
+            continue
+        cargos = [x for x in cargos if x["nome"] != c["nome"]]
+        if c.get("removido"):
+            continue
+        cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600]})
+    if not any(c["nome"] == "trabalho" for c in cargos):
+        cargos.insert(0, dict(CARGO_PADRAO))
+    rotinas: list[dict] = [dict(ROTINA_PADRAO)]
+    for r in esc.get("rotinas") or []:
+        if isinstance(r, dict) and CARGO_NOME_RE.match(str(r.get("nome") or "")):
+            rotinas = [x for x in rotinas if x["nome"] != r["nome"]]
+            rotinas.append({"nome": r["nome"], "titulo": str(r.get("titulo") or r["nome"])[:120], "faz": str(r.get("faz") or "")[:2000],
+                            "quando": str(r.get("quando") or ""), "onde": str(r.get("onde") or "telegram"), "cargo": str(r.get("cargo") or "trabalho"),
+                            "ligada": bool(r.get("ligada", True))})
+    return cargos, rotinas
+
+
 def hermes_home_de(home: Path) -> Path:
     return Path(parse_env(home / "profile.env").get("HERMES_HOME") or str(Path.home() / ".hermes"))
 
@@ -649,7 +691,7 @@ def main() -> int:
         # assistentes da equipe, como qualquer MCP do tenant; o Paperclip é local e sem chave no modo local
         if escritorio_ligado(home, data) and "core" in roles:
             hermes_mcp["escritorio"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_escritorio_mcp.py")],
-                                        "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api", "ESCRITORIO_ORIGEM": "telegram"}}
+                                        "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api", "ESCRITORIO_ORIGEM": "telegram", "JARVIS_HOME": str(home)}}
         w.write(home / "render" / "hermes" / "mcp.json",
                 json.dumps(hermes_mcp, ensure_ascii=False, indent=2) + "\n")
         mcp_refs = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", json.dumps(hermes_mcp))))
@@ -682,41 +724,49 @@ def main() -> int:
     # Paperclip (adapter hermes_local), com as ferramentas de um assistente de equipe e o MCP do Escritório
     # para entregar e pedir aprovação. O bootstrap aplica como os assistentes e cria o cargo no Paperclip.
     if "core" in roles and escritorio_ligado(home, data):
-        base = home / "render" / "hermes" / "cargos" / "trabalho"
+        cargos, rotinas = catalogo_escritorio(home, data)
         tools = sorted(FERRAMENTAS_TIPO["equipe"])
-        cfg_cargo: dict = {"model": {"provider": hermes_cfg.get("provider", "anthropic"), "default": hermes_cfg.get("model", "")},
-                           "platform_toolsets": {"cli": tools}}
-        mcp_cargo = dict(hermes_mcp)
-        # o servidor MCP não herda o ambiente do heartbeat: as credenciais da execução (chave do agente, id da
-        # execução e da tarefa) entram por ${VAR}, que o Hermes expande ao carregar a config dentro do heartbeat.
-        # Com elas, entregar/pedir_aprovacao são do próprio agente e não acordam o cargo de novo.
-        mcp_cargo["escritorio"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_escritorio_mcp.py")],
-                                   "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api", "PAPERCLIP_API_KEY": "${PAPERCLIP_API_KEY}",
-                                           "PAPERCLIP_RUN_ID": "${PAPERCLIP_RUN_ID}", "PAPERCLIP_TASK_ID": "${PAPERCLIP_TASK_ID}"}}
-        cfg_cargo["mcp_servers"] = mcp_cargo
-        env_cargo = [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", "WHITEBEARD_CARGO=trabalho"]
-        for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
-            if values.get(k):
-                env_cargo.append(f"{k}={values[k]}")
-        soul = "\n".join([
-            "Você é o Assistente de trabalho do Escritório do Whitebeard OS, tenant " + tenant + ".",
-            "Você executa tarefas delegadas pelo JARVIS e pelos assistentes: pesquisas, documentos, propostas, resumos.",
-            "",
-            "Regras que não mudam:",
-            "- A entrega é sempre um arquivo Markdown em `entregas/` na pasta de trabalho; depois, a ferramenta `entregar`.",
-            "- Ação fora deste computador (enviar, pagar, publicar, comprar) nunca é feita por você: `pedir_aprovacao` e pare.",
-            "- Você não roda comandos neste computador e não lê o que está fora da pasta de trabalho e do second brain.",
-            "- Nunca invente dados; diga o que faltou.",
-            "- Responda em português do Brasil, curto e direto.",
-            ""])
-        w.write(base / "config.yaml", "# gerado pelo whitebeard-os para o cargo trabalho (Escritório)\n" + yaml.safe_dump(cfg_cargo, allow_unicode=True, sort_keys=False))
-        w.write(base / "env", "# gerado pelo whitebeard-os; variáveis do perfil do Hermes do cargo\n" + "\n".join(env_cargo) + "\n", mode=0o600)
-        w.write(base / "SOUL.md", soul)
-        w.write(base / "skills.txt", "\n".join(s for s in ("knowledge", "knowledge-write", "project-documentation") if s in installed_skills_hint(kernel, tenant_dir, data)) + "\n")
-        w.write(home / "render" / "escritorio.json", json.dumps({"ligado": True, "cargos": ["trabalho"]}, ensure_ascii=False) + "\n")
-        log("escritório: ligado (cargo trabalho executado pelo Hermes; MCP escritorio no JARVIS e na equipe)")
+        skills_cargo = "\n".join(s_ for s_ in ("knowledge", "knowledge-write", "project-documentation") if s_ in installed_skills_hint(kernel, tenant_dir, data)) + "\n"
+        for c in cargos:
+            base = home / "render" / "hermes" / "cargos" / c["nome"]
+            cfg_cargo: dict = {"model": {"provider": hermes_cfg.get("provider", "anthropic"), "default": hermes_cfg.get("model", "")},
+                               "platform_toolsets": {"cli": tools}}
+            mcp_cargo = dict(hermes_mcp)
+            # o servidor MCP não herda o ambiente do heartbeat: as credenciais da execução (chave do agente, id da
+            # execução e da tarefa) entram por ${VAR}, que o Hermes expande ao carregar a config dentro do heartbeat.
+            # Com elas, entregar/pedir_aprovacao são do próprio agente e não acordam o cargo de novo.
+            mcp_cargo["escritorio"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_escritorio_mcp.py")],
+                                       "env": {"PAPERCLIP_API_URL": "http://127.0.0.1:3100/api", "PAPERCLIP_API_KEY": "${PAPERCLIP_API_KEY}",
+                                               "PAPERCLIP_RUN_ID": "${PAPERCLIP_RUN_ID}", "PAPERCLIP_TASK_ID": "${PAPERCLIP_TASK_ID}", "JARVIS_HOME": str(home)}}
+            cfg_cargo["mcp_servers"] = mcp_cargo
+            env_cargo = [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", f"WHITEBEARD_CARGO={c['nome']}"]
+            for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+                if values.get(k):
+                    env_cargo.append(f"{k}={values[k]}")
+            soul = "\n".join([
+                f"Você é o cargo {c['titulo']} do Escritório do Whitebeard OS, tenant {tenant}.",
+                c.get("faz") or "Você executa tarefas delegadas pelo JARVIS e pelos assistentes: pesquisas, documentos, propostas, resumos.",
+                "",
+                "Regras que não mudam:",
+                "- A entrega é sempre um arquivo Markdown em `entregas/` na pasta de trabalho; depois, a ferramenta `entregar`.",
+                "- Ação fora deste computador (enviar, pagar, publicar, comprar) nunca é feita por você: `pedir_aprovacao` e pare.",
+                "- Você não roda comandos neste computador e não lê o que está fora da pasta de trabalho e do second brain.",
+                "- Nunca invente dados; diga o que faltou.",
+                "- Responda em português do Brasil, curto e direto.",
+                ""])
+            w.write(base / "config.yaml", f"# gerado pelo whitebeard-os para o cargo {c['nome']} (Escritório)\n" + yaml.safe_dump(cfg_cargo, allow_unicode=True, sort_keys=False))
+            w.write(base / "env", "# gerado pelo whitebeard-os; variáveis do perfil do Hermes do cargo\n" + "\n".join(env_cargo) + "\n", mode=0o600)
+            w.write(base / "SOUL.md", soul)
+            w.write(base / "skills.txt", skills_cargo)
+        # cargo que saiu do catálogo: o render dele some (o bootstrap só aplica o que está em render/hermes/cargos/)
+        if not args.dry_run:
+            for d in (home / "render" / "hermes" / "cargos").glob("*/"):
+                if d.is_dir() and d.name not in {c["nome"] for c in cargos}:
+                    shutil.rmtree(d, ignore_errors=True)
+        w.write(home / "render" / "escritorio.json", json.dumps({"ligado": True, "cargos": cargos, "rotinas": rotinas}, ensure_ascii=False, indent=2) + "\n")
+        log(f"escritório: ligado ({len(cargos)} cargo(s) executado(s) pelo Hermes: {', '.join(c['nome'] for c in cargos)}; {len(rotinas)} rotina(s) do tenant; MCP escritorio no JARVIS e na equipe)")
     elif not args.dry_run and (home / "render" / "escritorio.json").exists():
-        w.write(home / "render" / "escritorio.json", json.dumps({"ligado": False, "cargos": []}) + "\n")
+        w.write(home / "render" / "escritorio.json", json.dumps({"ligado": False, "cargos": [], "rotinas": []}) + "\n")
 
     # ---- papel desktop: board key do Paperclip para o JARVIS Web. O serviço não recebe segredos pelo
     # ambiente (o plist do LaunchAgent é legível); o app lê este arquivo da pasta de dados.

@@ -92,6 +92,24 @@ assistentes:
     descricao: Atende o grupo do cliente Exemplo no WhatsApp.
     skills: [exemplo-ola]
 
+# O Escritório: tarefas que demoram, delegadas pelo chat e executadas por cargos (perfis do Hermes com ferramentas
+# limitadas, pelo Paperclip por baixo), rotinas no horário e aprovações antes de enviar/pagar/publicar. Desligado
+# por padrão (aqui ligado para o exemplo). O cargo `trabalho` e a rotina `resumo-da-semana` existem sempre que ligado;
+# a página ESCRITÓRIO cria outros sem mexer neste arquivo.
+escritorio:
+  ligado: true
+  cargos:
+    - nome: redator
+      titulo: Redator
+      faz: Escreve documentos, propostas e textos a partir do second brain, prontos para enviar.
+  rotinas:
+    - nome: status-diario
+      titulo: Status diário dos projetos
+      faz: Resuma o que mudou nos projetos do second brain nas últimas 24 horas, em tópicos curtos.
+      quando: "30 8 * * 1-5" # cron de 5 campos, no fuso deste computador
+      onde: assistente:suporte # a entrega vai para o grupo do assistente `suporte` (ou `telegram`: a sua conversa com o JARVIS)
+      cargo: redator
+
 # Onde cada papel roda. Padrão do produto: tudo-em-um (os três papéis no mesmo host).
 # Para dividir, declare outros hosts, ex.: {host: servidor, papeis: [core, knowledge]}.
 nos:

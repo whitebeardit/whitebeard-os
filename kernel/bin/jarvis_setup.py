@@ -924,8 +924,14 @@ def escritorio_status(home: Path, roles: list[str]) -> dict:
             prox = None
         out_["rotinas"].append({**r, "quando_texto": rot.quando_texto(r["quando"]), "ultima": reg.get("ultima") or "", "ultima_tarefa": reg.get("tarefa") or "",
                                 "proxima": prox.strftime("%Y-%m-%dT%H:%M") if prox else ""})
+    out_["tokens"] = {"mes": {}, "cargos": [], "rotinas": [], "tarefas": [], "alertas": []}
     if not out_["aplicado"]:
         return out_
+    try:
+        import jarvis_escritorio_tokens as tok
+        out_["tokens"] = tok.com_cache(home, cat["cargos"], ids)
+    except Exception:  # sem tokens a página continua; o resto do status não depende disto
+        pass
     try:
         itens = esc.lista(esc.api("GET", f"/companies/{esc.empresa_id()}/issues"), "issues")
         itens.sort(key=lambda i: i.get("updatedAt") or "", reverse=True)

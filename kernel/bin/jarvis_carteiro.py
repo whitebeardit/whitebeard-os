@@ -63,7 +63,7 @@ def mensagem(it: dict, comentario: str) -> str:
         return f"✅ Entregue: {titulo} ({numero})\n{corpo}".strip()
     if estado == "blocked":
         corpo = comentario[len("PENDÊNCIA:"):].strip() if comentario.upper().startswith("PENDÊNCIA:") else comentario
-        return f"⏸ Preciso que você decida: {titulo} ({numero})\n{corpo}\nResponda \"aprovar {numero}\" ou \"recusar {numero}\"."
+        return f"⏸ Preciso que você decida: {titulo} ({numero})\n{corpo}\nResponda \"aprovar {numero}\" ou \"recusar {numero}\". Para pedir um ajuste: \"aprovar {numero} com a nota: o que mudar\"."
     corpo = comentario[len("RECUSADO:"):].strip() if comentario.upper().startswith("RECUSADO") else comentario
     return f"✖ Cancelada: {titulo} ({numero})\n{corpo}".strip()
 
@@ -174,7 +174,7 @@ def main() -> int:
                     continue
                 pergunta = ((p_.get("payload") or {}).get("prompt") or "").strip()
                 numero = it.get("identifier") or it.get("id", "")[:8]
-                texto = f"⏸ Preciso que você decida: {it.get('title') or ''} ({numero})\n{pergunta}\nResponda \"aprovar {numero}\" ou \"recusar {numero}\"."
+                texto = f"⏸ Preciso que você decida: {it.get('title') or ''} ({numero})\n{pergunta}\nResponda \"aprovar {numero}\" ou \"recusar {numero}\". Para pedir um ajuste: \"aprovar {numero} com a nota: o que mudar\"."
                 if enviar(origem_de(it.get("description") or ""), texto, a.dry_run, log, home):
                     avisadas[chave] = "pendencia"
                     log(f"[carteiro] avisado: {numero} PENDÊNCIA")

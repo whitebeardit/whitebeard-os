@@ -1,4 +1,59 @@
-# Whitebeard OS — kernel instalável
+<p align="center"><img src="docs/banner.png" alt="Whitebeard OS: tudo o que você vê no hype, instalado e funcionando na sua máquina" width="100%"></p>
+
+# Whitebeard OS
+
+**Tudo o que você vê no hype, instalado e funcionando na sua máquina. Em um comando.**
+
+Second brain. Embeddings. pgvector. Agentes que executam tarefas sozinhos. Claude Code. Paperclip. Um assistente no
+Telegram, no WhatsApp, no Discord. Todo dia aparece alguém no Instagram falando de uma dessas peças. O difícil nunca
+foi saber que elas existem: é fazer todas trabalharem juntas, no seu computador, com os seus dados, sem virar um
+projeto de fim de semana que nunca termina.
+
+Eu sou **Almerindo Rehem**, engenheiro de software e fundador da **Whitebeard**. Durante alguns anos estudei, montei e
+refinei o setup que uso todo dia, em casa e no trabalho. O Whitebeard OS é esse setup inteiro, configurado e integrado
+do jeito que eu uso, empacotado para você instalar com um comando e usar pelo navegador.
+
+## O que vem dentro
+
+| Você ouviu falar de | No Whitebeard OS é |
+| --- | --- |
+| **Second brain** | O seu vault em Markdown (abre no Obsidian), sincronizado a cada 2 minutos com o **GBrain**, o cérebro que indexa tudo e responde por busca semântica |
+| **Embeddings e pgvector** | **Ollama** rodando o modelo `bge-m3` na sua máquina; GBrain com PGLite no Mac e **pgvector** em Docker no Linux. Nada sai do seu computador |
+| **MCP** | O cérebro entra como servidor MCP `knowledge` no Claude Code e em cada agente: todos consultam o mesmo second brain, com chave própria |
+| **Agentes com tarefas autônomas** | O **Escritório**: você pede pelo chat, um cargo executa pelo **Hermes**, a entrega volta no chat e fica no vault. Rotinas rodam no horário. O que exigir enviar, pagar ou publicar para e pergunta a você |
+| **Paperclip** | O motor de tarefas e aprovações por baixo do Escritório, já configurado |
+| **Claude Code** | O seu login do Claude Code é a conta que os agentes usam; skills e MCPs já instalados |
+| **Telegram, WhatsApp, Discord** | Assistentes isolados por público: um bot por canal, cada um com memória, skills e permissões próprias, criado em três toques |
+| **Voz** | Fale com o assistente pela interface: transcrição local com Whisper e resposta falada em português |
+| **Interface** | Uma página web no computador ou no celular (instala como app, com QR code): visão geral, conhecimento, assistentes, escritório, uso de tokens, diagnósticos |
+
+## Roda onde você quiser
+
+Roda num **Raspberry Pi 4**: é onde o meu assistente do Telegram mora. Roda no Mac (Apple Silicon, sem Docker) e em
+qualquer Linux. Interface, núcleo e conhecimento vão na mesma máquina por padrão, ou em máquinas separadas.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
+```
+
+O instalador pergunta só o que falta, sobe tudo como serviço do usuário (sem senha de administrador) e abre a interface
+no navegador. Atualizações chegam pela própria interface.
+
+**O que você não precisa decidir:** banco vetorial, modelo de embeddings, pipeline de ingestão, prompt de sistema,
+configuração de MCP, isolamento entre o bot do cliente e o da equipe. Está tudo decidido e testado.
+
+## Para empresas
+
+Este é o meu setup pessoal, aberto. A mesma base atende uso corporativo: tenants por área, assistentes por cliente,
+cargos por papel, second brain por equipe, tudo na sua infraestrutura. Fale com a Whitebeard:
+**[whitebeard.dev](https://whitebeard.dev)**.
+
+<sub>Vai junto hoje: Hermes, Paperclip, GBrain, Ollama com `bge-m3`, Claude Code, Node 24, ffmpeg com Whisper; versões
+fixadas em `kernel/versions.env`, licenças em [Componentes externos e licenças](#componentes-externos-e-licenças).</sub>
+
+---
+
+## Por dentro: o kernel instalável
 
 Instala a arquitetura do JARVIS (Claude Code, skills, clientes MCP, Hermes) num host **zerado**, a partir de
 uma declaração de tenant (`jarvis.yaml`), **sem carregar conhecimento nem dado privado de nenhuma empresa**.

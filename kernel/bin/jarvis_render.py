@@ -163,7 +163,17 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
     return cargos, rotinas
 
 
+_QP: dict = {}
+
+
 def quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
+    chave = str(home)
+    if chave not in _QP:
+        _QP[chave] = _quem_pensa(home, kernel, data)
+    return _QP[chave]
+
+
+def _quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
     """Provedor e nível escolhidos (página em $JARVIS_HOME/pensa.json por cima de hermes.provedor/nivel do tenant).
     None quando ninguém escolheu: vale o hermes.provider/model do tenant, como antes."""
     try:
@@ -185,6 +195,10 @@ def quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
     provedor = provedor if provedor in provs else padrao.get("provedor", "claude")
     nivel = nivel if nivel in (tabela.get("niveis") or {}) else padrao.get("nivel", "equilibrado")
     logados = [x for x in (loja.get("logados") or []) if x in provs]
+    # escolha da página sem a conta conectada (saiu, expirou): o JARVIS não pode ficar sem credencial; volta ao padrão
+    if loja and provedor != padrao.get("provedor", "claude") and provedor not in logados:
+        log(f"aviso: quem pensa: {provedor} escolhido sem conta conectada; usando {padrao.get('provedor', 'claude')}")
+        provedor = padrao.get("provedor", "claude")
     reserva = next((x for x in provs if x != provedor and x in logados), None)
     return {"tabela": provs, "provedor": provedor, "nivel": nivel, "reserva": reserva, "da_pagina": bool(loja)}
 

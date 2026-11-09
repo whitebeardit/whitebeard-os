@@ -113,9 +113,13 @@ def status(home: Path, kernel: Path, tenant_hermes: dict | None = None) -> dict:
     if login.get("estado") in ("esperando", "preparando") and not vivo(login.get("pid")):
         login = atualizar_login(home)
     tab = modelos(kernel)
+    aviso = ""
+    if not logados.get(provedor) and provedor != "claude":
+        aviso = f"O {PROVEDORES[provedor]['nome']} está escolhido, mas a conta não está conectada: entre de novo ou use o Claude."
+        provedor = "claude"
     reserva = next((p for p in PROVEDORES if p != provedor and logados.get(p)), None)
     return {"provedor": provedor, "nivel": nivel, "escolhido": bool(lj) or bool(th.get("provedor") or th.get("nivel")),
-            "logados": logados, "reserva": reserva,
+            "logados": logados, "reserva": reserva, "aviso": aviso,
             "modelo": (tab.get(provedor) or {}).get(nivel, ""),
             "niveis": [{"id": k, "nome": v} for k, v in NIVEIS.items()],
             "provedores": [{"id": k, "nome": v["nome"]} for k, v in PROVEDORES.items()],

@@ -169,7 +169,7 @@ def entrar(home: Path, provedor: str) -> dict:
     with open(logf, "w", encoding="utf-8") as fh:
         proc = subprocess.Popen([hermes_bin(), "auth", "add", "openai-codex", "--type", "oauth", "--no-browser", "--label", "whitebeard-os"],
                                 stdin=subprocess.DEVNULL, stdout=fh, stderr=subprocess.STDOUT, start_new_session=True,
-                                env={**os.environ, "NO_COLOR": "1", "TERM": "dumb"})
+                                env={**os.environ, "NO_COLOR": "1", "TERM": "dumb", "PYTHONUNBUFFERED": "1"})
     estado = {"provedor": provedor, "estado": "preparando", "pid": proc.pid, "inicio": int(time.time())}
     gravar(home / "pensa.login.json", estado)
     for _ in range(30):  # até ~15 s pelo endereço e o código

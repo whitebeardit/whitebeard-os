@@ -1,0 +1,24 @@
+# Quem pensa: provedor (a assinatura da pessoa) × nível (nome humano) → modelo do Hermes.
+# A pessoa nunca vê estes ids; a página mostra "Claude"/"ChatGPT" e "Rápido"/"Equilibrado"/"Mais capaz".
+# Atualizado por release do kernel quando sair modelo novo. Ids do ChatGPT conferidos na lista do Hermes
+# (hermes_cli/codex_models.py, DEFAULT_CODEX_MODELS); a disponibilidade varia com o plano do ChatGPT.
+provedores:
+  claude:
+    hermes: anthropic           # credencial: login do Claude Code (pool do Hermes)
+    nome: Claude
+    niveis:
+      rapido: claude-haiku-5-5
+      equilibrado: claude-sonnet-5-5
+      capaz: claude-opus-5-5
+  chatgpt:
+    hermes: openai-codex        # credencial: login da assinatura do ChatGPT (hermes auth add openai-codex)
+    nome: ChatGPT
+    niveis:
+      rapido: gpt-5.4-mini
+      equilibrado: gpt-5.5
+      capaz: gpt-5.6-sol
+niveis:
+  rapido: {nome: Rápido, frase: "respostas curtas, gasta pouco"}
+  equilibrado: {nome: Equilibrado, frase: "o padrão para quase tudo"}
+  capaz: {nome: Mais capaz, frase: "tarefas longas e difíceis, gasta mais"}
+padrao: {provedor: claude, nivel: equilibrado}

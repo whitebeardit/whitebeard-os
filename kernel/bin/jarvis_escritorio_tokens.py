@@ -139,7 +139,17 @@ def calcular(home: Path, cargos: list[dict], ids: dict, issues: list[dict] | Non
             if alvo and alvo["issue"]:
                 por_tarefa.setdefault(alvo["issue"], []).append(s)
     sess_mes = [s for v in por_cargo_mes.values() for s in v]
-    out = {"mes": soma(sess_mes), "desde": datetime.fromtimestamp(inicio_mes).strftime("%Y-%m-%d"), "cargos": [], "rotinas": [], "tarefas": [], "alertas": []}
+    out = {"mes": soma(sess_mes), "desde": datetime.fromtimestamp(inicio_mes).strftime("%Y-%m-%d"), "cargos": [], "rotinas": [], "tarefas": [], "alertas": [],
+           "provedores": []}
+    # por assinatura (cada uma tem o seu teto): pelo nome do modelo da sessão
+    por_prov: dict[str, list[dict]] = {}
+    for s_ in sess_mes:
+        m = (s_.get("modelo") or "").lower()
+        prov = "claude" if m.startswith("claude") else "chatgpt" if (m.startswith("gpt") or m.startswith("o3") or m.startswith("o4") or "codex" in m) else "outro"
+        por_prov.setdefault(prov, []).append(s_)
+    nomes_prov = {"claude": "Claude", "chatgpt": "ChatGPT", "outro": "Outro"}
+    out["provedores"] = sorted(({"nome": k, "titulo": nomes_prov[k], **soma(v)} for k, v in por_prov.items()), key=lambda x: -x["total"])
+    out["provedores"] = [x for x in out["provedores"] if x["total"] > 0]
     for c in cargos:
         m, a = soma(por_cargo_mes.get(c["nome"], [])), soma(por_cargo_ant.get(c["nome"], []))
         out["cargos"].append({"nome": c["nome"], "titulo": c.get("titulo") or c["nome"], **m, "mes_anterior": a["total"]})

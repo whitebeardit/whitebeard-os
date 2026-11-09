@@ -58,8 +58,11 @@ def loja_cargos(home: Path) -> list[dict]:
 
 
 def normaliza_cargo(c: dict) -> dict:
-    return {"nome": str(c.get("nome") or "").strip(), "titulo": str(c.get("titulo") or c.get("nome") or "").strip()[:80],
-            "faz": str(c.get("faz") or "").strip()[:600]}
+    out = {"nome": str(c.get("nome") or "").strip(), "titulo": str(c.get("titulo") or c.get("nome") or "").strip()[:80],
+           "faz": str(c.get("faz") or "").strip()[:600]}
+    if c.get("nivel") in ("rapido", "equilibrado", "capaz"):
+        out["nivel"] = c["nivel"]  # vazio ou ausente: segue o nível geral de quem pensa
+    return out
 
 
 def normaliza_rotina(r: dict) -> dict:

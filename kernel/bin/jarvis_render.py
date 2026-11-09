@@ -136,7 +136,8 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
     for c in esc.get("cargos") or []:
         if isinstance(c, dict) and CARGO_NOME_RE.match(str(c.get("nome") or "")):
             cargos = [x for x in cargos if x["nome"] != c["nome"]]
-            cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600]})
+            cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600],
+                           **({"nivel": c["nivel"]} if c.get("nivel") in ("rapido", "equilibrado", "capaz") else {})})
     try:
         loja = json.loads((home / "escritorio.json").read_text(encoding="utf-8"))
         loja_cargos = loja.get("cargos") if isinstance(loja, dict) else []
@@ -148,7 +149,8 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
         cargos = [x for x in cargos if x["nome"] != c["nome"]]
         if c.get("removido"):
             continue
-        cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600]})
+        cargos.append({"nome": c["nome"], "titulo": str(c.get("titulo") or c["nome"])[:80], "faz": str(c.get("faz") or "")[:600],
+                       **({"nivel": c["nivel"]} if c.get("nivel") in ("rapido", "equilibrado", "capaz") else {})})
     if not any(c["nome"] == "trabalho" for c in cargos):
         cargos.insert(0, dict(CARGO_PADRAO))
     rotinas: list[dict] = [dict(ROTINA_PADRAO)]
@@ -159,6 +161,51 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
                             "quando": str(r.get("quando") or ""), "onde": str(r.get("onde") or "telegram"), "cargo": str(r.get("cargo") or "trabalho"),
                             "ligada": bool(r.get("ligada", True))})
     return cargos, rotinas
+
+
+def quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
+    """Provedor e nível escolhidos (página em $JARVIS_HOME/pensa.json por cima de hermes.provedor/nivel do tenant).
+    None quando ninguém escolheu: vale o hermes.provider/model do tenant, como antes."""
+    try:
+        tabela = yaml.safe_load((kernel / "modelos.yaml").read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return None
+    hcfg = data.get("hermes") or {}
+    try:
+        loja = json.loads((home / "pensa.json").read_text(encoding="utf-8"))
+        loja = loja if isinstance(loja, dict) else {}
+    except (OSError, ValueError):
+        loja = {}
+    provedor = loja.get("provedor") or hcfg.get("provedor")
+    nivel = loja.get("nivel") or hcfg.get("nivel")
+    if not provedor and not nivel:
+        return None
+    provs = tabela.get("provedores") or {}
+    padrao = tabela.get("padrao") or {}
+    provedor = provedor if provedor in provs else padrao.get("provedor", "claude")
+    nivel = nivel if nivel in (tabela.get("niveis") or {}) else padrao.get("nivel", "equilibrado")
+    logados = [x for x in (loja.get("logados") or []) if x in provs]
+    reserva = next((x for x in provs if x != provedor and x in logados), None)
+    return {"tabela": provs, "provedor": provedor, "nivel": nivel, "reserva": reserva, "da_pagina": bool(loja)}
+
+
+def modelo_resolvido(qp: dict | None, hermes_cfg: dict, nivel: str | None = None, modelo: str | None = None) -> tuple[dict, dict | None]:
+    """(model, fallback_model) no formato do config do Hermes para um perfil. `nivel` do assistente/cargo vence o
+    nível geral; `modelo` explícito (técnico, no yaml) vence tudo. Sem escolha (qp None), o comportamento antigo."""
+    if qp is None:
+        model = {"provider": hermes_cfg.get("provider", "anthropic"), "default": modelo or hermes_cfg.get("model", "")}
+        return model, None
+    prov = qp["tabela"][qp["provedor"]]
+    niv = nivel if nivel in prov["niveis"] else qp["nivel"]
+    model = {"provider": prov["hermes"], "default": modelo or prov["niveis"][niv]}
+    if qp["reserva"]:
+        outro = qp["tabela"][qp["reserva"]]
+        fb = {"provider": outro["hermes"], "model": outro["niveis"][niv]}
+    else:
+        # sem a outra assinatura: o nível mais rápido do mesmo provedor (quando o principal já não é ele)
+        rapido = prov["niveis"].get("rapido")
+        fb = {"provider": prov["hermes"], "model": rapido} if rapido and rapido != model["default"] else None
+    return model, fb
 
 
 def hermes_home_de(home: Path) -> Path:
@@ -273,8 +320,10 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         tools = FERRAMENTAS_TIPO[tipo]
         if tools is not None and tipo == "equipe" and ajustes.get("computador"):
             tools = tools + FERRAMENTAS_COMPUTADOR
-        model = {"provider": hermes_cfg.get("provider", "anthropic"), "default": a.get("modelo") or hermes_cfg.get("model", "")}
+        model, fb = modelo_resolvido(quem_pensa(home, Path(__file__).resolve().parent.parent, data), hermes_cfg, a.get("nivel"), a.get("modelo"))
         cfg: dict = {"model": model}
+        if fb:
+            cfg["fallback_model"] = fb
         if tools is not None:
             cfg["platform_toolsets"] = {canal: sorted(tools), "cli": sorted(tools)}
         # acesso: quem fala com ele. Cliente: só grupo, com menção; rotinas: ninguém
@@ -450,6 +499,7 @@ def main() -> int:
                             **({"whatsapp_modo": a["whatsapp_modo"]} if a.get("whatsapp_modo") in ("bot", "self-chat") else {}),
                             "skills": a.get("skills") if a.get("skills") is not None else skills_padrao[a["tipo"]],
                             **({"ajustes": a["ajustes"]} if a.get("ajustes") else {}),
+                            **({"nivel": a["nivel"]} if a.get("nivel") in ("rapido", "equilibrado", "capaz") else {}),
                             **({"do_pacote": True} if a.get("do_pacote") else {})})
     for a in assistentes:
         if canal_de(a) not in CANAIS:
@@ -676,6 +726,17 @@ def main() -> int:
             w.write(home / "render" / "hermes" / "config.yaml",
                     "# gerado pelo whitebeard-os (modelo do tenant); o Hermes completa o resto\n"
                     + yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
+        # Quem pensa: com escolha (página ou tenant), o modelo do JARVIS do dono também segue; o config.yaml acima
+        # só vale na primeira instalação, então o bootstrap aplica estas duas chaves por cima a cada vez.
+        qp = quem_pensa(home, kernel, data)
+        if qp is not None and "core" in roles:
+            m_dono, fb_dono = modelo_resolvido(qp, hermes_cfg)
+            w.write(home / "render" / "hermes" / "modelo.yaml",
+                    "# gerado pelo whitebeard-os: quem pensa (provedor e nível); aplicado por cima do config do Hermes\n"
+                    + yaml.safe_dump({"model": m_dono, "fallback_model": fb_dono}, allow_unicode=True, sort_keys=False))
+            log(f"quem pensa: {qp['tabela'][qp['provedor']]['nome']} · {qp['nivel']}" + (f" (reserva: {qp['tabela'][qp['reserva']]['nome']})" if qp['reserva'] else ""))
+        elif not args.dry_run and (home / "render" / "hermes" / "modelo.yaml").exists():
+            (home / "render" / "hermes" / "modelo.yaml").unlink()
         # MCPs do tenant para o Hermes deste host (o agente e o painel de MCPs do JARVIS Web leem dele).
         # ${VAR} fica literal: o Hermes resolve do próprio .env em runtime, e o segredo não vai para o config.
         for m in tenant_mcp:
@@ -729,8 +790,10 @@ def main() -> int:
         skills_cargo = "\n".join(s_ for s_ in ("knowledge", "knowledge-write", "project-documentation") if s_ in installed_skills_hint(kernel, tenant_dir, data)) + "\n"
         for c in cargos:
             base = home / "render" / "hermes" / "cargos" / c["nome"]
-            cfg_cargo: dict = {"model": {"provider": hermes_cfg.get("provider", "anthropic"), "default": hermes_cfg.get("model", "")},
-                               "platform_toolsets": {"cli": tools}}
+            m_cargo, fb_cargo = modelo_resolvido(quem_pensa(home, kernel, data), hermes_cfg, c.get("nivel"))
+            cfg_cargo: dict = {"model": m_cargo, "platform_toolsets": {"cli": tools}}
+            if fb_cargo:
+                cfg_cargo["fallback_model"] = fb_cargo
             mcp_cargo = dict(hermes_mcp)
             # o servidor MCP não herda o ambiente do heartbeat: as credenciais da execução (chave do agente, id da
             # execução e da tarefa) entram por ${VAR}, que o Hermes expande ao carregar a config dentro do heartbeat.

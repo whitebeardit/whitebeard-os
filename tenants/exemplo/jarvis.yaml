@@ -46,7 +46,11 @@ segredos:
     obtain: não existe; deixe vazio
 
 hermes:
-  provider: anthropic
+  # quem pensa, pela assinatura da pessoa: claude (login do Claude Code) ou chatgpt (login do ChatGPT), e o nível
+  # (rapido | equilibrado | capaz). Com eles, o modelo sai de kernel/modelos.yaml; a página PRIMEIROS PASSOS troca.
+  provedor: claude
+  nivel: equilibrado
+  provider: anthropic # sem provedor/nivel: estes três valem, como antes
   model: claude-sonnet-5-5
   fallback: anthropic/claude-haiku-5-5
 
@@ -102,6 +106,7 @@ escritorio:
     - nome: redator
       titulo: Redator
       faz: Escreve documentos, propostas e textos a partir do second brain, prontos para enviar.
+      nivel: capaz # quem pensa: rapido | equilibrado | capaz (o modelo sai de kernel/modelos.yaml)
   rotinas:
     - nome: status-diario
       titulo: Status diário dos projetos

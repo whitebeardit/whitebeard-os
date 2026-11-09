@@ -104,7 +104,7 @@ def pending_apply(home: Path) -> bool:
         aplicado = (home / "setup.applied").stat().st_mtime
     except OSError:
         return False
-    for f in (home / "secrets.env", store_path(home), home / "escritorio.json"):
+    for f in (home / "secrets.env", store_path(home), home / "escritorio.json", home / "pensa.json"):
         try:
             if f.stat().st_mtime > aplicado + 1:
                 return True
@@ -306,6 +306,7 @@ def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
             "app_id": a.get("app_id", ""), "whatsapp": wa,
             "skills": a.get("skills") if a.get("skills") is not None else (cat_a.get("skills") or []),
             "ajustes": {"computador": bool((a.get("ajustes") or {}).get("computador")), "anotar": bool((a.get("ajustes") or {}).get("anotar"))},
+            "nivel": a.get("nivel") or "",
             "origem": "web" if nome in nomes_loja else "tenant",
             "do_pacote": bool(a.get("do_pacote")) or (nome not in nomes_loja),
             "token": bool(wa["pareado"]) if wa else bool(filled.get(ch["token"], False)),
@@ -433,8 +434,16 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
         atual["ajustes"] = {k: bool(aj.get(k)) for k in ("computador", "anotar") if k in aj}
     if "skills" in dados and isinstance(dados.get("skills"), list):
         atual["skills"] = [str(s) for s in dados["skills"] if re.match(r"^[a-z][a-z0-9-]*$", str(s))]
+    if "nivel" in dados:
+        nv = str(dados.get("nivel") or "")
+        if nv and nv not in ("rapido", "equilibrado", "capaz"):
+            return out({"ok": False, "erro": "nível desconhecido"})
+        if nv:
+            atual["nivel"] = nv
+        else:
+            atual.pop("nivel", None)  # vazio: segue o nível geral
     save_store(home, itens)
-    return out({"ok": True, "assistente": {k: atual.get(k) for k in ("nome", "tipo", "canal", "whatsapp_modo", "descricao", "ajustes")}})
+    return out({"ok": True, "assistente": {k: atual.get(k) for k in ("nome", "tipo", "canal", "whatsapp_modo", "descricao", "ajustes", "nivel")}})
 
 
 def assistente_do_store(home: Path, nome: str) -> dict | None:
@@ -904,7 +913,7 @@ def escritorio_status(home: Path, roles: list[str]) -> dict:
     for c in cat["cargos"]:
         reg = ids.get(c["nome"]) or {}
         ag = agentes.get(reg.get("id")) or {}
-        item = {"nome": c["nome"], "titulo": c["titulo"], "faz": c["faz"], "padrao": c["padrao"],
+        item = {"nome": c["nome"], "titulo": c["titulo"], "faz": c["faz"], "nivel": c.get("nivel") or "", "padrao": c["padrao"],
                 "aplicado": bool(reg.get("id")) and c["aplicado"], "estado": ag.get("status") or "", "tarefas_feitas": 0}
         if reg.get("id"):
             por_agente[reg["id"]] = item
@@ -1030,7 +1039,7 @@ def cmd_escritorio_cargo(home: Path, acao: str, nome: str = "") -> int:
         atual = next((c for c in rot.catalogo(home)["cargos"] if c["nome"] == nome), None)
         if atual is None:
             return out({"ok": False, "erro": f"não há cargo chamado {nome}"})
-        novo = rot.normaliza_cargo({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz")}, "nome": nome})
+        novo = rot.normaliza_cargo({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz", "nivel")}, "nome": nome})
     if not novo["titulo"]:
         return out({"ok": False, "erro": "o cargo precisa de um título"})
     cargos = [c for c in cargos if c["nome"] != nome] + [novo]
@@ -1100,6 +1109,54 @@ def cmd_escritorio_decidir(home: Path, tarefa: str, aprovar: bool) -> int:
     return out(r)
 
 
+def tenant_hermes(home: Path) -> dict:
+    """O bloco hermes: do tenant (provider/model/provedor/nivel), lido por regex: o setup não usa PyYAML."""
+    out: dict = {}
+    for cand in ([Path((home / "tenant.path").read_text(encoding="utf-8").strip())] if (home / "tenant.path").is_file() else []) + [home / "jarvis.yaml"]:
+        try:
+            txt = cand.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = re.search(r"^hermes:\s*\n((?:[ \t]+.*\n?)*)", txt, re.M)
+        if m:
+            for k, v in re.findall(r"^[ \t]+(provider|model|provedor|nivel):\s*([^\s#]+)", m.group(1), re.M):
+                out[k] = v.strip("'\"")
+            break
+    return out
+
+
+def pensa_status(home: Path, roles: list[str]) -> dict:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import jarvis_pensa as pensa
+    except ImportError:
+        return {"disponivel": False}
+    try:
+        return {"disponivel": "core" in roles, **pensa.status(home, Path(__file__).resolve().parent.parent, tenant_hermes(home))}
+    except Exception as e:  # o status geral não pode cair por causa disto
+        return {"disponivel": "core" in roles, "erro": str(e)[:200]}
+
+
+def cmd_pensa(home: Path, acao: str, arg: str = "") -> int:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import jarvis_pensa as pensa
+    if acao == "set":
+        dados = dados_stdin()
+        if dados is None:
+            return out({"ok": False, "erro": "dados inválidos"})
+        return out(pensa.definir(home, dados.get("provedor"), dados.get("nivel")))
+    if acao == "login":
+        return out(pensa.entrar(home, arg))
+    if acao == "login-status":
+        estado = pensa.atualizar_login(home)
+        return out({"ok": True, "login": {k: v for k, v in estado.items() if k != "pid"}})
+    if acao == "login-cancel":
+        return out(pensa.cancelar(home))
+    if acao == "logout":
+        return out(pensa.sair(home, arg))
+    return 2
+
+
 def cmd_status(home: Path) -> int:
     limpar_esperas_velhas(home)
     profile = read_env(home / "profile.env")
@@ -1147,6 +1204,7 @@ def cmd_status(home: Path) -> int:
         "segredos": segredos,
         "assistentes": assistentes_status(home, filled),
         "escritorio": escritorio_status(home, roles),
+        "pensa": pensa_status(home, roles),
         "concluido": (home / "setup.done").is_file(),
         "pendente": pending_apply(home),
     })
@@ -1640,6 +1698,12 @@ def main() -> int:
     for c in ("escritorio-cargo-update", "escritorio-cargo-remove", "escritorio-rotina-update", "escritorio-rotina-remove", "escritorio-rotina-run"):
         p = sub.add_parser(c)
         p.add_argument("nome")
+    sub.add_parser("pensa-set")
+    sub.add_parser("pensa-login-status")
+    sub.add_parser("pensa-login-cancel")
+    for c in ("pensa-login", "pensa-logout"):
+        p = sub.add_parser(c)
+        p.add_argument("provedor")
     args = ap.parse_args()
     home = Path(args.home).expanduser()
     if not (home / "profile.env").is_file():
@@ -1684,6 +1748,8 @@ def main() -> int:
         return cmd_escritorio_decidir(home, args.tarefa, True)
     if args.cmd == "escritorio-recusar":
         return cmd_escritorio_decidir(home, args.tarefa, False)
+    if args.cmd.startswith("pensa-"):
+        return cmd_pensa(home, args.cmd[len("pensa-"):], getattr(args, "provedor", ""))
     if args.cmd.startswith("escritorio-cargo-"):
         return cmd_escritorio_cargo(home, args.cmd.rsplit("-", 1)[1], getattr(args, "nome", ""))
     if args.cmd.startswith("escritorio-rotina-"):

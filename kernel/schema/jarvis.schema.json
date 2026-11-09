@@ -284,6 +284,23 @@
         "fallback": {
           "type": "string",
           "description": "modelo reserva como provedor/modelo (ex.: anthropic/claude-haiku-5-5); sem provedor, usa o principal"
+        },
+        "provedor": {
+          "type": "string",
+          "enum": [
+            "claude",
+            "chatgpt"
+          ],
+          "description": "quem pensa, pela assinatura da pessoa: claude (login do Claude Code) ou chatgpt (login do ChatGPT, provedor openai-codex do Hermes). Com provedor ou nivel, o modelo sai de kernel/modelos.yaml e provider/model ficam só para quem não escolheu; a página PRIMEIROS PASSOS grava a escolha em $JARVIS_HOME/pensa.json"
+        },
+        "nivel": {
+          "type": "string",
+          "enum": [
+            "rapido",
+            "equilibrado",
+            "capaz"
+          ],
+          "description": "nível de quem pensa: rapido (gasta pouco), equilibrado (padrão), capaz (tarefas longas); o modelo sai de kernel/modelos.yaml"
         }
       }
     },
@@ -438,6 +455,15 @@
                 "description": "pode escrever no second brain e criar tarefas no Paperclip"
               }
             }
+          },
+          "nivel": {
+            "type": "string",
+            "enum": [
+              "rapido",
+              "equilibrado",
+              "capaz"
+            ],
+            "description": "nível de quem pensa: rapido (gasta pouco), equilibrado (padrão), capaz (tarefas longas); o modelo sai de kernel/modelos.yaml"
           }
         }
       }
@@ -475,6 +501,15 @@
               "faz": {
                 "type": "string",
                 "description": "uma ou duas frases: o que este cargo faz e como entrega"
+              },
+              "nivel": {
+                "type": "string",
+                "enum": [
+                  "rapido",
+                  "equilibrado",
+                  "capaz"
+                ],
+                "description": "nível de quem pensa: rapido (gasta pouco), equilibrado (padrão), capaz (tarefas longas); o modelo sai de kernel/modelos.yaml"
               }
             }
           }

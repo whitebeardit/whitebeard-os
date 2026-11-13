@@ -565,18 +565,22 @@ def assistente_wait_discord(home: Path, nome: str, tipo: str, token: str, second
         return out({"ok": False, "erro": "não consegui falar com o Discord; tente de novo"})
     if not res.get("ok"):
         return out(res)
-    if res.get("grupo_id") and aceita_grupo:
-        lista_add(home, ch["grupos"], str(res["grupo_id"]))
-        anota_nome(home, nome, "grupos_nomes", str(res["grupo_id"]), str(res.get("grupo") or ""))
-        if aceita_pessoa and res.get("pessoa_id"):
-            lista_add(home, ch["pessoas"], str(res["pessoa_id"]))
-            anota_nome(home, nome, "pessoas_nomes", str(res["pessoa_id"]), str(res.get("pessoa") or ""))
-        return out({"ok": True, "grupo": res.get("grupo", ""), "pessoa": res.get("pessoa", "") if aceita_pessoa else ""})
-    if not res.get("grupo_id") and aceita_pessoa and res.get("pessoa_id"):
-        lista_add(home, ch["pessoas"], str(res["pessoa_id"]))
-        anota_nome(home, nome, "pessoas_nomes", str(res["pessoa_id"]), str(res.get("pessoa") or ""))
-        return out({"ok": True, "pessoa": res.get("pessoa", "")})
-    # chegou algo que o tipo não aceita (cliente em conversa direta; mim num canal): segue esperando na próxima fatia
+    reconhecidos = []
+    for it in res.get("reconhecidos") or [res]:
+        if it.get("grupo_id") and aceita_grupo:
+            lista_add(home, ch["grupos"], str(it["grupo_id"]))
+            anota_nome(home, nome, "grupos_nomes", str(it["grupo_id"]), str(it.get("grupo") or ""))
+            if aceita_pessoa and it.get("pessoa_id"):
+                lista_add(home, ch["pessoas"], str(it["pessoa_id"]))
+                anota_nome(home, nome, "pessoas_nomes", str(it["pessoa_id"]), str(it.get("pessoa") or ""))
+            reconhecidos.append({"grupo": it.get("grupo", ""), "pessoa": it.get("pessoa", "") if aceita_pessoa else ""})
+        elif not it.get("grupo_id") and aceita_pessoa and it.get("pessoa_id"):
+            lista_add(home, ch["pessoas"], str(it["pessoa_id"]))
+            anota_nome(home, nome, "pessoas_nomes", str(it["pessoa_id"]), str(it.get("pessoa") or ""))
+            reconhecidos.append({"pessoa": it.get("pessoa", "")})
+        # o que o tipo não aceita (cliente em conversa direta; mim num canal) é ignorado
+    if reconhecidos:
+        return out({"ok": True, "reconhecidos": reconhecidos, **reconhecidos[0]})
     return out({"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
 
 
@@ -690,7 +694,7 @@ def assistente_wait_whatsapp(home: Path, nome: str, a: dict, seconds: int, since
         finally:
             conn.close()
 
-    res = None
+    achados: list[dict] = []
     deadline = time.time() + max(5, min(seconds, 300))
     try:
         while time.time() < deadline and proc.poll() is None:
@@ -707,17 +711,20 @@ def assistente_wait_whatsapp(home: Path, nome: str, a: dict, seconds: int, since
                         rotulo = str(meta["name"])
                     lista_add(home, ch["grupos"], chat)
                     anota_nome(home, nome, "grupos_nomes", chat, rotulo)
-                    res = {"ok": True, "grupo": rotulo}
-                    break
-                if aceita_pessoa and quem:
+                    item = {"grupo": rotulo}
+                elif aceita_pessoa and quem:
                     numero = quem.split(":", 1)[0].split("@", 1)[0]
                     if not numero.isdigit():
                         continue
                     lista_add(home, ch["pessoas"], numero)
                     anota_nome(home, nome, "pessoas_nomes", numero, f"+{numero}")
-                    res = {"ok": True, "pessoa": f"+{numero}"}
-                    break
-            if res:
+                    item = {"pessoa": f"+{numero}"}
+                else:
+                    continue
+                if item not in achados:
+                    achados.append(item)
+            # várias pessoas podem mandar na mesma fatia: junta o lote inteiro e devolve logo depois
+            if achados:
                 break
             time.sleep(2)
     finally:
@@ -727,15 +734,20 @@ def assistente_wait_whatsapp(home: Path, nome: str, a: dict, seconds: int, since
                 proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        if res or time.time() - since >= 170:
+        # a página segue esperando até PARAR ou 3 min: o perfil só volta quando a espera inteira acaba (ou no
+        # próximo colocar em uso), para nenhuma mensagem cair no gateway entre duas fatias
+        if time.time() - since >= 170:
             desestaciona_perfil(home, nome)
-    return out(res or {"ok": False, "erro": "nenhuma mensagem chegou", "tempo_esgotado": True})
+    if achados:
+        return out({"ok": True, "reconhecidos": achados, **achados[0]})
+    return out({"ok": False, "erro": "nenhuma mensagem chegou", "tempo_esgotado": True})
 
 
 def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
-    """Espera a primeira mensagem ao bot deste assistente: uma pessoa (conversa direta) vira "quem fala com
-    ele"; um grupo (mensagem no grupo, ou o bot adicionado a ele) vira "grupo dele". O que o tipo não aceita
-    é ignorado (cliente não ganha pessoas; mim não ganha grupos)."""
+    """Uma fatia da espera da página: cada mensagem ao bot deste assistente reconhece quem mandou (conversa
+    direta → "quem fala com ele") ou o grupo (mensagem no grupo, ou o bot adicionado a ele → "grupo dele").
+    Junta tudo o que chegar na fatia (várias pessoas de uma vez, em `reconhecidos`); a página chama de novo até
+    PARAR ou 3 min. O que o tipo não aceita é ignorado (cliente não ganha pessoas; mim não ganha grupos)."""
     a = assistente_do_store(home, nome)
     if not a:
         return out({"ok": False, "erro": "assistente desconhecido"})
@@ -802,15 +814,26 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
             rotulo = str(sender.get("first_name") or sender.get("username") or "")
             lista_add(home, f"TELEGRAM_ALLOWED_USERS_{up}", str(sender["id"]))
             anota("pessoas_nomes", str(sender["id"]), rotulo)
-            return {"ok": True, "pessoa": rotulo}
+            return {"pessoa": rotulo}
         if chat.get("type") in ("group", "supergroup") and aceita_grupo and chat.get("id"):
             rotulo = str(chat.get("title") or "")
             lista_add(home, f"TELEGRAM_GROUP_ALLOWED_CHATS_{up}", str(chat["id"]))
             anota("grupos_nomes", str(chat["id"]), rotulo)
-            return {"ok": True, "grupo": rotulo}
+            return {"grupo": rotulo}
         return None
 
-    def fim(res: dict | None):
+    achados: list[dict] = []
+
+    def junta(ups: list) -> None:
+        """Reconhece o lote inteiro: várias pessoas podem mandar na mesma fatia."""
+        nonlocal offset
+        for u in ups:
+            offset = u["update_id"] + 1
+            r = reconhece(u)
+            if r and r not in achados:
+                achados.append(r)
+
+    def fim():
         if offset:
             try:
                 tg_api(token, "getUpdates", offset=offset, timeout=0)
@@ -818,18 +841,19 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
                 pass
         if stopped_gateway:
             hermes_gateway("start")
-        # reconheceu, ou a espera inteira da página (3 min desde `since`) acabou: devolve o bot ao gateway
-        if res or time.time() - since >= 170:
+        # a página segue esperando até PARAR ou 3 min: o bot só volta ao gateway quando a espera inteira (desde
+        # `since`) acaba, ou no próximo colocar em uso; assim nada se perde entre duas fatias
+        if time.time() - since >= 170:
             desestaciona()
-        return out(res or {"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
+        if achados:
+            return out({"ok": True, "reconhecidos": achados, **achados[0]})
+        return out({"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
 
     try:
-        last = tg_api(token, "getUpdates", offset=-1, timeout=0, allowed_updates='["message","my_chat_member"]')
-        if last:
-            offset = last[-1]["update_id"] + 1
-            r = reconhece(last[-1])
-            if r:
-                return fim(r)
+        # o que ficou pendente (as mensagens antigas são descartadas por `since`)
+        junta(tg_api(token, "getUpdates", timeout=0, allowed_updates='["message","my_chat_member"]'))
+        if achados:
+            return fim()
     except TelegramError as e:
         if e.code != 409:
             return out({"ok": False, "erro": "não consegui falar com o Telegram"})
@@ -847,12 +871,10 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
             if stopped_gateway:
                 hermes_gateway("start")
             return out({"ok": False, "erro": "o Telegram não entregou mensagens; tente de novo"})
-        for u in ups:
-            offset = u["update_id"] + 1
-            r = reconhece(u)
-            if r:
-                return fim(r)
-    return fim(None)
+        junta(ups)
+        if achados:
+            return fim()
+    return fim()
 
 
 # ---------------------------------------------------------------- Escritório (Paperclip como motor, Hermes como executor)

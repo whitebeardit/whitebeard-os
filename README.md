@@ -4,14 +4,95 @@
 
 **Tudo o que você vê no hype, instalado e funcionando na sua máquina. Em um comando.**
 
-Second brain. Embeddings. pgvector. Agentes que executam tarefas sozinhos. Claude Code. Paperclip. Um assistente no
-Telegram, no WhatsApp, no Discord. Todo dia aparece alguém no Instagram falando de uma dessas peças. O difícil nunca
-foi saber que elas existem: é fazer todas trabalharem juntas, no seu computador, com os seus dados, sem virar um
-projeto de fim de semana que nunca termina.
+Second brain com busca semântica. Agentes que trabalham sozinhos, no horário. Um bot no Telegram, outro no Discord,
+outro no WhatsApp, cada um com a sua memória e as suas regras. Todo dia aparece alguém falando de uma dessas peças.
+O difícil nunca foi saber que elas existem: é fazer todas trabalharem juntas, no seu computador, com os seus dados,
+sem virar um projeto de fim de semana que nunca termina.
 
-Eu sou **Almerindo Rehem**, engenheiro de software e fundador da **Whitebeard**. Durante alguns anos estudei, montei e
-refinei o setup que uso todo dia, em casa e no trabalho. O Whitebeard OS é esse setup inteiro, configurado e integrado
-do jeito que eu uso, empacotado para você instalar com um comando e usar pelo navegador.
+Eu sou **Almerindo Rehem**, engenheiro de software e fundador da **Whitebeard**. O Whitebeard OS é o setup que eu uso
+todo dia, em casa e no trabalho, empacotado para você instalar com um comando e usar pelo navegador. Roda até num
+**Raspberry Pi**.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
+```
+
+<p align="center"><img src="docs/midia/visao-geral.gif" alt="Visão geral do Whitebeard OS: a pessoa pergunta quem está atrasado nas entregas e o JARVIS responde a partir do second brain" width="100%"></p>
+
+<p align="center"><a href="#pergunte-ao-seu-second-brain">Second brain</a> ·
+<a href="#um-bot-por-canal-em-três-toques">Bots por canal</a> ·
+<a href="#cada-bot-com-o-seu-papel-e-o-seu-modelo">Tipos e modelos</a> ·
+<a href="#o-escritório-trabalho-que-roda-sozinho">Escritório</a> ·
+<a href="#no-discord-de-verdade">No Discord</a> ·
+<a href="#do-seu-jeito">Temas</a> ·
+<a href="#roda-onde-você-quiser">Instalar</a></p>
+
+> **Um caso real.** As telas abaixo seguem um bot que já está no ar num Raspberry Pi: o **@Pichi**, monitor de um curso
+> de programação no Discord. O plano do curso: tirar dúvidas dos módulos, corrigir os exercícios e, toda segunda-feira,
+> publicar no canal a prestação de contas de cada aluno. As telas mostram essa configuração com alunos e notas
+> fictícios; a conversa no Discord, no fim, é real.
+
+## Pergunte ao seu second brain
+
+Suas notas em Markdown (abrem no Obsidian) viram um cérebro com busca semântica: embeddings gerados na sua máquina,
+grafo de ligações, árvore de mapas e busca. O JARVIS e todos os bots consultam o mesmo cérebro. Nada sai do seu
+computador.
+
+<p align="center"><img src="docs/midia/second-brain.gif" alt="Página Conhecimento: grafo do second brain do curso, filtro por área, busca por git e a nota do Módulo 3 aberta" width="100%"></p>
+
+## Um bot por canal, em três toques
+
+Escolha para quem é e onde ele fala (Telegram, Discord ou WhatsApp), cole o token do bot e clique em ESPERAR: quem
+mandar mensagem nesse intervalo entra na lista de quem fala com ele. Várias pessoas de uma vez, até você clicar em PARAR.
+
+<p align="center"><img src="docs/midia/criar-assistente.gif" alt="Criando um assistente no Discord: tipo, canal, nome, token e três pessoas reconhecidas na mesma espera" width="100%"></p>
+
+## Cada bot com o seu papel e o seu modelo
+
+O limite de cada bot é estrutural: o que o tipo não permite, ele não tem instalado. Não é uma regra no prompt que ele
+pode esquecer.
+
+| Tipo | Para quê | No caso do curso |
+| --- | --- | --- |
+| **Para mim** | Um segundo assistente só seu | o JARVIS do dono, no Telegram |
+| **Para a minha equipe** | Responde às pessoas que você liberar; consulta e anota no second brain | o @Pichi no Discord e a secretaria no WhatsApp |
+| **Para um cliente** | Atende um grupo só sobre o papel dele, sem ferramentas | o grupo da empresa que patrocina as bolsas |
+| **Só rotinas** | Não conversa; publica avisos no horário | o calendário da semana |
+
+Cada bot também escolhe **a assinatura** (Claude ou ChatGPT, a sua, sem chave de API) e **o nível** (Rápido, Equilibrado
+ou Mais capaz). A página mostra o modelo que cada escolha usa, e a outra assinatura conectada vira reserva automática.
+
+<p align="center"><img src="docs/midia/modalidades.gif" alt="Página Assistentes: quatro bots de tipos e canais diferentes, o que cada um faz e não faz, e a escolha de assinatura e nível por bot" width="100%"></p>
+
+## O Escritório: trabalho que roda sozinho
+
+O trabalho que demora sai do chat. Você pede ao JARVIS, um **cargo** executa (um agente com papel definido) e a entrega
+volta no chat e fica no second brain. **Rotinas** criam a tarefa sozinhas, no horário. O que exigir enviar, pagar ou
+publicar **para e pergunta a você** antes.
+
+No curso, o Escritório fica com três cargos e três rotinas:
+
+| Rotina | Quando | Cargo | Onde publica |
+| --- | --- | --- | --- |
+| Correção das entregas do dia: corrige com a rubrica, aponta o erro com um exemplo e não entrega a resposta pronta | todo dia, 22h | Corretor de exercícios | no canal do @Pichi |
+| Cobrança de tarefas: lembra quem ainda não entregou, com o prazo | quarta e sexta, 18h | Coordenação da turma | no canal do @Pichi |
+| Prestação de contas: o que cada aluno entregou, o que está atrasado e a média | toda segunda, 9h | Coordenação da turma | no canal do @Pichi |
+
+<p align="center"><img src="docs/midia/escritorio.gif" alt="Página Escritório: aprovação para publicar as notas do Módulo 3, organograma, cargos, rotinas do curso e uso de tokens por cargo e por rotina" width="100%"></p>
+
+O uso de tokens aparece por assinatura, por cargo, por rotina e por tarefa, com alerta quando algo sai do padrão.
+
+## No Discord, de verdade
+
+O @Pichi rodando num Raspberry Pi, respondendo a uma dúvida de aluno numa conversa direta:
+
+<p align="center"><img src="docs/midia/discord-pichi.gif" alt="Conversa real no Discord: o Pichi explica a diferença entre let e const com exemplos e oferece um exercício" width="80%"></p>
+
+## Do seu jeito
+
+Três temas (HUD, Atlas estelar e Carmesim), tamanho do texto e voz, em CONFIGURAÇÕES. Muda na hora, neste aparelho.
+
+<p align="center"><img src="docs/midia/temas.gif" alt="Configurações: trocando entre os temas Atlas estelar, Carmesim e HUD e vendo o resultado na Visão geral" width="100%"></p>
 
 ## O que vem dentro
 
@@ -22,15 +103,15 @@ do jeito que eu uso, empacotado para você instalar com um comando e usar pelo n
 | **MCP** | O cérebro entra como servidor MCP `knowledge` no Claude Code e em cada agente: todos consultam o mesmo second brain, com chave própria |
 | **Agentes com tarefas autônomas** | O **Escritório**: você pede pelo chat, um cargo executa pelo **Hermes**, a entrega volta no chat e fica no vault. Rotinas rodam no horário. O que exigir enviar, pagar ou publicar para e pergunta a você |
 | **Paperclip** | O motor de tarefas e aprovações por baixo do Escritório, já configurado |
-| **Claude Code** | O seu login do Claude Code é a conta que os agentes usam; skills e MCPs já instalados |
-| **Telegram, WhatsApp, Discord** | Assistentes isolados por público: um bot por canal, cada um com memória, skills e permissões próprias, criado em três toques |
+| **Claude Code e ChatGPT** | A sua assinatura é a conta que os agentes usam (o login do Claude Code; o ChatGPT entra por código de dispositivo). Skills e MCPs já instalados |
+| **Telegram, WhatsApp, Discord** | Assistentes isolados por público: um bot por canal, cada um com memória, skills, permissões e modelo próprios, criado em três toques |
 | **Voz** | Fale com o assistente pela interface: transcrição local com Whisper e resposta falada em português |
 | **Interface** | Uma página web no computador ou no celular (instala como app, com QR code): visão geral, conhecimento, assistentes, escritório, uso de tokens, diagnósticos |
 
 ## Roda onde você quiser
 
-Roda num **Raspberry Pi 4**: é onde o meu assistente do Telegram mora. Roda no Mac (Apple Silicon, sem Docker) e em
-qualquer Linux. Interface, núcleo e conhecimento vão na mesma máquina por padrão, ou em máquinas separadas.
+Roda num **Raspberry Pi 4**: é onde o @Pichi e o meu assistente do Telegram moram. Roda no Mac (Apple Silicon, sem Docker)
+e em qualquer Linux. Interface, núcleo e conhecimento vão na mesma máquina por padrão, ou em máquinas separadas.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
@@ -49,7 +130,9 @@ cargos por papel, second brain por equipe, tudo na sua infraestrutura. Fale com 
 **[whitebeard.dev](https://whitebeard.dev)**.
 
 <sub>Vai junto hoje: Hermes, Paperclip, GBrain, Ollama com `bge-m3`, Claude Code, Node 24, ffmpeg com Whisper; versões
-fixadas em `kernel/versions.env`, licenças em [Componentes externos e licenças](#componentes-externos-e-licenças).</sub>
+fixadas em `kernel/versions.env`, licenças em [Componentes externos e licenças](#componentes-externos-e-licenças).
+Telas gravadas com dados de exemplo; imagens e vídeos em alta resolução no
+[kit de divulgação](docs/midia/README.md).</sub>
 
 ---
 

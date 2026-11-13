@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""jarvis_discord_wait.py — espera a primeira mensagem ao bot do Discord de um assistente.
+"""jarvis_discord_wait.py — espera as mensagens ao bot do Discord de um assistente durante uma fatia.
 
 Roda com o Python do venv do Hermes (tem `websockets`): o kernel não instala nada só para isto. Liga ao
-gateway do Discord com intents comuns (sem as privilegiadas), e devolve em JSON quem falou:
+gateway do Discord com intents comuns (sem as privilegiadas) e junta tudo o que chegar: várias pessoas podem
+mandar na mesma fatia. Depois da primeira mensagem, espera mais alguns segundos (JUNTA_S) e devolve, para a
+página mostrar logo e abrir a fatia seguinte. Em JSON:
 
-  conversa direta  → {"ok": true, "pessoa": "nome", "pessoa_id": "123"}
-  menção num canal → {"ok": true, "grupo": "#canal · servidor", "grupo_id": "456", "pessoa": "nome", "pessoa_id": "123"}
+  conversa direta  → {"pessoa": "nome", "pessoa_id": "123"}
+  menção num canal → {"grupo": "#canal · servidor", "grupo_id": "456", "pessoa": "nome", "pessoa_id": "123"}
+  chegou algo      → {"ok": true, "reconhecidos": [<itens acima>], **<o primeiro item>}
   nada chegou      → {"ok": false, "erro": "...", "tempo_esgotado": true}
 
 Uso: jarvis_discord_wait.py <segundos> <desde-epoch>   (o token vem pela variável DISCORD_BOT_TOKEN)
@@ -26,6 +29,7 @@ import websockets
 GATEWAY = "wss://gateway.discord.gg/?v=10&encoding=json"
 API = "https://discord.com/api/v10"
 INTENTS = (1 << 0) | (1 << 9) | (1 << 12)  # GUILDS, GUILD_MESSAGES, DIRECT_MESSAGES (nenhuma privilegiada)
+JUNTA_S = 3  # depois da primeira mensagem, quanto mais esperar por outras antes de devolver
 
 
 def api_get(token: str, path: str) -> dict:
@@ -45,16 +49,36 @@ async def esperar(token: str, seconds: int, since: int) -> dict:
     me_id = None
     seq = None
     hb_task = None
+    achados: list[dict] = []
+    deadline = time.monotonic() + seconds
 
     async def heartbeat(ws, interval_ms: float):
         while True:
             await asyncio.sleep(interval_ms / 1000)
             await ws.send(json.dumps({"op": 1, "d": seq}))
 
+    def resultado() -> dict:
+        if achados:
+            return {"ok": True, "reconhecidos": achados, **achados[0]}
+        return {"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True}
+
+    def guarda(item: dict) -> None:
+        nonlocal deadline
+        chave = (item.get("grupo_id"), item.get("pessoa_id"))
+        if all((a.get("grupo_id"), a.get("pessoa_id")) != chave for a in achados):
+            achados.append(item)
+        deadline = min(deadline, time.monotonic() + JUNTA_S)
+
     try:
         async with websockets.connect(GATEWAY, max_size=2**22) as ws:
             while True:
-                raw = await ws.recv()
+                falta = deadline - time.monotonic()
+                if falta <= 0:
+                    return resultado()
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=falta)
+                except asyncio.TimeoutError:
+                    return resultado()
                 msg = json.loads(raw)
                 op, t, d = msg.get("op"), msg.get("t"), msg.get("d")
                 if msg.get("s") is not None:
@@ -66,7 +90,7 @@ async def esperar(token: str, seconds: int, since: int) -> dict:
                 elif op == 1:
                     await ws.send(json.dumps({"op": 1, "d": seq}))
                 elif op == 7 or op == 9:
-                    return {"ok": False, "erro": "o Discord pediu para reconectar; tente de novo"}
+                    return resultado() if achados else {"ok": False, "erro": "o Discord pediu para reconectar; tente de novo"}
                 elif t == "READY":
                     me_id = str(d["user"]["id"])
                 elif t == "MESSAGE_CREATE" and me_id:
@@ -76,8 +100,8 @@ async def esperar(token: str, seconds: int, since: int) -> dict:
                     nome = str(autor.get("global_name") or autor.get("username") or "")
                     pessoa = {"pessoa": nome, "pessoa_id": str(autor.get("id", ""))}
                     if not d.get("guild_id"):
-                        return {"ok": True, **pessoa}
-                    if any(str(m.get("id")) == me_id for m in d.get("mentions") or []):
+                        guarda(pessoa)
+                    elif any(str(m.get("id")) == me_id for m in d.get("mentions") or []):
                         canal_id = str(d["channel_id"])
                         rotulo = f"#{canal_id}"
                         try:
@@ -88,8 +112,10 @@ async def esperar(token: str, seconds: int, since: int) -> dict:
                                 rotulo += f" · {g['name']}"
                         except Exception:
                             pass
-                        return {"ok": True, "grupo": rotulo, "grupo_id": canal_id, **pessoa}
+                        guarda({"grupo": rotulo, "grupo_id": canal_id, **pessoa})
     except websockets.exceptions.ConnectionClosed as e:
+        if achados:
+            return resultado()
         if e.code == 4004:
             return {"ok": False, "erro": "o Discord recusou o token (confira em Developer Portal → Bot → Reset Token)"}
         if e.code == 4014:
@@ -108,7 +134,7 @@ async def main() -> int:
     seconds = max(5, min(int(sys.argv[1]) if len(sys.argv) > 1 else 25, 300))
     since = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     try:
-        res = await asyncio.wait_for(esperar(token, seconds, since), timeout=seconds)
+        res = await asyncio.wait_for(esperar(token, seconds, since), timeout=seconds + JUNTA_S + 10)
     except asyncio.TimeoutError:
         res = {"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True}
     except OSError as e:

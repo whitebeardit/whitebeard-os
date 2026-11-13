@@ -121,6 +121,9 @@ def status(home: Path, kernel: Path, tenant_hermes: dict | None = None) -> dict:
     return {"provedor": provedor, "nivel": nivel, "escolhido": bool(lj) or bool(th.get("provedor") or th.get("nivel")),
             "logados": logados, "reserva": reserva, "aviso": aviso,
             "modelo": (tab.get(provedor) or {}).get(nivel, ""),
+            # modelo de cada nível na assinatura em uso: a página mostra no seletor de nível (assistente, cargo)
+            "modelos": dict(tab.get(provedor) or {}),
+            "modelos_por_provedor": {k: dict(v) for k, v in tab.items()},
             "niveis": [{"id": k, "nome": v} for k, v in NIVEIS.items()],
             "provedores": [{"id": k, "nome": v["nome"]} for k, v in PROVEDORES.items()],
             "login": {k: login.get(k) for k in ("provedor", "estado", "endereco", "codigo", "erro", "inicio") if login.get(k) is not None} or None}

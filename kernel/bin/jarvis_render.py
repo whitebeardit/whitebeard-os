@@ -166,14 +166,15 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
 _QP: dict = {}
 
 
-def quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
-    chave = str(home)
+def quem_pensa(home: Path, kernel: Path, data: dict, forcar: bool = False) -> dict | None:
+    """`forcar`: um assistente escolheu a própria assinatura; sem escolha geral, vale o padrão da tabela."""
+    chave = f"{home}|{forcar}"
     if chave not in _QP:
-        _QP[chave] = _quem_pensa(home, kernel, data)
+        _QP[chave] = _quem_pensa(home, kernel, data, forcar)
     return _QP[chave]
 
 
-def _quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
+def _quem_pensa(home: Path, kernel: Path, data: dict, forcar: bool = False) -> dict | None:
     """Provedor e nível escolhidos (página em $JARVIS_HOME/pensa.json por cima de hermes.provedor/nivel do tenant).
     None quando ninguém escolheu: vale o hermes.provider/model do tenant, como antes."""
     try:
@@ -188,7 +189,7 @@ def _quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
         loja = {}
     provedor = loja.get("provedor") or hcfg.get("provedor")
     nivel = loja.get("nivel") or hcfg.get("nivel")
-    if not provedor and not nivel:
+    if not provedor and not nivel and not forcar:
         return None
     provs = tabela.get("provedores") or {}
     padrao = tabela.get("padrao") or {}
@@ -200,15 +201,24 @@ def _quem_pensa(home: Path, kernel: Path, data: dict) -> dict | None:
         log(f"aviso: quem pensa: {provedor} escolhido sem conta conectada; usando {padrao.get('provedor', 'claude')}")
         provedor = padrao.get("provedor", "claude")
     reserva = next((x for x in provs if x != provedor and x in logados), None)
-    return {"tabela": provs, "provedor": provedor, "nivel": nivel, "reserva": reserva, "da_pagina": bool(loja)}
+    return {"tabela": provs, "provedor": provedor, "nivel": nivel, "reserva": reserva, "da_pagina": bool(loja),
+            "logados": logados, "padrao": padrao.get("provedor", "claude")}
 
 
-def modelo_resolvido(qp: dict | None, hermes_cfg: dict, nivel: str | None = None, modelo: str | None = None) -> tuple[dict, dict | None]:
-    """(model, fallback_model) no formato do config do Hermes para um perfil. `nivel` do assistente/cargo vence o
-    nível geral; `modelo` explícito (técnico, no yaml) vence tudo. Sem escolha (qp None), o comportamento antigo."""
+def modelo_resolvido(qp: dict | None, hermes_cfg: dict, nivel: str | None = None, modelo: str | None = None,
+                     provedor: str | None = None, quem: str = "") -> tuple[dict, dict | None]:
+    """(model, fallback_model) no formato do config do Hermes para um perfil. `provedor` e `nivel` do assistente/cargo
+    vencem os gerais; `modelo` explícito (técnico, no yaml) vence tudo. Sem escolha (qp None), o comportamento antigo.
+    A assinatura do assistente só vale com a conta conectada (o padrão, Claude, sempre vale); senão, a geral."""
     if qp is None:
         model = {"provider": hermes_cfg.get("provider", "anthropic"), "default": modelo or hermes_cfg.get("model", "")}
         return model, None
+    if provedor and provedor in qp["tabela"] and provedor != qp["provedor"]:
+        if provedor == qp.get("padrao") or provedor in (qp.get("logados") or []):
+            outros = [x for x in qp["tabela"] if x != provedor and (x in (qp.get("logados") or []) or x == qp.get("padrao"))]
+            qp = {**qp, "provedor": provedor, "reserva": outros[0] if outros else None}
+        else:
+            log(f"aviso: {quem or 'assistente'}: {qp['tabela'][provedor]['nome']} escolhido sem conta conectada; usando a assinatura geral")
     prov = qp["tabela"][qp["provedor"]]
     niv = nivel if nivel in prov["niveis"] else qp["nivel"]
     model = {"provider": prov["hermes"], "default": modelo or prov["niveis"][niv]}
@@ -334,7 +344,9 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         tools = FERRAMENTAS_TIPO[tipo]
         if tools is not None and tipo == "equipe" and ajustes.get("computador"):
             tools = tools + FERRAMENTAS_COMPUTADOR
-        model, fb = modelo_resolvido(quem_pensa(home, Path(__file__).resolve().parent.parent, data), hermes_cfg, a.get("nivel"), a.get("modelo"))
+        provedor_a = a.get("provedor") if a.get("provedor") in ("claude", "chatgpt") else None
+        model, fb = modelo_resolvido(quem_pensa(home, Path(__file__).resolve().parent.parent, data, forcar=bool(provedor_a)), hermes_cfg,
+                                     a.get("nivel"), a.get("modelo"), provedor_a, nome)
         cfg: dict = {"model": model}
         if fb:
             cfg["fallback_model"] = fb
@@ -514,6 +526,7 @@ def main() -> int:
                             "skills": a.get("skills") if a.get("skills") is not None else skills_padrao[a["tipo"]],
                             **({"ajustes": a["ajustes"]} if a.get("ajustes") else {}),
                             **({"nivel": a["nivel"]} if a.get("nivel") in ("rapido", "equilibrado", "capaz") else {}),
+                            **({"provedor": a["provedor"]} if a.get("provedor") in ("claude", "chatgpt") else {}),
                             **({"do_pacote": True} if a.get("do_pacote") else {})})
     for a in assistentes:
         if canal_de(a) not in CANAIS:

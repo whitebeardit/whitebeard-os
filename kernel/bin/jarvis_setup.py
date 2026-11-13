@@ -314,6 +314,7 @@ def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
             "skills": a.get("skills") if a.get("skills") is not None else (cat_a.get("skills") or []),
             "ajustes": {"computador": bool((a.get("ajustes") or {}).get("computador")), "anotar": bool((a.get("ajustes") or {}).get("anotar"))},
             "nivel": a.get("nivel") or "",
+            "provedor": a.get("provedor") or "",
             "origem": "web" if nome in nomes_loja else "tenant",
             "do_pacote": bool(a.get("do_pacote")) or (nome not in nomes_loja),
             "token": bool(wa["pareado"]) if wa else bool(filled.get(ch["token"], False)),
@@ -473,8 +474,16 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
             atual["nivel"] = nv
         else:
             atual.pop("nivel", None)  # vazio: segue o nível geral
+    if "provedor" in dados:
+        pv = str(dados.get("provedor") or "")
+        if pv and pv not in ("claude", "chatgpt"):
+            return out({"ok": False, "erro": "assinatura desconhecida"})
+        if pv:
+            atual["provedor"] = pv
+        else:
+            atual.pop("provedor", None)  # vazio: segue a assinatura geral
     save_store(home, itens)
-    return out({"ok": True, "assistente": {k: atual.get(k) for k in ("nome", "tipo", "canal", "whatsapp_modo", "descricao", "ajustes", "nivel")}})
+    return out({"ok": True, "assistente": {k: atual.get(k) for k in ("nome", "tipo", "canal", "whatsapp_modo", "descricao", "ajustes", "nivel", "provedor")}})
 
 
 def assistente_do_store(home: Path, nome: str) -> dict | None:

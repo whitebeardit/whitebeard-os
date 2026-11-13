@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Whitebeard OS · banner</title>
+<!--
+  Banner do README. Mesmo mundo visual da interface (tema "atlas", a carta celeste): céu azul-marinho, estrelas
+  branco-giz, grade de coordenadas quase invisível, pranchas de fio de névoa, Orbitron só em legendas, Rajdhani no
+  texto, o ciano reservado à estrela JARVIS, a menta para "em dia". Renderizar a 1600×600 (o PNG do repositório sai
+  a 2×): node /tmp/wb-shot.mjs "file://$PWD/docs/banner/banner.html" docs/banner.png 1600 600 0 1500
+-->
+<style>
+  @font-face { font-family: 'Orbitron'; src: url('assets/orbitron-var.woff2') format('woff2'); font-weight: 400 900; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/rajdhani-400.woff2') format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Rajdhani'; src: url('assets/rajdhani-500.woff2') format('woff2'); font-weight: 500; }
+  :root {
+    --bg: #0a1021; --bg-2: #121c38; --bg-3: #070c1a;
+    --text: #f2f2e9; --text-2: #b9c0d2; --text-3: #7d879c;
+    --line: rgba(170, 179, 197, 0.22); --grid: rgba(170, 179, 197, 0.07);
+    --star: #7fe9ff; --mint: #6fe3b4; --amber: #ff8a3d;
+    --display: 'Orbitron', 'Rajdhani', sans-serif; --body: 'Rajdhani', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1600px; height: 600px; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--body); }
+  .sky {
+    position: relative; width: 1600px; height: 600px; overflow: hidden;
+    background:
+      radial-gradient(ellipse 900px 520px at 22% 50%, var(--bg-2) 0%, var(--bg) 60%, var(--bg-3) 100%);
+  }
+  /* grade de ascensão reta / declinação */
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 80px 80px; background-position: 40px 20px; }
+  /* estrelas em três magnitudes (posições fixas: o banner é uma imagem) */
+  .stars { position: absolute; inset: 0; }
+  .stars i { position: absolute; border-radius: 50%; background: #f2f2e9; }
+  .m1 { width: 2.5px; height: 2.5px; opacity: .95; }
+  .m2 { width: 1.6px; height: 1.6px; opacity: .7; }
+  .m3 { width: 1px; height: 1px; opacity: .45; }
+
+  /* a estrela JARVIS: logo, halo, pontas de difração, círculo de coordenadas */
+  .core { position: absolute; left: 150px; top: 120px; width: 360px; height: 360px; }
+  .core .halo { position: absolute; inset: 40px; border-radius: 50%; background: radial-gradient(circle, rgba(127,233,255,.42) 0%, rgba(127,233,255,.16) 38%, rgba(127,233,255,0) 70%); }
+  .core svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .core .ring { fill: none; stroke: rgba(170,179,197,.35); stroke-width: 1; }
+  .core .ring--ticks { stroke-dasharray: 1 11.56; stroke-width: 6; stroke: rgba(170,179,197,.5); }
+  .core .spike { fill: rgba(127,233,255,.9); }
+  .core .spike--diag { fill: rgba(127,233,255,.35); }
+  .core img { position: absolute; left: 50%; top: 50%; width: 150px; height: 150px; transform: translate(-50%, -50%); border-radius: 50%; filter: drop-shadow(0 0 22px rgba(127,233,255,.75)); }
+
+  /* a prancha de texto */
+  .plate { position: absolute; left: 560px; top: 64px; width: 960px; height: 472px; border: 1px solid var(--line); padding: 44px 48px 40px; background: rgba(10,16,33,.35); }
+  .plate .reg { position: absolute; width: 11px; height: 11px; }
+  .plate .reg::before, .plate .reg::after { content: ''; position: absolute; background: rgba(170,179,197,.55); }
+  .plate .reg::before { left: 5px; top: 0; width: 1px; height: 11px; }
+  .plate .reg::after { top: 5px; left: 0; width: 11px; height: 1px; }
+  .reg.tl { left: -6px; top: -6px; } .reg.tr { right: -6px; top: -6px; } .reg.bl { left: -6px; bottom: -6px; } .reg.br { right: -6px; bottom: -6px; }
+
+  h1 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 46px; letter-spacing: 0.26em; line-height: 1; color: var(--text); }
+  h1 span { display: inline-block; margin-left: 14px; width: 12px; height: 12px; border-radius: 50%; background: var(--star); vertical-align: 12px; }
+  .ruler { margin: 18px 0 0; height: 8px; width: 100%; background-image: linear-gradient(90deg, rgba(170,179,197,.5) 1px, transparent 1px); background-size: 20px 8px; position: relative; }
+  .ruler::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
+  .lead { margin: 26px 0 0; font-size: 30px; line-height: 1.3; font-weight: 500; color: var(--text); max-width: 30ch; text-wrap: balance; }
+  .lead em { font-style: normal; color: var(--star); }
+  .sub { margin: 14px 0 0; font-size: 20px; line-height: 1.45; color: var(--text-2); max-width: 64ch; }
+
+  /* a constelação do que vem dentro: estrelas com legenda, ligadas por linhas de constelação */
+  .const { position: absolute; left: 48px; right: 48px; bottom: 30px; height: 40px; }
+  .const svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .const line { stroke: rgba(127,233,255,.28); stroke-width: 1; }
+  .const .node { position: absolute; transform: translate(-50%, 0); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .const .node b { width: 7px; height: 7px; border-radius: 50%; background: var(--text); }
+  .const .node.ok b { background: var(--mint); }
+  .const .node small { font-family: var(--display); font-size: 10.5px; letter-spacing: 0.16em; color: var(--text-2); white-space: nowrap; text-transform: uppercase; }
+
+  .foot { position: absolute; left: 150px; width: 360px; bottom: 44px; text-align: center; font-family: var(--display); font-size: 11px; letter-spacing: 0.3em; color: var(--text-3); text-transform: uppercase; }
+  .foot b { color: var(--mint); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="sky">
+  <div class="grid"></div>
+  <div class="stars">
+    <i class="m1" style="left:62px;top:48px"></i><i class="m2" style="left:118px;top:522px"></i><i class="m3" style="left:240px;top:30px"></i>
+    <i class="m2" style="left:300px;top:566px"></i><i class="m1" style="left:520px;top:40px"></i><i class="m3" style="left:600px;top:560px"></i>
+    <i class="m2" style="left:700px;top:28px"></i><i class="m3" style="left:860px;top:52px"></i><i class="m1" style="left:1010px;top:36px"></i>
+    <i class="m3" style="left:1180px;top:58px"></i><i class="m2" style="left:1320px;top:30px"></i><i class="m1" style="left:1470px;top:62px"></i>
+    <i class="m2" style="left:1555px;top:140px"></i><i class="m3" style="left:1540px;top:300px"></i><i class="m1" style="left:1560px;top:470px"></i>
+    <i class="m2" style="left:1420px;top:560px"></i><i class="m3" style="left:1120px;top:572px"></i><i class="m2" style="left:30px;top:300px"></i>
+    <i class="m3" style="left:90px;top:200px"></i><i class="m1" style="left:40px;top:420px"></i><i class="m3" style="left:560px;top:300px"></i>
+    <i class="m2" style="left:1240px;top:545px"></i><i class="m3" style="left:780px;top:565px"></i><i class="m3" style="left:1500px;top:380px"></i>
+  </div>
+
+  <div class="core">
+    <div class="halo"></div>
+    <svg viewBox="0 0 200 200">
+      <circle class="ring" cx="100" cy="100" r="88"/>
+      <circle class="ring ring--ticks" cx="100" cy="100" r="88"/>
+      <circle class="ring" cx="100" cy="100" r="62" style="stroke-dasharray:3 6"/>
+      <path class="spike" d="M100 2 L102.5 100 L100 198 L97.5 100 Z"/>
+      <path class="spike" d="M2 100 L100 97.5 L198 100 L100 102.5 Z"/>
+      <path class="spike spike--diag" d="M36 36 L101 99 L164 164 L99 101 Z"/>
+      <path class="spike spike--diag" d="M164 36 L101 99 L36 164 L99 101 Z"/>
+    </svg>
+    <img src="assets/logo-core.png" alt="">
+  </div>
+  <div class="foot">roda no seu <b>Mac</b>, num <b>Linux</b> ou num <b>Raspberry Pi 4</b></div>
+
+  <div class="plate">
+    <span class="reg tl"></span><span class="reg tr"></span><span class="reg bl"></span><span class="reg br"></span>
+    <h1>WHITEBEARD OS<span></span></h1>
+    <div class="ruler"></div>
+    <p class="lead">Tudo o que você vê no hype, <em>instalado e funcionando</em> na sua máquina.</p>
+    <p class="sub">Second brain com busca semântica, agentes que executam tarefas, assistentes no Telegram, no WhatsApp e no Discord. Seus dados ficam com você. Um comando para instalar.</p>
+
+    <div class="const">
+      <svg viewBox="0 0 864 40" preserveAspectRatio="none"><line x1="40" y1="4" x2="190" y2="4"/><line x1="190" y1="4" x2="340" y2="4"/><line x1="340" y1="4" x2="490" y2="4"/><line x1="490" y1="4" x2="640" y2="4"/><line x1="640" y1="4" x2="800" y2="4"/></svg>
+      <div class="node ok" style="left:40px"><b></b><small>GBrain</small></div>
+      <div class="node ok" style="left:190px"><b></b><small>Ollama</small></div>
+      <div class="node ok" style="left:340px"><b></b><small>pgvector</small></div>
+      <div class="node ok" style="left:490px"><b></b><small>Hermes</small></div>
+      <div class="node ok" style="left:640px"><b></b><small>Paperclip</small></div>
+      <div class="node ok" style="left:800px"><b></b><small>Claude Code</small></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

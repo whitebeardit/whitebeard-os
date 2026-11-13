@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "docs/banner/banner.html"
+        ],
+        "createdAt": "2026-11-09T00:35:19.755Z",
+        "reason": "DESIGN.md (atlas): grade de ascensão reta/declinação a 7% é parte da carta celeste, superfície de mapa"
+      }
+    ]
+  }
+}

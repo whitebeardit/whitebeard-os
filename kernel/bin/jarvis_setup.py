@@ -252,6 +252,13 @@ def nomes_vivos(home: Path, nomes: object, chave: str) -> list[str]:
     return [mapa.get(i) or "(sem nome)" for i in ids]
 
 
+def lista_viva(home: Path, nomes: object, chave: str) -> list[dict]:
+    """Como nomes_vivos, com o id: é por ele que a página tira alguém da lista."""
+    ids = [x for x in read_env(home / "secrets.env").get(chave, "").split(",") if x]
+    mapa = nomes if isinstance(nomes, dict) else {}
+    return [{"id": i, "nome": mapa.get(i) or "(sem nome)"} for i in ids]
+
+
 def hermes_profile_dir(home: Path, nome: str) -> Path:
     hermes_home = read_env(home / "profile.env").get("HERMES_HOME") or str(Path.home() / ".hermes")
     return Path(hermes_home) / "profiles" / nome
@@ -315,6 +322,8 @@ def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
             "aplicado": nome in por_nome and (cat_a.get("canal") or "telegram") == canal,
             "pessoas_nomes": nomes_vivos(home, a.get("pessoas_nomes"), ch["pessoas"]),
             "grupos_nomes": nomes_vivos(home, a.get("grupos_nomes"), ch["grupos"]),
+            "pessoas_lista": lista_viva(home, a.get("pessoas_nomes"), ch["pessoas"]),
+            "grupos_lista": lista_viva(home, a.get("grupos_nomes"), ch["grupos"]),
             "segredos": {"token": ch["token"] or None,
                          "pessoas": ch["pessoas"] if tipo in ("mim", "equipe") else None,
                          "grupos": ch["grupos"] if tipo in ("equipe", "cliente") else None},
@@ -380,6 +389,28 @@ def cmd_assistente_remove(home: Path, nome: str) -> int:
     # revoga o acesso: token e listas somem deste computador
     apagar_segredos_assistente(home, nome)
     return out({"ok": True})
+
+
+def cmd_assistente_esquecer(home: Path, nome: str, qual: str, ident: str) -> int:
+    """Tira uma pessoa (ou um grupo/canal) da lista de quem fala com o assistente. Vale depois de colocar em uso."""
+    a = assistente_do_store(home, nome)
+    if not a:
+        return out({"ok": False, "erro": "assistente desconhecido"})
+    if qual not in ("pessoa", "grupo"):
+        return out({"ok": False, "erro": "diga se é pessoa ou grupo"})
+    chave = chaves_assistente(nome, canal_de(a))["pessoas" if qual == "pessoa" else "grupos"]
+    atual = [x for x in read_env(home / "secrets.env").get(chave, "").split(",") if x]
+    if ident not in atual:
+        return out({"ok": False, "erro": "essa pessoa não está na lista" if qual == "pessoa" else "esse grupo não está na lista"})
+    set_secret(home / "secrets.env", chave, ",".join(x for x in atual if x != ident))
+    campo = "pessoas_nomes" if qual == "pessoa" else "grupos_nomes"
+    itens = load_store(home)
+    rotulo = ""
+    for it in itens:
+        if it.get("nome") == nome and isinstance(it.get(campo), dict):
+            rotulo = str(it[campo].pop(ident, "") or "")
+    save_store(home, itens)
+    return out({"ok": True, "nome": rotulo})
 
 
 def cmd_assistente_update(home: Path, nome: str) -> int:
@@ -1700,6 +1731,10 @@ def main() -> int:
     sub.add_parser("assistente-add")
     p = sub.add_parser("assistente-remove")
     p.add_argument("nome")
+    p = sub.add_parser("assistente-esquecer")
+    p.add_argument("nome")
+    p.add_argument("qual", choices=["pessoa", "grupo"])
+    p.add_argument("id")
     p = sub.add_parser("assistente-update")
     p.add_argument("nome")
     p = sub.add_parser("assistente-token")
@@ -1752,6 +1787,8 @@ def main() -> int:
         return cmd_assistente_add(home)
     if args.cmd == "assistente-remove":
         return cmd_assistente_remove(home, args.nome)
+    if args.cmd == "assistente-esquecer":
+        return cmd_assistente_esquecer(home, args.nome, args.qual, args.id)
     if args.cmd == "assistente-update":
         return cmd_assistente_update(home, args.nome)
     if args.cmd == "assistente-token":

@@ -110,6 +110,15 @@ jobs:
           assert d["ligado"] and [c["nome"] for c in d["cargos"]] == ["trabalho", "redator"] and d["cargos"][1]["faz"], d
           assert [r["nome"] for r in d["rotinas"]] == ["resumo-da-semana", "status-diario"] and d["rotinas"][1]["onde"] == "assistente:suporte", d'
           grep -q "cargo Redator" "$HOME/.jarvis/render/hermes/cargos/redator/SOUL.md"
+          # quem pensa: claude · equilibrado no dono e nos cargos; o redator (nivel: capaz) no modelo mais capaz
+          grep -q "default: claude-sonnet-5-5" "$HOME/.jarvis/render/hermes/modelo.yaml"
+          grep -q "default: claude-sonnet-5-5" "$HOME/.jarvis/render/hermes/cargos/trabalho/config.yaml"
+          grep -q "default: claude-opus-5-5" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
+          python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
+          import json, sys
+          p = json.load(sys.stdin)["pensa"]
+          assert p["provedor"] == "claude" and p["nivel"] == "equilibrado" and p["modelo"] == "claude-sonnet-5-5" and p["escolhido"], p'
+          echo "{\"nivel\":\"turbo\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" pensa-set | grep -q "\"ok\": false"
           grep -q "escritorio:" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
           ! grep -q "terminal" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '

@@ -586,6 +586,32 @@ apply_hermes_config() {
     cp "$JARVIS_HOME/render/hermes/config.yaml" "$HERMES_HOME/config.yaml"
     log "hermes: config.yaml inicial escrito (modelo do tenant)"
   fi
+  # Quem pensa: com provedor/nível escolhido (página ou tenant), model e fallback_model vão por cima do config
+  # do Hermes a cada aplicação; o resto do config é do Hermes e da pessoa e fica como está.
+  if [ -f "$JARVIS_HOME/render/hermes/modelo.yaml" ] && [ -f "$HERMES_HOME/config.yaml" ]; then
+    if uv run --quiet --with 'pyyaml>=6,<7' python3 - "$JARVIS_HOME/render/hermes/modelo.yaml" "$HERMES_HOME/config.yaml" <<'PY'
+import sys, yaml
+src, dst = sys.argv[1], sys.argv[2]
+want = yaml.safe_load(open(src, encoding="utf-8")) or {}
+cfg = yaml.safe_load(open(dst, encoding="utf-8")) or {}
+changed = False
+for k in ("model", "fallback_model"):
+    v = want.get(k)
+    if v is None:
+        if k in cfg and k == "fallback_model" and want.get("model"):
+            pass  # sem reserva escolhida: a reserva que a pessoa pôs à mão fica
+        continue
+    if cfg.get(k) != v:
+        cfg[k] = v
+        changed = True
+if changed:
+    open(dst, "w", encoding="utf-8").write(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False))
+sys.exit(0 if changed else 3)
+PY
+    then
+      log "hermes: quem pensa aplicado no JARVIS (modelo e reserva)"; HERMES_RESTART=1
+    fi
+  fi
   if [ -f "$JARVIS_HOME/render/hermes/env" ]; then
     touch "$HERMES_HOME/.env"
     chmod 600 "$HERMES_HOME/.env"

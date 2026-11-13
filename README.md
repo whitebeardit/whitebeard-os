@@ -261,6 +261,15 @@ vault, servidores MCP, pacotes de skills, modelo do Hermes, perfis, crons, servi
 preenchidos em `secrets.env` a partir do manifesto. Esquema completo em `kernel/schema/jarvis.schema.json`;
 exemplo em `tenants/exemplo/jarvis.yaml`.
 
+### Quem pensa (Claude ou ChatGPT, pela sua assinatura)
+
+`hermes.provedor` (`claude` ou `chatgpt`) e `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) escolhem o modelo de
+todos: o JARVIS, os assistentes e os cargos. A pessoa nunca vê ids de modelo: a tabela provedor × nível fica em
+`kernel/modelos.yaml` e muda por release. O Claude usa o login do Claude Code; o ChatGPT entra pela página
+(PRIMEIROS PASSOS → QUEM PENSA) com um código de dispositivo do Hermes (`openai-codex`). Com as duas contas, a outra
+vira reserva automática no mesmo nível. Assistentes e cargos aceitam `nivel` próprio; `modelo` explícito continua
+valendo para quem é técnico. A escolha da página fica em `$JARVIS_HOME/pensa.json` e vale depois de colocar em uso.
+
 ### O Escritório (cargos e rotinas)
 
 Com `escritorio.ligado: true`, o trabalho que demora sai do chat: "JARVIS, monte a proposta da Acme" vira uma

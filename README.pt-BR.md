@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/banner.png" alt="Whitebeard OS: tudo o que você vê no hype, instalado e funcionando na sua máquina" width="100%"></p>
+<p align="center"><img src="docs/banner.pt-BR.png" alt="Whitebeard OS: tudo o que você vê no hype, instalado e funcionando na sua máquina" width="100%"></p>
 
 <p align="center"><a href="README.md">English</a> · <b>Português</b></p>
 

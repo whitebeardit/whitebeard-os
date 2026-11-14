@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Whitebeard OS · banner</title>
 <!--
-  Banner do README. Mesmo mundo visual da interface (tema "atlas", a carta celeste): céu azul-marinho, estrelas
+  Banner do README em inglês (docs/banner.png); a versão em português é banner.pt-BR.html (docs/banner.pt-BR.png). Mesmo mundo visual da interface (tema "atlas", a carta celeste): céu azul-marinho, estrelas
   branco-giz, grade de coordenadas quase invisível, pranchas de fio de névoa, Orbitron só em legendas, Rajdhani no
   texto, o ciano reservado à estrela JARVIS, a menta para "em dia". Renderizar a 1600×600 (o PNG do repositório sai
   a 2×): node /tmp/wb-shot.mjs "file://$PWD/docs/banner/banner.html" docs/banner.png 1600 600 0 1500
@@ -55,10 +55,11 @@
   .reg.tl { left: -6px; top: -6px; } .reg.tr { right: -6px; top: -6px; } .reg.bl { left: -6px; bottom: -6px; } .reg.br { right: -6px; bottom: -6px; }
 
   h1 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 46px; letter-spacing: 0.26em; line-height: 1; color: var(--text); }
-  h1 span { display: inline-block; margin-left: 14px; width: 12px; height: 12px; border-radius: 50%; background: var(--star); vertical-align: 12px; }
+  h1 img { height: 40px; width: auto; display: inline-block; vertical-align: bottom; }
+  h1 span { display: inline-block; margin-left: 14px; width: 12px; height: 12px; border-radius: 50%; background: var(--star); vertical-align: 14px; }
   .ruler { margin: 18px 0 0; height: 8px; width: 100%; background-image: linear-gradient(90deg, rgba(170,179,197,.5) 1px, transparent 1px); background-size: 20px 8px; position: relative; }
   .ruler::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
-  .lead { margin: 26px 0 0; font-size: 30px; line-height: 1.3; font-weight: 500; color: var(--text); max-width: 30ch; text-wrap: balance; }
+  .lead { margin: 26px 0 0; font-size: 30px; line-height: 1.3; font-weight: 500; color: var(--text); max-width: 40ch; text-wrap: balance; }
   .lead em { font-style: normal; color: var(--star); }
   .sub { margin: 14px 0 0; font-size: 20px; line-height: 1.45; color: var(--text-2); max-width: 64ch; }
 
@@ -102,14 +103,14 @@
     </svg>
     <img src="assets/logo-core.png" alt="">
   </div>
-  <div class="foot">roda no seu <b>Mac</b>, num <b>Linux</b> ou num <b>Raspberry Pi 4</b></div>
+  <div class="foot">runs on your <b>Mac</b>, on <b>Linux</b> or on a <b>Raspberry Pi 4</b></div>
 
   <div class="plate">
     <span class="reg tl"></span><span class="reg tr"></span><span class="reg bl"></span><span class="reg br"></span>
-    <h1>WHITEBEARD OS<span></span></h1>
+    <h1><img src="../marca/whitebeard-os-titulo-branco.png" alt="Whitebeard OS"></h1>
     <div class="ruler"></div>
-    <p class="lead">Tudo o que você vê no hype, <em>instalado e funcionando</em> na sua máquina.</p>
-    <p class="sub">Second brain com busca semântica, agentes que executam tarefas, assistentes no Telegram, no WhatsApp e no Discord. Seus dados ficam com você. Um comando para instalar.</p>
+    <p class="lead">Everything you see in the hype, <em>installed and working</em> on your own machine.</p>
+    <p class="sub" style="text-wrap: balance">A second brain with semantic search, agents that carry out tasks, assistants on Telegram, WhatsApp and Discord. Your data stays with you. One command to install.</p>
 
     <div class="const">
       <svg viewBox="0 0 864 40" preserveAspectRatio="none"><line x1="40" y1="4" x2="190" y2="4"/><line x1="190" y1="4" x2="340" y2="4"/><line x1="340" y1="4" x2="490" y2="4"/><line x1="490" y1="4" x2="640" y2="4"/><line x1="640" y1="4" x2="800" y2="4"/></svg>

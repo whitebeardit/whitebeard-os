@@ -1,407 +1,418 @@
-<p align="center"><img src="docs/banner.png" alt="Whitebeard OS: tudo o que você vê no hype, instalado e funcionando na sua máquina" width="100%"></p>
+<p align="center"><img src="docs/banner.png" alt="Whitebeard OS: everything you see in the hype, installed and working on your own machine" width="100%"></p>
+
+<p align="center"><b>English</b> · <a href="README.pt-BR.md">Português</a></p>
 
 # Whitebeard OS
 
-**Tudo o que você vê no hype, instalado e funcionando na sua máquina. Em um comando.**
+**Everything you see in the hype, installed and working on your own machine. In one command.**
 
-Second brain com busca semântica. Agentes que trabalham sozinhos, no horário. Um bot no Telegram, outro no Discord,
-outro no WhatsApp, cada um com a sua memória e as suas regras. Todo dia aparece alguém falando de uma dessas peças.
-O difícil nunca foi saber que elas existem: é fazer todas trabalharem juntas, no seu computador, com os seus dados,
-sem virar um projeto de fim de semana que nunca termina.
+A second brain with semantic search. Agents that work on their own, on schedule. One bot on Telegram, another on
+Discord, another on WhatsApp, each with its own memory and its own rules. Every day someone is talking about one of
+these pieces. The hard part was never knowing they exist: it is making all of them work together, on your computer,
+with your data, without turning into a weekend project that never ends.
 
-Eu sou **Almerindo Rehem**, engenheiro de software e fundador da **Whitebeard**. O Whitebeard OS é o setup que eu uso
-todo dia, em casa e no trabalho, empacotado para você instalar com um comando e usar pelo navegador. Roda até num
-**Raspberry Pi**.
+I am **Almerindo Rehem**, a software engineer and the founder of **Whitebeard**. Whitebeard OS is the setup I use every
+day, at home and at work, packaged so you can install it with one command and use it from your browser. It runs even on
+a **Raspberry Pi**.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
 ```
 
-<p align="center"><img src="docs/midia/visao-geral.gif" alt="Visão geral do Whitebeard OS: a pessoa pergunta quem está atrasado nas entregas e o JARVIS responde a partir do second brain" width="100%"></p>
+> The interface is in Brazilian Portuguese. Button and page names below are quoted as they appear on screen, with a
+> translation next to them.
 
-<p align="center"><a href="#pergunte-ao-seu-second-brain">Second brain</a> ·
-<a href="#um-bot-por-canal-em-três-toques">Bots por canal</a> ·
-<a href="#cada-bot-com-o-seu-papel-e-o-seu-modelo">Tipos e modelos</a> ·
-<a href="#o-escritório-trabalho-que-roda-sozinho">Escritório</a> ·
-<a href="#no-telegram-e-no-discord-de-verdade">Telegram e Discord</a> ·
-<a href="#do-seu-jeito">Temas</a> ·
-<a href="#roda-onde-você-quiser">Instalar</a></p>
+<p align="center"><img src="docs/midia/visao-geral.gif" alt="Whitebeard OS overview: someone asks who is behind on their assignments and JARVIS answers from the second brain" width="100%"></p>
 
-> **Um caso real.** As telas abaixo seguem um bot que já está no ar num Raspberry Pi: o **@Pichi**, monitor de um curso
-> de programação no Discord. O plano do curso: tirar dúvidas dos módulos, corrigir os exercícios e, toda segunda-feira,
-> publicar no canal a prestação de contas de cada aluno. As telas mostram essa configuração com alunos e notas
-> fictícios; as conversas no Telegram e no Discord, no fim, são reais.
+<p align="center"><a href="#ask-your-second-brain">Second brain</a> ·
+<a href="#one-bot-per-channel-in-three-steps">Bots per channel</a> ·
+<a href="#each-bot-with-its-own-role-and-model">Types and models</a> ·
+<a href="#the-office-work-that-runs-on-its-own">Office</a> ·
+<a href="#on-telegram-and-discord-for-real">Telegram and Discord</a> ·
+<a href="#your-way">Themes</a> ·
+<a href="#runs-wherever-you-want">Install</a></p>
 
-## Pergunte ao seu second brain
+> **A real case.** The screens below follow a bot that is already live on a Raspberry Pi: **@Pichi**, the teaching
+> assistant of a programming course on Discord. The course plan: answer questions about the modules, grade the
+> exercises and, every Monday, post each student's weekly check-in to the channel. The screens show that setup with
+> fictional students and grades; the Telegram and Discord conversations at the end are real.
 
-Suas notas em Markdown (abrem no Obsidian) viram um cérebro com busca semântica: embeddings gerados na sua máquina,
-grafo de ligações, árvore de mapas e busca. O JARVIS e todos os bots consultam o mesmo cérebro. Nada sai do seu
-computador.
+## Ask your second brain
 
-<p align="center"><img src="docs/midia/second-brain.gif" alt="Página Conhecimento: grafo do second brain do curso, filtro por área, busca por git e a nota do Módulo 3 aberta" width="100%"></p>
+Your Markdown notes (they open in Obsidian) become a brain with semantic search: embeddings generated on your machine,
+a graph of links, a tree of maps and search. JARVIS and every bot query the same brain. Nothing leaves your computer.
 
-## Um bot por canal, em três toques
+<p align="center"><img src="docs/midia/second-brain.gif" alt="Knowledge page: the course's second brain graph, filtering by area, searching for git and opening the Module 3 note" width="100%"></p>
 
-Escolha para quem é e onde ele fala (Telegram, Discord ou WhatsApp), cole o token do bot e clique em ESPERAR: quem
-mandar mensagem nesse intervalo entra na lista de quem fala com ele. Várias pessoas de uma vez, até você clicar em PARAR.
+## One bot per channel, in three steps
 
-<p align="center"><img src="docs/midia/criar-assistente.gif" alt="Criando um assistente no Discord: tipo, canal, nome, token e três pessoas reconhecidas na mesma espera" width="100%"></p>
+Choose who it is for and where it talks (Telegram, Discord or WhatsApp), paste the bot token and click ESPERAR
+(wait): whoever messages the bot during that window joins the list of people who can talk to it. Several people at
+once, until you click PARAR (stop).
 
-## Cada bot com o seu papel e o seu modelo
+<p align="center"><img src="docs/midia/criar-assistente.gif" alt="Creating an assistant on Discord: type, channel, name, token, and three people recognized in the same wait" width="100%"></p>
 
-O limite de cada bot é estrutural: o que o tipo não permite, ele não tem instalado. Não é uma regra no prompt que ele
-pode esquecer.
+## Each bot with its own role and model
 
-| Tipo | Para quê | No caso do curso |
+Each bot's limits are structural: what its type does not allow, it simply does not have installed. It is not a rule
+in a prompt that it can forget.
+
+| Type | What for | In the course |
 | --- | --- | --- |
-| **Para mim** | Um segundo assistente só seu | o JARVIS do dono, no Telegram |
-| **Para a minha equipe** | Responde às pessoas que você liberar; consulta e anota no second brain | o @Pichi no Discord e a secretaria no WhatsApp |
-| **Para um cliente** | Atende um grupo só sobre o papel dele, sem ferramentas | o grupo da empresa que patrocina as bolsas (e, de verdade, o grupo da Sauvvitech, logo abaixo) |
-| **Só rotinas** | Não conversa; publica avisos no horário | o calendário da semana |
+| **Para mim** (for me) | A second assistant that is only yours | the owner's JARVIS, on Telegram |
+| **Para a minha equipe** (for my team) | Answers the people you allow; reads and writes to the second brain | @Pichi on Discord and the front desk on WhatsApp |
+| **Para um cliente** (for a client) | Serves one group, only within its role, with no tools | the group of the company sponsoring scholarships (and, for real, the Sauvvitech group, below) |
+| **Só rotinas** (routines only) | Does not chat; posts announcements on schedule | the weekly calendar |
 
-Cada bot também escolhe **a assinatura** (Claude ou ChatGPT, a sua, sem chave de API) e **o nível** (Rápido, Equilibrado
-ou Mais capaz). A página mostra o modelo que cada escolha usa, e a outra assinatura conectada vira reserva automática.
+Each bot also picks **the subscription** (Claude or ChatGPT, your own, no API key) and **the level** (Rápido/fast,
+Equilibrado/balanced or Mais capaz/most capable). The page shows which model each choice uses, and the other connected
+subscription becomes an automatic fallback.
 
-<p align="center"><img src="docs/midia/modalidades.gif" alt="Página Assistentes: quatro bots de tipos e canais diferentes, o que cada um faz e não faz, e a escolha de assinatura e nível por bot" width="100%"></p>
+<p align="center"><img src="docs/midia/modalidades.gif" alt="Assistants page: four bots of different types and channels, what each one does and does not do, and the per-bot choice of subscription and level" width="100%"></p>
 
-## O Escritório: trabalho que roda sozinho
+## The Office: work that runs on its own
 
-O trabalho que demora sai do chat. Você pede ao JARVIS, um **cargo** executa (um agente com papel definido) e a entrega
-volta no chat e fica no second brain. **Rotinas** criam a tarefa sozinhas, no horário. O que exigir enviar, pagar ou
-publicar **para e pergunta a você** antes.
+Work that takes time leaves the chat. You ask JARVIS, a **role** carries it out (an agent with a defined job) and the
+result comes back to the chat and stays in the second brain. **Routines** create the task by themselves, on schedule.
+Anything that would send, pay or publish **stops and asks you** first.
 
-No curso, o Escritório fica com três cargos e três rotinas:
+In the course, the Office (ESCRITÓRIO) has three roles and three routines:
 
-| Rotina | Quando | Cargo | Onde publica |
+| Routine | When | Role | Where it posts |
 | --- | --- | --- | --- |
-| Correção das entregas do dia: corrige com a rubrica, aponta o erro com um exemplo e não entrega a resposta pronta | todo dia, 22h | Corretor de exercícios | no canal do @Pichi |
-| Cobrança de tarefas: lembra quem ainda não entregou, com o prazo | quarta e sexta, 18h | Coordenação da turma | no canal do @Pichi |
-| Prestação de contas: o que cada aluno entregou, o que está atrasado e a média | toda segunda, 9h | Coordenação da turma | no canal do @Pichi |
+| Grade the day's submissions: grades with the rubric, points out the mistake with an example and never hands over the answer | every day, 10 pm | Exercise grader | in @Pichi's channel |
+| Assignment reminders: reminds whoever has not submitted yet, with the deadline | Wednesday and Friday, 6 pm | Class coordination | in @Pichi's channel |
+| Weekly check-in: what each student submitted, what is late, and the average | every Monday, 9 am | Class coordination | in @Pichi's channel |
 
-<p align="center"><img src="docs/midia/escritorio.gif" alt="Página Escritório: aprovação para publicar as notas do Módulo 3, organograma, cargos, rotinas do curso e uso de tokens por cargo e por rotina" width="100%"></p>
+<p align="center"><img src="docs/midia/escritorio.gif" alt="Office page: approving the publication of the Module 3 grades, org chart, roles, the course routines, and token usage per role and per routine" width="100%"></p>
 
-O uso de tokens aparece por assinatura, por cargo, por rotina e por tarefa, com alerta quando algo sai do padrão.
+Token usage shows up per subscription, per role, per routine and per task, with an alert when something is out of the
+ordinary.
 
-## No Telegram e no Discord, de verdade
+## On Telegram and Discord, for real
 
-O mesmo Pichi, rodando num Raspberry Pi, responde nos dois canais com a mesma memória e o mesmo second brain. Duas
-dúvidas de aluno, em conversas diretas:
+The same Pichi, running on a Raspberry Pi, answers on both channels with the same memory and the same second brain.
+Two student questions, in direct messages:
 
 <table>
 <tr>
-<td width="45%" valign="top"><b>Telegram</b><br><img src="docs/midia/telegram-pichi.gif" alt="Conversa real no Telegram: o Pichi explica o que é um pull request em poucas linhas" width="100%"></td>
-<td width="55%" valign="top"><b>Discord</b><br><img src="docs/midia/discord-pichi.gif" alt="Conversa real no Discord: o Pichi explica a diferença entre let e const com exemplos e oferece um exercício" width="100%"></td>
+<td width="45%" valign="top"><b>Telegram</b><br><img src="docs/midia/telegram-pichi.gif" alt="Real Telegram conversation: Pichi explains what a pull request is in a few lines" width="100%"></td>
+<td width="55%" valign="top"><b>Discord</b><br><img src="docs/midia/discord-pichi.gif" alt="Real Discord conversation: Pichi explains the difference between let and const with examples and offers an exercise" width="100%"></td>
 </tr>
 </table>
 
-### Num grupo de cliente
+### In a client group
 
-O **Dobby** atende o grupo **Whitebeard → Sauvvitech** no Telegram: um bot do tipo "Para um cliente", que acompanha o
-projeto com quem está no grupo e sabe até onde vai. Perguntado no próprio grupo o que pode fazer:
+**Dobby** serves the **Whitebeard → Sauvvitech** group on Telegram: a "for a client" bot that follows the project
+with the people in the group and knows where its job ends. Asked in the group itself what it can do:
 
-<p align="center"><img src="docs/midia/telegram-cliente-dobby.png" alt="Grupo Whitebeard → Sauvvitech no Telegram: o Dobby lista o que faz (consolidar status, verificar PRs no GitHub só para leitura, manter o acompanhamento no vault, preparar relatórios, sinalizar riscos) e o que não faz (implementar, alterar código, fazer deploy, assumir prazo ou escopo)" width="70%"></p>
+<p align="center"><img src="docs/midia/telegram-cliente-dobby.png" alt="Whitebeard → Sauvvitech group on Telegram: Dobby lists what it does (consolidate status, check GitHub PRs read-only, keep the project log in the vault, prepare reports, flag risks) and what it does not do (implement, change code, deploy, commit to deadlines or scope)" width="70%"></p>
 
-## Do seu jeito
+## Your way
 
-Três temas (HUD, Atlas estelar e Carmesim), tamanho do texto e voz, em CONFIGURAÇÕES. Muda na hora, neste aparelho.
+Three themes (HUD, Atlas estelar and Carmesim), text size and voice, in CONFIGURAÇÕES (settings). Changes apply
+instantly, on this device.
 
-<p align="center"><img src="docs/midia/temas.gif" alt="Configurações: trocando entre os temas Atlas estelar, Carmesim e HUD e vendo o resultado na Visão geral" width="100%"></p>
+<p align="center"><img src="docs/midia/temas.gif" alt="Settings: switching between the Atlas estelar, Carmesim and HUD themes and seeing the result on the overview" width="100%"></p>
 
-## O que vem dentro
+## What's inside
 
-| Você ouviu falar de | No Whitebeard OS é |
+| You've heard of | In Whitebeard OS it is |
 | --- | --- |
-| **Second brain** | O seu vault em Markdown (abre no Obsidian), sincronizado a cada 2 minutos com o **GBrain**, o cérebro que indexa tudo e responde por busca semântica |
-| **Embeddings e pgvector** | **Ollama** rodando o modelo `bge-m3` na sua máquina; GBrain com PGLite no Mac e **pgvector** em Docker no Linux. Nada sai do seu computador |
-| **MCP** | O cérebro entra como servidor MCP `knowledge` no Claude Code e em cada agente: todos consultam o mesmo second brain, com chave própria |
-| **Agentes com tarefas autônomas** | O **Escritório**: você pede pelo chat, um cargo executa pelo **Hermes**, a entrega volta no chat e fica no vault. Rotinas rodam no horário. O que exigir enviar, pagar ou publicar para e pergunta a você |
-| **Paperclip** | O motor de tarefas e aprovações por baixo do Escritório, já configurado |
-| **Claude Code e ChatGPT** | A sua assinatura é a conta que os agentes usam (o login do Claude Code; o ChatGPT entra por código de dispositivo). Skills e MCPs já instalados |
-| **Telegram, WhatsApp, Discord** | Assistentes isolados por público: um bot por canal, cada um com memória, skills, permissões e modelo próprios, criado em três toques |
-| **Voz** | Fale com o assistente pela interface: transcrição local com Whisper e resposta falada em português |
-| **Interface** | Uma página web no computador ou no celular (instala como app, com QR code): visão geral, conhecimento, assistentes, escritório, uso de tokens, diagnósticos |
+| **Second brain** | Your Markdown vault (opens in Obsidian), synced every 2 minutes with **GBrain**, the brain that indexes everything and answers through semantic search |
+| **Embeddings and pgvector** | **Ollama** running the `bge-m3` model on your machine; GBrain with PGLite on the Mac and **pgvector** in Docker on Linux. Nothing leaves your computer |
+| **MCP** | The brain is plugged in as the `knowledge` MCP server in Claude Code and in every agent: they all query the same second brain, each with its own key |
+| **Agents with autonomous tasks** | The **Office**: you ask in the chat, a role carries it out through **Hermes**, the result comes back to the chat and stays in the vault. Routines run on schedule. Anything that would send, pay or publish stops and asks you |
+| **Paperclip** | The task and approval engine under the Office, already configured |
+| **Claude Code and ChatGPT** | Your subscription is the account the agents use (the Claude Code login; ChatGPT signs in with a device code). Skills and MCPs already installed |
+| **Telegram, WhatsApp, Discord** | Assistants isolated by audience: one bot per channel, each with its own memory, skills, permissions and model, created in three steps |
+| **Voice** | Talk to the assistant through the interface: local transcription with Whisper and a spoken answer in Portuguese |
+| **Interface** | A web page on your computer or phone (installs as an app, with a QR code): overview, knowledge, assistants, office, token usage, diagnostics |
 
-## Roda onde você quiser
+## Runs wherever you want
 
-Roda num **Raspberry Pi**: é onde o Pichi mora, atendendo no Telegram e no Discord. Roda no Mac (Apple Silicon, sem Docker)
-e em qualquer Linux. Interface, núcleo e conhecimento vão na mesma máquina por padrão, ou em máquinas separadas.
+It runs on a **Raspberry Pi**: that is where Pichi lives, answering on Telegram and on Discord. It runs on the Mac
+(Apple Silicon, no Docker) and on any Linux. Interface, core and knowledge go on the same machine by default, or on
+separate machines.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
 ```
 
-O instalador pergunta só o que falta, sobe tudo como serviço do usuário (sem senha de administrador) e abre a interface
-no navegador. Atualizações chegam pela própria interface.
+The installer only asks for what is missing, brings everything up as user services (no administrator password) and
+opens the interface in your browser. Updates arrive through the interface itself.
 
-**O que você não precisa decidir:** banco vetorial, modelo de embeddings, pipeline de ingestão, prompt de sistema,
-configuração de MCP, isolamento entre o bot do cliente e o da equipe. Está tudo decidido e testado.
+**What you don't have to decide:** vector database, embedding model, ingestion pipeline, system prompt, MCP
+configuration, isolation between the client bot and the team bot. It is all decided and tested.
 
-## Para empresas
+## For companies
 
-Este é o meu setup pessoal, aberto. A mesma base atende uso corporativo: tenants por área, assistentes por cliente,
-cargos por papel, second brain por equipe, tudo na sua infraestrutura. Fale com a Whitebeard:
+This is my personal setup, open. The same foundation serves corporate use: tenants per area, assistants per client,
+roles per job, a second brain per team, all on your infrastructure. Talk to Whitebeard:
 **[whitebeard.dev](https://whitebeard.dev)**.
 
-<sub>Vai junto hoje: Hermes, Paperclip, GBrain, Ollama com `bge-m3`, Claude Code, Node 24, ffmpeg com Whisper; versões
-fixadas em `kernel/versions.env`, licenças em [Componentes externos e licenças](#componentes-externos-e-licenças).
-Telas gravadas com dados de exemplo; imagens e vídeos em alta resolução no
-[kit de divulgação](docs/midia/README.md).</sub>
+<sub>Included today: Hermes, Paperclip, GBrain, Ollama with `bge-m3`, Claude Code, Node 24, ffmpeg with Whisper;
+versions pinned in `kernel/versions.env`, licenses in [External components and licenses](#external-components-and-licenses).
+Screens recorded with sample data; high-resolution images and videos in the
+[press kit](docs/midia/README.md) (in Portuguese).</sub>
 
 ---
 
-## Por dentro: o kernel instalável
+## Under the hood: the installable kernel
 
-Instala a arquitetura do JARVIS (Claude Code, skills, clientes MCP, Hermes) num host **zerado**, a partir de
-uma declaração de tenant (`jarvis.yaml`), **sem carregar conhecimento nem dado privado de nenhuma empresa**.
+It installs the JARVIS architecture (Claude Code, skills, MCP clients, Hermes) on a **clean** host, from a tenant
+declaration (`jarvis.yaml`), **without carrying any company's knowledge or private data**.
 
-Objetivo do projeto: pegar uma arquitetura de agentes que já roda em produção no dia a dia de uma empresa,
-e transformá-la num **produto que outras pessoas baixam e instalam**. O primeiro usuário é a própria empresa
-que o mantém (dogfooding); a estrutura já nasce de produto.
+Project goal: take an agent architecture that already runs in production in a company's daily work and turn it into a
+**product that other people download and install**. The first user is the company that maintains it (dogfooding); the
+structure is a product from day one.
 
-Este repositório é o **kernel**: mecanismo. Identidade (nomes, chats, contas, skills de negócio, segredos)
-vive num **pacote de tenant** separado e privado, apontado na linha de comando. A regra que separa os dois:
+This repository is the **kernel**: mechanism. Identity (names, chats, accounts, business skills, secrets) lives in a
+separate, private **tenant package**, pointed to on the command line. The rule that separates the two:
 
-> Mecanismo vai no kernel; identidade fica no tenant. Valor de tenant em código do kernel = falha de CI.
+> Mechanism goes in the kernel; identity stays in the tenant. A tenant value in kernel code = CI failure.
 
-Três camadas:
+Three layers:
 
-| Camada | O que é | Onde vive | Exemplo |
+| Layer | What it is | Where it lives | Example |
 | --- | --- | --- | --- |
-| **kernel** | mecanismo obrigatório | este repositório | bootstrap, esquema do tenant, lint, skills de método |
-| **packs** | mecanismo opcional, instalável | `packs/` (futuro) | CRM genérico, domínio fiscal BR, Instagram |
-| **tenant** | identidade e dados | repositório privado do usuário | `jarvis.yaml`, skills de negócio, segredos |
+| **kernel** | required mechanism | this repository | bootstrap, tenant schema, lint, method skills |
+| **packs** | optional, installable mechanism | `packs/` (future) | generic CRM, Brazilian tax domain, Instagram |
+| **tenant** | identity and data | the user's private repository | `jarvis.yaml`, business skills, secrets |
 
-## O pacote e onde cada parte roda
+## The package and where each part runs
 
-O pacote completo tem três papéis, e **por padrão os três são instalados na mesma máquina** (tudo-em-um).
-Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o padrão.
+The full package has three roles, and **by default all three are installed on the same machine** (all-in-one).
+Splitting across machines is an option, declared in `nos:` in `jarvis.yaml`, not the default.
 
-| Papel | Componentes | Precisa de |
+| Role | Components | Needs |
 | --- | --- | --- |
-| **desktop** | Claude Code, skills, clientes MCP, JARVIS Web (UI no browser, construída do app e registrada como serviço de usuário), Hermes CLI | só `$HOME` e chave SSH com acesso ao repositório do app |
-| **core** | Hermes (gateway Telegram + crons), Paperclip (Node + Postgres embutido) | host sempre ligado |
-| **knowledge** | GBrain (MCP + ingestão do vault), pgvector, Ollama (embeddings), em Docker Compose | Docker (Linux) ou Docker Desktop/OrbStack (macOS) |
+| **desktop** | Claude Code, skills, MCP clients, JARVIS Web (browser UI, built from the app and registered as a user service), Hermes CLI | only `$HOME` and an SSH key with access to the app repository |
+| **core** | Hermes (Telegram gateway + crons), Paperclip (Node + embedded Postgres) | an always-on host |
+| **knowledge** | GBrain (MCP + vault ingestion), pgvector, Ollama (embeddings), in Docker Compose | Docker (Linux) or Docker Desktop/OrbStack (macOS) |
 
-Sem `--role`, o `bootstrap.sh` instala os papéis do nó desta máquina em `nos:` do tenant: `local`, `localhost`
-ou o nome do host (nome curto, ou o FQDN se o tenant o escrever com domínio). Sem `nos:`, os três: tudo-em-um; com
-`nos:` mas sem nó que seja esta máquina, ele para e pede `--role`. Um papel em outra máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do
-tenant apontam para lá. Segredos obrigatórios que faltam são pedidos no terminal (`--no-prompt` desliga).
-Sem Docker, o papel knowledge é adiado com aviso e os outros seguem.
+Without `--role`, `bootstrap.sh` installs the roles of this machine's node in the tenant's `nos:`: `local`,
+`localhost` or the host name (short name, or the FQDN if the tenant writes it with a domain). Without `nos:`, all
+three: all-in-one; with `nos:` but no node that is this machine, it stops and asks for `--role`. A role on another
+machine is just another host in `nos:` with its roles; the tenant's MCPs and URLs point there. Missing required secrets
+are asked for in the terminal (`--no-prompt` turns this off). Without Docker, the knowledge role is postponed with a
+warning and the others continue.
 
-**Camada de decisão com provedor plugável.** Rotear mensagens, classificar intents e aplicar guardrails são
-perguntas fechadas, e o kernel as trata por uma abstração própria: perguntas tipadas versionadas, limiar de
-confiança e escalada para o LLM ou para o humano. O tenant escolhe o provedor em `decisoes.provider`:
-`regras` (determinístico, padrão), `llm` (modelos já configurados) ou `jev` (modelo de decisão da TypeSafe
-AI, por API, com `TYPESAFE_API_KEY`). Nenhum provedor externo é obrigatório, e `perfis_excluidos` impede
-que conteúdo de certos perfis saia da máquina.
+**Decision layer with a pluggable provider.** Routing messages, classifying intents and applying guardrails are closed
+questions, and the kernel handles them through its own abstraction: versioned typed questions, a confidence threshold
+and escalation to the LLM or to a human. The tenant picks the provider in `decisoes.provider`: `regras`
+(deterministic, the default), `llm` (models already configured) or `jev` (TypeSafe AI's decision model, over an API,
+with `TYPESAFE_API_KEY`). No external provider is required, and `perfis_excluidos` keeps content from certain profiles
+from leaving the machine.
 
-**GPU é opcional, nunca obrigatória.** `aceleracao: auto` no `jarvis.yaml` detecta CUDA (Linux/NVIDIA),
-Metal (Apple Silicon) ou Vulkan na instalação e cai para CPU se não houver. Onde a GPU entra: transcrição
-(Whisper), embeddings e modelos locais (Ollama), vídeo das câmeras (hwaccel do FFmpeg). No Linux, o papel
-knowledge em compose usa a GPU por CDI/NVIDIA Container Toolkit; no macOS, containers não veem a GPU, então
-Ollama e Whisper rodam nativos e o compose aponta para eles.
+**GPU is optional, never required.** `aceleracao: auto` in `jarvis.yaml` detects CUDA (Linux/NVIDIA), Metal (Apple
+Silicon) or Vulkan at install time and falls back to CPU if there is none. Where the GPU comes in: transcription
+(Whisper), embeddings and local models (Ollama), camera video (FFmpeg hwaccel). On Linux, the knowledge role in compose
+uses the GPU through CDI/NVIDIA Container Toolkit; on macOS, containers cannot see the GPU, so Ollama and Whisper run
+natively and the compose points to them.
 
-A interface gráfica do produto é **uma só, a interface web do Whitebeard OS** (pacote `jarvis-web`; o JARVIS é o assistente com quem se fala nela), servida pelo próprio host e aberta no browser
-(`http://localhost:8017` nesta máquina; na LAN ou no celular, `https://` com TLS local). Não há app Electron no produto: mesma UI, sem
-empacotamento nem assinatura por sistema operacional. O app lê as pastas pelo mesmo contrato do `profile.sh`
-(`JARVIS_HOME`, `JARVIS_DATA`, `HERMES_HOME`, `VAULT_PATH`), sem nome de tenant no código.
+The product has **a single graphical interface, the Whitebeard OS web interface** (package `jarvis-web`; JARVIS is the
+assistant you talk to in it), served by the host itself and opened in the browser (`http://localhost:8017` on this
+machine; on the LAN or on your phone, `https://` with local TLS). There is no Electron app in the product: same UI, no
+packaging or signing per operating system. The app reads its folders through the same contract as `profile.sh`
+(`JARVIS_HOME`, `JARVIS_DATA`, `HERMES_HOME`, `VAULT_PATH`), with no tenant name in the code.
 
-## Estado
+## Status
 
-Versão `0.2.0-dev`. Os três papéis instalam a partir do mesmo bootstrap:
+Version `0.2.0-dev`. All three roles install from the same bootstrap:
 
-- **desktop**: provado em CI (Ubuntu 24.04 e macOS), em Ubuntu descartável e num Mac físico (Apple Silicon,
-  2026-11-01). O JARVIS Web vem pronto de [whitebeard-os-releases](https://github.com/whitebeardit/whitebeard-os-releases)
-  (sem npm nem build na máquina de quem instala).
-- **core**: Paperclip fixado no lockfile e instalado pelo npm do Node 24; Hermes upstream instalado por
-  padrão; serviços de usuário registrados pelos próprios CLIs (`paperclipai onboard --install-service`,
-  `hermes gateway install`). O CI prova instalação e renderização (`--no-start`); subir os serviços se prova
-  no Mac físico.
-- **knowledge**: no macOS (Apple Silicon) é nativo, sem Docker: GBrain com PGLite (Postgres embutido), Ollama
-  na GPU (Metal) para os embeddings, token do MCP gerado na instalação e o second brain da pessoa
-  (`~/whitebeard-secondbrain`, criado se não existir) sincronizado a cada 2 minutos. No Linux segue o compose
-  com GBrain (tag fixa), pgvector e Ollama, portas só em localhost. O cérebro entra como MCP `knowledge` no
-  Claude Code e no Hermes, e as skills `knowledge`, `knowledge-write` e `project-documentation` do kernel
-  ensinam os dois a consultar e a documentar nele.
+- **desktop**: proven in CI (Ubuntu 24.04 and macOS), on a throwaway Ubuntu and on a physical Mac (Apple Silicon,
+  2026-11-01). JARVIS Web comes prebuilt from [whitebeard-os-releases](https://github.com/whitebeardit/whitebeard-os-releases)
+  (no npm or build on the installing machine).
+- **core**: Paperclip pinned in the lockfile and installed with Node 24's npm; upstream Hermes installed by default;
+  user services registered by the CLIs themselves (`paperclipai onboard --install-service`, `hermes gateway install`).
+  CI proves installation and rendering (`--no-start`); bringing the services up is proven on the physical Mac.
+- **knowledge**: on macOS (Apple Silicon) it is native, without Docker: GBrain with PGLite (embedded Postgres), Ollama
+  on the GPU (Metal) for embeddings, an MCP token generated at install time, and the person's second brain
+  (`~/whitebeard-secondbrain`, created if it does not exist) synced every 2 minutes. On Linux it uses the compose with
+  GBrain (pinned tag), pgvector and Ollama, ports on localhost only. The brain is plugged in as the `knowledge` MCP in
+  Claude Code and Hermes, and the kernel's `knowledge`, `knowledge-write` and `project-documentation` skills teach both
+  how to query it and document in it.
 
-`satelite` (Hermes perfil + MCP em outra máquina) vem a seguir; o JARVIS Web já entra no papel desktop,
-com TLS local, a partir do branch do app fixado no lockfile. Tenants no kernel: `pessoal`
-(padrão de instalação) e `exemplo` (fictício, com todos os campos; usado no CI).
+`satelite` (Hermes profile + MCP on another machine) comes next; JARVIS Web is already part of the desktop role, with
+local TLS, from the app branch pinned in the lockfile. Tenants in the kernel: `pessoal` (the install default) and
+`exemplo` (fictional, with every field; used in CI).
 
-## Instalação em um comando (host zerado)
+## One-command install (clean host)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
 ```
 
-O `install.sh` garante git e curl (no macOS instala as Command Line Tools), clona o kernel em
-`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant `pessoal` (uma pessoa, um computador, tudo-em-um).
-O que a pessoa faz:
+`install.sh` makes sure git and curl are present (on macOS it installs the Command Line Tools), clones the kernel into
+`~/DEV/whitebeard-os` and runs `bootstrap.sh` with the `pessoal` tenant (one person, one computer, all-in-one). What the
+person does:
 
-1. roda o comando acima num terminal;
-2. entra na conta Claude quando o navegador abrir (único passo interativo: Hermes e Paperclip usam esse login);
-3. responde se quer o JARVIS no Telegram (pode dizer não e ligar depois);
-4. no fim, o JARVIS Web abre sozinho no navegador, em `http://localhost:8017`, na página **PRIMEIROS PASSOS**:
-   ali a pessoa liga o Telegram (cola o token do bot e manda um "oi"), preenche as chaves que o tenant pede,
-   vê como abrir no celular e aplica. Nada disso volta ao terminal: a página chama
-   `kernel/bin/jarvis_setup.py` (estado e gravação, só por stdin) e `bootstrap.sh --apply` (render, MCPs e
-   Hermes, sem reinstalar nada). A página fica em CONFIGURAÇÕES para voltar depois.
+1. runs the command above in a terminal;
+2. signs in to their Claude account when the browser opens (the only interactive step: Hermes and Paperclip use that
+   login);
+3. answers whether they want JARVIS on Telegram (they can say no and turn it on later);
+4. at the end, JARVIS Web opens by itself in the browser, at `http://localhost:8017`, on the **PRIMEIROS PASSOS**
+   (first steps) page: there the person turns on Telegram (pastes the bot token and sends a "hi"), fills in the keys
+   the tenant asks for, sees how to open it on their phone, and applies. None of this goes back to the terminal: the
+   page calls `kernel/bin/jarvis_setup.py` (state and writes, stdin only) and `bootstrap.sh --apply` (render, MCPs and
+   Hermes, without reinstalling anything). The page stays under CONFIGURAÇÕES (settings) to come back to later.
 
-Nada de chaves, convites ou arquivos para editar. O que não é nosso (npm, instalador do Hermes, Paperclip)
-não aparece na tela: fica em `~/.jarvis/logs/`. Tenant de uma empresa: `JARVIS_TENANT=<nome, pasta ou
-/caminho/jarvis.yaml>` antes do comando (`tenants/exemplo` mostra todos os campos). Para refazer a
-instalação, rode o mesmo comando de novo: é idempotente.
+No keys, invitations or files to edit. What is not ours (npm, the Hermes installer, Paperclip) does not show on screen:
+it goes to `~/.jarvis/logs/`. A company's tenant: `JARVIS_TENANT=<name, folder or /path/jarvis.yaml>` before the
+command (`tenants/exemplo` shows every field). To redo the installation, run the same command again: it is idempotent.
 
-**Assistentes.** Além do bot do dono, o tenant pode declarar `assistentes:` — um bot por público,
-cada um um **perfil isolado do Hermes** (token, memória, skills, ferramentas e sessões próprias), servidos pelo
-mesmo gateway. Quatro tipos, com o limite posto por estrutura (o que o tipo não permite, o assistente não tem
-instalado): `mim` (tudo, como o do dono), `equipe` (skills e MCPs, escreve no second brain, sem computador),
-`cliente` (só as skills do papel, sem ferramentas nem MCPs, responde só no grupo permitido e com menção) e
-`rotinas` (não conversa). O render escreve um perfil por assistente em `render/hermes/assistentes/<nome>/`, o
-bootstrap cria o perfil (`hermes profile create`) e aplica config, variáveis, persona (`SOUL.md`) e skills
-(`kernel/bin/jarvis_assistente.py`); o token entra em `secrets.env` como `TELEGRAM_BOT_TOKEN_<NOME>` (PRIMEIROS
-PASSOS mostra com título), pessoas e grupos como `TELEGRAM_ALLOWED_USERS_<NOME>` e `TELEGRAM_GROUP_ALLOWED_CHATS_<NOME>`.
-`canal: discord` põe o mesmo assistente num bot do Discord (`DISCORD_BOT_TOKEN_<NOME>`, `DISCORD_ALLOWED_USERS_<NOME>`,
-`DISCORD_ALLOWED_CHANNELS_<NOME>`); `canal: whatsapp` usa a ponte do Hermes (Baileys, não oficial): sem token, a sessão é
-pareada por QR na página ASSISTENTES e fica em `$JARVIS_HOME/assistentes/<nome>/whatsapp/session`
-(`whatsapp_modo: bot` com número dedicado, ou `self-chat` com o próprio número); sem `canal`, é Telegram. Assistente que sai do tenant é estacionado, nunca apagado.
-`tenants/exemplo` mostra os dois tipos mais comuns e um assistente no Discord.
+**Assistants.** Besides the owner's bot, the tenant can declare `assistentes:`, one bot per audience, each an
+**isolated Hermes profile** (its own token, memory, skills, tools and sessions), served by the same gateway. Four
+types, with limits set by structure (what the type does not allow, the assistant does not have installed): `mim`
+(everything, like the owner's), `equipe` (skills and MCPs, writes to the second brain, no computer access), `cliente`
+(only the role's skills, no tools or MCPs, answers only in the allowed group and when mentioned) and `rotinas` (does
+not chat). The render writes one profile per assistant in `render/hermes/assistentes/<name>/`; the bootstrap creates
+the profile (`hermes profile create`) and applies config, variables, persona (`SOUL.md`) and skills
+(`kernel/bin/jarvis_assistente.py`). The token goes into `secrets.env` as `TELEGRAM_BOT_TOKEN_<NAME>` (PRIMEIROS PASSOS
+shows it with a title), people and groups as `TELEGRAM_ALLOWED_USERS_<NAME>` and `TELEGRAM_GROUP_ALLOWED_CHATS_<NAME>`.
+`canal: discord` puts the same assistant in a Discord bot (`DISCORD_BOT_TOKEN_<NAME>`, `DISCORD_ALLOWED_USERS_<NAME>`,
+`DISCORD_ALLOWED_CHANNELS_<NAME>`); `canal: whatsapp` uses the Hermes bridge (Baileys, unofficial): no token, the
+session is paired by QR code on the ASSISTENTES (assistants) page and lives in
+`$JARVIS_HOME/assistentes/<name>/whatsapp/session` (`whatsapp_modo: bot` with a dedicated number, or `self-chat` with
+your own number); without `canal`, it is Telegram. An assistant that leaves the tenant is parked, never deleted.
+`tenants/exemplo` shows the two most common types and an assistant on Discord.
 
-**Atualizações** chegam pelo próprio JARVIS Web: uma vez por dia ele pergunta ao kernel se a origem no GitHub
-tem commit novo ou pacote novo do JARVIS Web (`jarvis_setup.py update-check`, resposta guardada em
-`~/.jarvis/update.json`) e, se tiver, mostra a faixa "ATUALIZAÇÃO DISPONÍVEL" com as notas da release e os botões
-ATUALIZAR / DEPOIS (também em CONFIGURAÇÕES, com VERIFICAR AGORA). ATUALIZAR roda o `install.sh` desacoplado do
-serviço (`update-run`: unidade própria do systemd no Linux, sessão própria no macOS, porque o JARVIS Web é
-reiniciado no meio), com registro em `~/.jarvis/logs/update.log`; a página acompanha (`update-status`), espera o
-servidor voltar e recarrega. Tenant, segredos, vault e dados não são tocados. Pelo terminal é o mesmo comando da
-instalação.
+**Updates** arrive through JARVIS Web itself: once a day it asks the kernel whether the GitHub origin has a new commit
+or a new JARVIS Web package (`jarvis_setup.py update-check`, answer stored in `~/.jarvis/update.json`) and, if so,
+shows the "ATUALIZAÇÃO DISPONÍVEL" (update available) banner with the release notes and the ATUALIZAR / DEPOIS (update /
+later) buttons (also in CONFIGURAÇÕES, with VERIFICAR AGORA, check now). ATUALIZAR runs `install.sh` detached from the
+service (`update-run`: its own systemd unit on Linux, its own session on macOS, because JARVIS Web is restarted midway),
+logging to `~/.jarvis/logs/update.log`; the page follows along (`update-status`), waits for the server to come back and
+reloads. Tenant, secrets, vault and data are not touched. From the terminal, it is the same command as the install.
 
-Para desinstalar: `~/DEV/whitebeard-os/uninstall.sh` remove serviços e programas e **mantém** o second brain e o
-`secrets.env` (com `--delete-data`, remove também os dois). O Claude Code e o seu login nunca são tocados.
+To uninstall: `~/DEV/whitebeard-os/uninstall.sh` removes services and programs and **keeps** the second brain and
+`secrets.env` (with `--delete-data`, it removes both too). Claude Code and your login are never touched.
 
-Passo a passo, sem o instalador:
+Step by step, without the installer:
 
 ```sh
 cd ~/DEV/whitebeard-os
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run                   # só valida e mostra o plano
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml                             # papel desktop
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # tudo-em-um
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run                   # only validates and shows the plan
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml                             # desktop role
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # all-in-one
 ```
 
-Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`, `--apply` para
-só reaplicar a configuração de uma instalação feita). O CI roda com `--skip web` porque o repositório do app é
-privado e o runner não tem a chave; num host seu, o JARVIS Web entra no papel desktop e atende em
-`http://localhost:8017` nesta máquina (sem aviso de certificado) e em `https://<host>:8017` na rede local
-(token em `$JARVIS_DATA/jarvis-web.json`; certificado autoassinado em `~/.jarvis/tls`, que o celular instala
-para liberar o microfone; a página PRIMEIROS PASSOS oferece o arquivo).
+Options in `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`, `--apply` to only
+reapply the configuration of an existing install). CI runs with `--skip web` because the app repository is private and
+the runner does not have the key; on your own host, JARVIS Web joins the desktop role and serves at
+`http://localhost:8017` on this machine (no certificate warning) and at `https://<host>:8017` on the local network
+(token in `$JARVIS_DATA/jarvis-web.json`; self-signed certificate in `~/.jarvis/tls`, which the phone installs to allow
+the microphone; the PRIMEIROS PASSOS page offers the file).
 
-O bootstrap é idempotente e só escreve dentro de `$HOME`:
+The bootstrap is idempotent and only writes inside `$HOME`:
 
-| Onde | O quê | Papel |
+| Where | What | Role |
 | --- | --- | --- |
-| `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/` (ffmpeg; no macOS também bun, ollama e gbrain), `compose/knowledge/` (Linux) | todos |
-| `~/whitebeard-secondbrain/` (`$VAULT_PATH`) | o second brain: vault Markdown (Obsidian) com `tenants/<tenant>/{projects-doc,knowledge-domain,resources}`; git local com commits automáticos | todos |
-| `$JARVIS_DATA` (`dados:` do tenant, padrão `~/.jarvis/data`) | dados do tenant: posts, métricas, contratos, registros e token do JARVIS Web | todos |
-| `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | todos |
-| `~/.jarvis/app/jarvis-web/` | JARVIS Web do pacote fixado no lockfile (link para `jarvis-web-<versão>/`); serviço `jarvis-web` (systemd de usuário) ou LaunchAgent `dev.whitebeard.jarvis-web` lendo `web.env` | desktop |
-| `~/.jarvis/tls/` | certificado autoassinado do JARVIS Web (SAN: localhost, host, IPs); o serviço sobe em HTTPS | desktop |
-| `~/.nvm/` | Node na versão do lockfile; `paperclipai` instalado nele | todos / core |
-| `~/.claude/skills/<nome>`, `~/.hermes/skills/<nome>`, `~/.claude.json` | links para as skills (Claude Code e Hermes); servidores MCP do tenant e o `knowledge` local | desktop / core |
-| `~/.claude/plugins/` | marketplaces e plugins do Claude Code declarados em `claude:` do tenant (ex.: `sherlock-holmes@whitebeard-plugins` para o módulo rastreamento) | desktop |
-| `~/.hermes/` | Hermes upstream (tag fixa); `config.yaml` inicial e `.env` do tenant, sem sobrescrever | core (ou `--with-hermes`) |
-| `~/.paperclip/` | instância do Paperclip (Postgres embutido); no tudo-em-um fica só nesta máquina, sem login, com empresa, conexão Claude e agente CEO criados na instalação | core |
-| `~/.gbrain/` + LaunchAgents `dev.whitebeard.{ollama,gbrain,vault-sync}` | macOS: cérebro PGLite, Ollama nativo e a sincronização do second brain | knowledge |
-| Docker | Linux: projeto `whitebeard-knowledge`: GBrain, pgvector, Ollama, volumes próprios | knowledge |
-| `~/.zshrc` / `~/.bashrc` | uma linha: `. "$JARVIS_HOME/profile.sh"` | todos |
+| `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (copy), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/` (ffmpeg; on macOS also bun, ollama and gbrain), `compose/knowledge/` (Linux) | all |
+| `~/whitebeard-secondbrain/` (`$VAULT_PATH`) | the second brain: a Markdown (Obsidian) vault with `tenants/<tenant>/{projects-doc,knowledge-domain,resources}`; local git with automatic commits | all |
+| `$JARVIS_DATA` (the tenant's `dados:`, default `~/.jarvis/data`) | tenant data: posts, metrics, contracts, records and the JARVIS Web token | all |
+| `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | all |
+| `~/.jarvis/app/jarvis-web/` | JARVIS Web from the package pinned in the lockfile (link to `jarvis-web-<version>/`); `jarvis-web` service (systemd user unit) or `dev.whitebeard.jarvis-web` LaunchAgent reading `web.env` | desktop |
+| `~/.jarvis/tls/` | JARVIS Web self-signed certificate (SAN: localhost, host, IPs); the service runs over HTTPS | desktop |
+| `~/.nvm/` | Node at the lockfile version; `paperclipai` installed in it | all / core |
+| `~/.claude/skills/<name>`, `~/.hermes/skills/<name>`, `~/.claude.json` | links to the skills (Claude Code and Hermes); the tenant's MCP servers and the local `knowledge` | desktop / core |
+| `~/.claude/plugins/` | Claude Code marketplaces and plugins declared in the tenant's `claude:` (e.g. `sherlock-holmes@whitebeard-plugins` for the tracing module) | desktop |
+| `~/.hermes/` | upstream Hermes (pinned tag); initial `config.yaml` and the tenant's `.env`, without overwriting | core (or `--with-hermes`) |
+| `~/.paperclip/` | Paperclip instance (embedded Postgres); in all-in-one it stays on this machine only, without login, with company, Claude connection and CEO agent created at install | core |
+| `~/.gbrain/` + LaunchAgents `dev.whitebeard.{ollama,gbrain,vault-sync}` | macOS: PGLite brain, native Ollama and the second-brain sync | knowledge |
+| Docker | Linux: `whitebeard-knowledge` project: GBrain, pgvector, Ollama, its own volumes | knowledge |
+| `~/.zshrc` / `~/.bashrc` | one line: `. "$JARVIS_HOME/profile.sh"` | all |
 
 ## Layout
 
 ```
-bootstrap.sh                 entrada única (POSIX sh; Linux e macOS); --role desktop,core,knowledge
-install.sh                   instalação em um comando (clona o kernel e chama o bootstrap)
+bootstrap.sh                 single entry point (POSIX sh; Linux and macOS); --role desktop,core,knowledge
+install.sh                   one-command install (clones the kernel and calls the bootstrap)
 kernel/
-  versions.env               lockfile: node, nvm, uv, Claude Code, Hermes, Paperclip, GBrain, imagens, FFmpeg
-  schema/jarvis.schema.json  contrato do jarvis.yaml
-  secrets/manifest.yaml      segredos do kernel: nome, papel, como obter (nunca valores)
-  bin/jarvis_render.py       valida o tenant e gera secrets.env, profile.sh, MCP, skills, hermes/, knowledge.env
-  bin/privacy_lint.py        falha se houver identidade de tenant, caminho de usuário ou segredo no kernel
-  compose/knowledge/         GBrain + pgvector + Ollama (compose, Dockerfile, entrypoint, sobreposição GPU)
-  skills/                    skills do kernel (mecanismo puro)
-tenants/exemplo/             tenant fictício: usado pelo CI e copiado por quem começa do zero
-docs/validacao-macos.md      roteiro de validação no Mac zerado
-docs/validacao-macos-agente.md  o mesmo roteiro, escrito para o Claude Code do próprio Mac executar
-test/docker-ubuntu.sh        mesma validação numa Ubuntu 24.04 descartável
+  versions.env               lockfile: node, nvm, uv, Claude Code, Hermes, Paperclip, GBrain, images, FFmpeg
+  schema/jarvis.schema.json  the jarvis.yaml contract
+  secrets/manifest.yaml      kernel secrets: name, role, how to obtain (never values)
+  bin/jarvis_render.py       validates the tenant and generates secrets.env, profile.sh, MCP, skills, hermes/, knowledge.env
+  bin/privacy_lint.py        fails if there is tenant identity, a user path or a secret in the kernel
+  compose/knowledge/         GBrain + pgvector + Ollama (compose, Dockerfile, entrypoint, GPU overlay)
+  skills/                    kernel skills (pure mechanism)
+tenants/exemplo/             fictional tenant: used by CI and copied by whoever starts from scratch
+docs/validacao-macos.md      validation script on a clean Mac
+docs/validacao-macos-agente.md  the same script, written for the Mac's own Claude Code to run
+test/docker-ubuntu.sh        the same validation on a throwaway Ubuntu 24.04
 ```
 
-## Levar tudo para outra máquina: exportar e importar
+## Moving everything to another machine: export and import
 
 ```sh
-uv run kernel/bin/wb_export.py --dry-run                 # lista stores e tamanhos
-uv run kernel/bin/wb_export.py --sem financeiro          # bundle .tar.gz (modo 600) + .sha256, sem o grupo "financeiro" do tenant
-# na máquina nova, depois do bootstrap com o mesmo tenant:
+uv run kernel/bin/wb_export.py --dry-run                 # lists stores and sizes
+uv run kernel/bin/wb_export.py --sem financeiro          # .tar.gz bundle (mode 600) + .sha256, without the tenant's "financeiro" group
+# on the new machine, after the bootstrap with the same tenant:
 uv run kernel/bin/wb_import.py whitebeard-export-*.tar.gz
 ```
 
-Stores: `jarvis` (`$JARVIS_HOME` sem o que é regenerável), `dados` (`$JARVIS_DATA`, sem os tokens por máquina), `hermes` (sem código, caches e tokens por máquina),
-`paperclip` (config, arquivos e o backup de banco mais recente), `knowledge` (dump do Postgres e home do GBrain,
-se o compose estiver no ar), `claude` (configurações) e `vault` (só referência ao git, ou conteúdo com
-`--with-vault`). Segredos ficam de fora por padrão (`--with-secrets` para incluir); o import nunca sobrescreve
-`secrets.env` nem `.env` existentes. O tenant declara em `exportacao.grupos` os globs que podem ficar de fora
-(ex.: financeiro). O CI exporta e importa num HOME alternativo a cada execução.
+Stores: `jarvis` (`$JARVIS_HOME` without what can be regenerated), `dados` (`$JARVIS_DATA`, without per-machine
+tokens), `hermes` (without code, caches and per-machine tokens), `paperclip` (config, files and the most recent database
+backup), `knowledge` (Postgres dump and GBrain home, if the compose is up), `claude` (settings) and `vault` (only a git
+reference, or the content with `--with-vault`). Secrets are left out by default (`--with-secrets` to include them); the
+import never overwrites an existing `secrets.env` or `.env`. The tenant declares in `exportacao.grupos` the globs that
+may be left out (e.g. financeiro). CI exports and imports into an alternate HOME on every run.
 
-## O que entra no `jarvis.yaml`
+## What goes into `jarvis.yaml`
 
-Parâmetros do tenant: identificador, idioma, pasta de dados (`dados`), módulos do JARVIS Web (`interface`),
-vault, servidores MCP, pacotes de skills, modelo do Hermes, perfis, crons, serviços monitorados, nós, assistentes
-(`assistentes`) e o Escritório (`escritorio`: ligado, cargos, rotinas). Segredos **nunca** entram no yaml: entram como `${NOME}` e são
-preenchidos em `secrets.env` a partir do manifesto. Esquema completo em `kernel/schema/jarvis.schema.json`;
-exemplo em `tenants/exemplo/jarvis.yaml`.
+Tenant parameters: identifier, language, data folder (`dados`), JARVIS Web modules (`interface`), vault, MCP servers,
+skill packs, Hermes model, profiles, crons, monitored services, nodes, assistants (`assistentes`) and the Office
+(`escritorio`: on/off, roles, routines). Secrets **never** go into the yaml: they go in as `${NAME}` and are filled in
+`secrets.env` from the manifest. Full schema in `kernel/schema/jarvis.schema.json`; example in
+`tenants/exemplo/jarvis.yaml`.
 
-### Quem pensa (Claude ou ChatGPT, pela sua assinatura)
+### Who thinks (Claude or ChatGPT, through your subscription)
 
-`hermes.provedor` (`claude` ou `chatgpt`) e `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) escolhem o modelo de
-todos: o JARVIS, os assistentes e os cargos. A pessoa nunca vê ids de modelo: a tabela provedor × nível fica em
-`kernel/modelos.yaml` e muda por release. O Claude usa o login do Claude Code; o ChatGPT entra pela página
-(PRIMEIROS PASSOS → QUEM PENSA) com um código de dispositivo do Hermes (`openai-codex`). Com as duas contas, a outra
-vira reserva automática no mesmo nível. Assistentes e cargos aceitam `nivel` próprio; `modelo` explícito continua
-valendo para quem é técnico. A escolha da página fica em `$JARVIS_HOME/pensa.json` e vale depois de colocar em uso.
+`hermes.provedor` (`claude` or `chatgpt`) and `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) choose the model for
+everyone: JARVIS, the assistants and the roles. The person never sees model ids: the provider × level table lives in
+`kernel/modelos.yaml` and changes per release. Claude uses the Claude Code login; ChatGPT signs in through the page
+(PRIMEIROS PASSOS → QUEM PENSA, "who thinks") with a Hermes device code (`openai-codex`). With both accounts, the other
+one becomes an automatic fallback at the same level. Assistants and roles accept their own `nivel`, and assistants their
+own subscription; an explicit `modelo` still works for technical users. The page's choice is stored in
+`$JARVIS_HOME/pensa.json` and takes effect after "colocar em uso" (put into use).
 
-### O Escritório (cargos e rotinas)
+### The Office (roles and routines)
 
-Com `escritorio.ligado: true`, o trabalho que demora sai do chat: "JARVIS, monte a proposta da Acme" vira uma
-tarefa, um **cargo** executa (um perfil do Hermes com as ferramentas de um assistente de equipe, sem terminal, pelo
-Paperclip por baixo), a entrega fica em `projects-doc/escritorio/entregas/` no second brain e volta no chat de origem
-pelo carteiro (`kernel/bin/jarvis_carteiro.py`, a cada minuto). O que exigir enviar, pagar ou publicar para e pergunta.
-O cargo `trabalho` (Assistente de trabalho) existe sempre; outros cargos entram em `escritorio.cargos` (ou pela página
-ESCRITÓRIO) e passam a valer depois de "colocar em uso". **Rotinas** (`escritorio.rotinas` ou pela página) criam a
-tarefa sozinhas no horário (cron de 5 campos, fuso do computador) e publicam a entrega na sua conversa com o JARVIS
-(`onde: telegram`) ou no grupo de um assistente (`onde: assistente:<nome>`); valem na hora, sem colocar em uso. A rotina
-`resumo-da-semana` (segunda, 8h) vem por padrão.
+With `escritorio.ligado: true`, work that takes time leaves the chat: "JARVIS, put together the Acme proposal" becomes a
+task, a **role** carries it out (a Hermes profile with a team assistant's tools, no terminal, with Paperclip
+underneath), the result lands in `projects-doc/escritorio/entregas/` in the second brain and comes back to the original
+chat through the mail carrier (`kernel/bin/jarvis_carteiro.py`, every minute). Anything that would send, pay or publish
+stops and asks. The `trabalho` role (work assistant) always exists; other roles go in `escritorio.cargos` (or through
+the ESCRITÓRIO page) and take effect after "colocar em uso". **Routines** (`escritorio.rotinas` or through the page)
+create the task by themselves on schedule (5-field cron, the computer's time zone) and post the result to your
+conversation with JARVIS (`onde: telegram`) or to an assistant's group (`onde: assistente:<name>`); they take effect
+immediately, without putting into use. The `resumo-da-semana` (weekly summary) routine (Monday, 8 am) comes by default.
 
-## Componentes externos e licenças
+## External components and licenses
 
-| Componente | Licença | Como entra |
+| Component | License | How it comes in |
 | --- | --- | --- |
-| Hermes Agent (NousResearch) | MIT | instalador upstream em tag fixa |
-| Paperclip | MIT | npm, versão fixa, instalado no Node do lockfile (papel core) |
-| GBrain, pgvector, Ollama | MIT (GBrain), PostgreSQL, MIT (Ollama) | compose do papel knowledge; GBrain construído da tag fixa |
-| Claude Code | proprietário (Anthropic) | instalador oficial; cada usuário usa a própria conta |
-| FFmpeg 9.0 | LGPL | build próprio com o filtro Whisper (whisper.cpp), publicado em [whitebeard-os-releases](https://github.com/whitebeardit/whitebeard-os-releases) com sha256: macOS arm64 com GPU Metal e avfoundation (câmera e microfone), Linux x86_64 estático em CPU (workflow `ffmpeg-whisper.yml`); demais plataformas: build estático de terceiros fixado por URL, sem Whisper |
-| Modelos (Anthropic, OpenAI, outros) | contas do usuário | chaves e logins só em `secrets.env` e OAuth local |
+| Hermes Agent (NousResearch) | MIT | upstream installer at a pinned tag |
+| Paperclip | MIT | npm, pinned version, installed in the lockfile's Node (core role) |
+| GBrain, pgvector, Ollama | MIT (GBrain), PostgreSQL, MIT (Ollama) | knowledge role compose; GBrain built from the pinned tag |
+| Claude Code | proprietary (Anthropic) | official installer; each user uses their own account |
+| FFmpeg 9.0 | LGPL | our own build with the Whisper filter (whisper.cpp), published in [whitebeard-os-releases](https://github.com/whitebeardit/whitebeard-os-releases) with sha256: macOS arm64 with Metal GPU and avfoundation (camera and microphone), static Linux x86_64 on CPU (`ffmpeg-whisper.yml` workflow); other platforms: a third-party static build pinned by URL, without Whisper |
+| Models (Anthropic, OpenAI, others) | the user's accounts | keys and logins only in `secrets.env` and local OAuth |
 
-## Licenciamento do produto
+## Product licensing
 
-Modelo decidido em 31/10/2026: **licença única, para baixar e usar**. Pagamento único por chave; a chave dá
-direito a baixar e instalar o kernel e suas atualizações, sem prazo, nas máquinas do próprio comprador. Sem
-assinatura, sem SLA de suporte, sem redistribuição do kernel. Hermes, Paperclip e GBrain continuam sob as
-licenças MIT do upstream e não fazem parte da licença. O texto legal dos termos de uso ainda será
-redigido; enquanto o repositório é privado, o acesso é por convite de leitura.
+Model decided on 2026-10-31: **a one-time license, to download and use**. One-time payment per key; the key grants the
+right to download and install the kernel and its updates, with no time limit, on the buyer's own machines. No
+subscription, no support SLA, no redistribution of the kernel. Hermes, Paperclip and GBrain remain under their
+upstream MIT licenses and are not part of the license. The legal text of the terms of use is still to be written;
+while the repository is private, access is by read invitation.
 
-## Regras do repositório
+## Repository rules
 
-- Nenhum caminho absoluto de usuário, nome de cliente, chat id, conta de nuvem ou token no kernel.
-  `uv run kernel/bin/privacy_lint.py` roda no CI; um pacote de tenant roda o mesmo lint com a própria lista
-  de termos proibidos (`--denylist`), que não fica aqui.
-- Versões só mudam em `kernel/versions.env`.
-- Hosts em produção não são alterados por este repositório. A instalação se prova primeiro em host zerado
-  (CI, VM descartável, máquina nova).
+- No absolute user path, client name, chat id, cloud account or token in the kernel. `uv run kernel/bin/privacy_lint.py`
+  runs in CI; a tenant package runs the same lint with its own list of forbidden terms (`--denylist`), which does not
+  live here.
+- Versions only change in `kernel/versions.env`.
+- Production hosts are not changed by this repository. The installation is proven first on a clean host (CI,
+  throwaway VM, new machine).

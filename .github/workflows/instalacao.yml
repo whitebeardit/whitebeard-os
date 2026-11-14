@@ -28,6 +28,9 @@ jobs:
       - name: lint de privacidade
         run: |
           "$HOME/.local/bin/uv" run --quiet kernel/bin/privacy_lint.py
+      - name: lint de idiomas (toda frase de T() tem tradução)
+        run: |
+          "$HOME/.local/bin/uv" run --quiet kernel/bin/i18n_lint.py
       - name: esquema e tenant de exemplo (dry-run, três papéis)
         run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge --dry-run
 

@@ -19,8 +19,9 @@ a **Raspberry Pi**.
 curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
 ```
 
-> The interface is in Brazilian Portuguese. Button and page names below are quoted as they appear on screen, with a
-> translation next to them.
+> The interface speaks **English** (the default) and **Brazilian Portuguese**: it follows your browser language, and you
+> can switch in SETTINGS → LANGUAGE. The recordings below were made with the Portuguese interface, so button and page
+> names are quoted as they appear in them, with a translation next to them.
 
 <p align="center"><img src="docs/midia/visao-geral.gif" alt="Whitebeard OS overview: someone asks who is behind on their assignments and JARVIS answers from the second brain" width="100%"></p>
 

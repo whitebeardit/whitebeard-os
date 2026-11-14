@@ -21,6 +21,7 @@ Telegram com nomes `exemplo_*`). As conversas no Telegram (`telegram-pichi`), no
 | [`second-brain.gif`](second-brain.gif) | O grafo do second brain do curso, o filtro por área, a busca por "git", a nota do Módulo 3 e a árvore de mapas | `second-brain-grafo`, `-busca`, `-nota`, `-arvore` |
 | [`criar-assistente.gif`](criar-assistente.gif) | Um bot novo no Discord: tipo, canal, nome, token e três pessoas reconhecidas na mesma espera | `criar-assistente-form`, `-reconhecidos` |
 | [`modalidades.gif`](modalidades.gif) | Quatro bots de tipos e canais diferentes (Discord, WhatsApp, Telegram e só rotinas), o que cada um faz e não faz, e a assinatura e o nível por bot | `modalidades-topo`, `-politica`, `-whatsapp`, `-cliente`, `-assinatura` |
+| [`modelo-gratuito.gif`](modelo-gratuito.gif) | QUEM PENSA: a chave do OpenRouter colada e conferida, o cartão conectado, e um bot passando a usar um modelo gratuito no nível Rápido | no próximo zip |
 | [`escritorio.gif`](escritorio.gif) | O Escritório: aprovar a publicação das notas, o organograma, os cargos, as rotinas do curso e o uso de tokens | `escritorio`, `-aprovado`, `-organograma`, `-rotinas`, `-tokens` |
 | [`telegram-pichi.gif`](telegram-pichi.gif) | Conversa real com o mesmo Pichi no Telegram: o que é um pull request | `telegram-pichi` |
 | [`telegram-cliente-dobby.png`](telegram-cliente-dobby.png) | Caso real de cliente: o Dobby no grupo Whitebeard → Sauvvitech, dizendo o que faz e o que não faz (só o print final; a conversa anterior do grupo fica de fora) | `telegram-cliente-dobby` |

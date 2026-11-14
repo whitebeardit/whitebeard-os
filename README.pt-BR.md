@@ -66,6 +66,19 @@ ou Mais capaz). A página mostra o modelo que cada escolha usa, e a outra assina
 
 <p align="center"><img src="docs/midia/modalidades.gif" alt="Página Assistentes: quatro bots de tipos e canais diferentes, o que cada um faz e não faz, e a escolha de assinatura e nível por bot" width="100%"></p>
 
+### Teste com um modelo gratuito (OpenRouter)
+
+Você não precisa de um plano pago para pôr um bot à prova. O **OpenRouter** é a terceira opção em QUEM PENSA, ao lado
+do Claude e do ChatGPT: crie uma chave grátis em [openrouter.ai/keys](https://openrouter.ai/keys), cole na página e os
+três níveis passam a usar **modelos gratuitos**. Use para tudo, ou só no bot que você está testando (EDITAR →
+ASSINATURA DELE). Com o Claude ou o ChatGPT também conectados, o OpenRouter vira a reserva automática quando o
+principal acabar.
+
+Os modelos gratuitos têm um limite diário de pedidos e são mais lentos e menos capazes que os pagos: servem para
+testar e para bots simples, não para trabalho pesado.
+
+<p align="center"><img src="docs/midia/modelo-gratuito.gif" alt="QUEM PENSA: a chave do OpenRouter é colada e conferida, o cartão aparece conectado, e um bot passa a usar o OpenRouter no nível Rápido, com um modelo gratuito" width="100%"></p>
+
 ## O Escritório: trabalho que roda sozinho
 
 O trabalho que demora sai do chat. Você pede ao JARVIS, um **cargo** executa (um agente com papel definido) e a entrega
@@ -118,7 +131,7 @@ Três temas (HUD, Atlas estelar e Carmesim), tamanho do texto e voz, em CONFIGUR
 | **MCP** | O cérebro entra como servidor MCP `knowledge` no Claude Code e em cada agente: todos consultam o mesmo second brain, com chave própria |
 | **Agentes com tarefas autônomas** | O **Escritório**: você pede pelo chat, um cargo executa pelo **Hermes**, a entrega volta no chat e fica no vault. Rotinas rodam no horário. O que exigir enviar, pagar ou publicar para e pergunta a você |
 | **Paperclip** | O motor de tarefas e aprovações por baixo do Escritório, já configurado |
-| **Claude Code e ChatGPT** | A sua assinatura é a conta que os agentes usam (o login do Claude Code; o ChatGPT entra por código de dispositivo). Skills e MCPs já instalados |
+| **Claude Code, ChatGPT e OpenRouter** | A sua assinatura é a conta que os agentes usam (o login do Claude Code; o ChatGPT entra por código de dispositivo). Ou **modelos gratuitos** pelo OpenRouter, com uma chave grátis, para testar. Skills e MCPs já instalados |
 | **Telegram, WhatsApp, Discord** | Assistentes isolados por público: um bot por canal, cada um com memória, skills, permissões e modelo próprios, criado em três toques |
 | **Voz** | Fale com o assistente pela interface: transcrição local com Whisper e resposta falada em português |
 | **Interface** | Uma página web no computador ou no celular (instala como app, com QR code): visão geral, conhecimento, assistentes, escritório, uso de tokens, diagnósticos |
@@ -359,9 +372,9 @@ vault, servidores MCP, pacotes de skills, modelo do Hermes, perfis, crons, servi
 preenchidos em `secrets.env` a partir do manifesto. Esquema completo em `kernel/schema/jarvis.schema.json`;
 exemplo em `tenants/exemplo/jarvis.yaml`.
 
-### Quem pensa (Claude ou ChatGPT, pela sua assinatura)
+### Quem pensa (Claude ou ChatGPT pela sua assinatura, ou modelos gratuitos pelo OpenRouter)
 
-`hermes.provedor` (`claude` ou `chatgpt`) e `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) escolhem o modelo de
+`hermes.provedor` (`claude`, `chatgpt` ou `openrouter`) e `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) escolhem o modelo de
 todos: o JARVIS, os assistentes e os cargos. A pessoa nunca vê ids de modelo: a tabela provedor × nível fica em
 `kernel/modelos.yaml` e muda por release. O Claude usa o login do Claude Code; o ChatGPT entra pela página
 (PRIMEIROS PASSOS → QUEM PENSA) com um código de dispositivo do Hermes (`openai-codex`). Com as duas contas, a outra

@@ -1407,6 +1407,10 @@ apply_only() {
   apply_hermes_config
   apply_hermes_tenant
   apply_hermes_assistentes
+  # cargos novos ou editados na página ESCRITÓRIO: o perfil do Hermes e o agente no Paperclip (sem isto, o
+  # COLOCAR EM USO da página não punha cargo nenhum em uso)
+  apply_hermes_cargos
+  install_escritorio
   HERMES_RESTART=1
   ensure_hermes_gateway
   if has_role core && grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then

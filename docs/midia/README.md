@@ -3,7 +3,7 @@
 Tudo o que aparece no README, em alta resolução, para posts, apresentações e páginas:
 **[baixar o kit (zip, 58 MB)](https://github.com/whitebeardit/whitebeard-os-releases/releases/download/kit-divulgacao-2026-11/whitebeard-os-kit-divulgacao.zip)**.
 
-Dentro do zip: `prints/` (24 PNG, a maioria em 1440×900), `videos/` (8 MP4, para Reels, Shorts e LinkedIn) e `gifs/` (os mesmos
+Dentro do zip: `prints/` (25 PNG, a maioria em 1440×900), `videos/` (8 MP4, para Reels, Shorts e LinkedIn) e `gifs/` (os mesmos
 desta pasta).
 
 ## O caso que as telas contam
@@ -11,7 +11,7 @@ desta pasta).
 O **@Pichi** é o monitor de um curso de programação no Discord e já está no ar num Raspberry Pi. O plano do curso:
 tirar dúvidas dos módulos, corrigir os exercícios e, toda segunda-feira, publicar no canal a prestação de contas de
 cada aluno. As telas mostram essa configuração com **dados de exemplo** (alunos, notas e entregas fictícios, bots do
-Telegram com nomes `exemplo_*`). As conversas no Telegram (`telegram-pichi`) e no Discord (`discord-pichi`) são reais.
+Telegram com nomes `exemplo_*`). As conversas no Telegram (`telegram-pichi`), no Discord (`discord-pichi`) e no grupo do cliente Sauvvitech (`telegram-cliente-dobby`, publicado com autorização) são reais.
 
 ## As peças
 
@@ -23,6 +23,7 @@ Telegram com nomes `exemplo_*`). As conversas no Telegram (`telegram-pichi`) e n
 | [`modalidades.gif`](modalidades.gif) | Quatro bots de tipos e canais diferentes (Discord, WhatsApp, Telegram e só rotinas), o que cada um faz e não faz, e a assinatura e o nível por bot | `modalidades-topo`, `-politica`, `-whatsapp`, `-cliente`, `-assinatura` |
 | [`escritorio.gif`](escritorio.gif) | O Escritório: aprovar a publicação das notas, o organograma, os cargos, as rotinas do curso e o uso de tokens | `escritorio`, `-aprovado`, `-organograma`, `-rotinas`, `-tokens` |
 | [`telegram-pichi.gif`](telegram-pichi.gif) | Conversa real com o mesmo Pichi no Telegram: o que é um pull request | `telegram-pichi` |
+| [`telegram-cliente-dobby.png`](telegram-cliente-dobby.png) | Caso real de cliente: o Dobby no grupo Whitebeard → Sauvvitech, dizendo o que faz e o que não faz (só o print final; a conversa anterior do grupo fica de fora) | `telegram-cliente-dobby` |
 | [`discord-pichi.gif`](discord-pichi.gif) | Conversa real com o @Pichi no Discord: a diferença entre `let` e `const`, com exemplos | `discord-pichi` |
 | [`temas.gif`](temas.gif) | CONFIGURAÇÕES: os temas Atlas estelar, Carmesim e HUD, e o resultado na visão geral | `temas-configuracoes`, `-atlas`, `-carmesim`, `-hud` |
 

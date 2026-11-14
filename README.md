@@ -56,7 +56,7 @@ pode esquecer.
 | --- | --- | --- |
 | **Para mim** | Um segundo assistente só seu | o JARVIS do dono, no Telegram |
 | **Para a minha equipe** | Responde às pessoas que você liberar; consulta e anota no second brain | o @Pichi no Discord e a secretaria no WhatsApp |
-| **Para um cliente** | Atende um grupo só sobre o papel dele, sem ferramentas | o grupo da empresa que patrocina as bolsas |
+| **Para um cliente** | Atende um grupo só sobre o papel dele, sem ferramentas | o grupo da empresa que patrocina as bolsas (e, de verdade, o grupo da Sauvvitech, logo abaixo) |
 | **Só rotinas** | Não conversa; publica avisos no horário | o calendário da semana |
 
 Cada bot também escolhe **a assinatura** (Claude ou ChatGPT, a sua, sem chave de API) e **o nível** (Rápido, Equilibrado
@@ -93,6 +93,13 @@ dúvidas de aluno, em conversas diretas:
 <td width="55%" valign="top"><b>Discord</b><br><img src="docs/midia/discord-pichi.gif" alt="Conversa real no Discord: o Pichi explica a diferença entre let e const com exemplos e oferece um exercício" width="100%"></td>
 </tr>
 </table>
+
+### Num grupo de cliente
+
+O **Dobby** atende o grupo **Whitebeard → Sauvvitech** no Telegram: um bot do tipo "Para um cliente", que acompanha o
+projeto com quem está no grupo e sabe até onde vai. Perguntado no próprio grupo o que pode fazer:
+
+<p align="center"><img src="docs/midia/telegram-cliente-dobby.png" alt="Grupo Whitebeard → Sauvvitech no Telegram: o Dobby lista o que faz (consolidar status, verificar PRs no GitHub só para leitura, manter o acompanhamento no vault, preparar relatórios, sinalizar riscos) e o que não faz (implementar, alterar código, fazer deploy, assumir prazo ou escopo)" width="70%"></p>
 
 ## Do seu jeito
 

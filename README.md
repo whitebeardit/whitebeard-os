@@ -23,14 +23,14 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 <a href="#um-bot-por-canal-em-três-toques">Bots por canal</a> ·
 <a href="#cada-bot-com-o-seu-papel-e-o-seu-modelo">Tipos e modelos</a> ·
 <a href="#o-escritório-trabalho-que-roda-sozinho">Escritório</a> ·
-<a href="#no-discord-de-verdade">No Discord</a> ·
+<a href="#no-telegram-e-no-discord-de-verdade">Telegram e Discord</a> ·
 <a href="#do-seu-jeito">Temas</a> ·
 <a href="#roda-onde-você-quiser">Instalar</a></p>
 
 > **Um caso real.** As telas abaixo seguem um bot que já está no ar num Raspberry Pi: o **@Pichi**, monitor de um curso
 > de programação no Discord. O plano do curso: tirar dúvidas dos módulos, corrigir os exercícios e, toda segunda-feira,
 > publicar no canal a prestação de contas de cada aluno. As telas mostram essa configuração com alunos e notas
-> fictícios; a conversa no Discord, no fim, é real.
+> fictícios; as conversas no Telegram e no Discord, no fim, são reais.
 
 ## Pergunte ao seu second brain
 
@@ -82,11 +82,17 @@ No curso, o Escritório fica com três cargos e três rotinas:
 
 O uso de tokens aparece por assinatura, por cargo, por rotina e por tarefa, com alerta quando algo sai do padrão.
 
-## No Discord, de verdade
+## No Telegram e no Discord, de verdade
 
-O @Pichi rodando num Raspberry Pi, respondendo a uma dúvida de aluno numa conversa direta:
+O mesmo Pichi, rodando num Raspberry Pi, responde nos dois canais com a mesma memória e o mesmo second brain. Duas
+dúvidas de aluno, em conversas diretas:
 
-<p align="center"><img src="docs/midia/discord-pichi.gif" alt="Conversa real no Discord: o Pichi explica a diferença entre let e const com exemplos e oferece um exercício" width="80%"></p>
+<table>
+<tr>
+<td width="45%" valign="top"><b>Telegram</b><br><img src="docs/midia/telegram-pichi.gif" alt="Conversa real no Telegram: o Pichi explica o que é um pull request em poucas linhas" width="100%"></td>
+<td width="55%" valign="top"><b>Discord</b><br><img src="docs/midia/discord-pichi.gif" alt="Conversa real no Discord: o Pichi explica a diferença entre let e const com exemplos e oferece um exercício" width="100%"></td>
+</tr>
+</table>
 
 ## Do seu jeito
 
@@ -110,7 +116,7 @@ Três temas (HUD, Atlas estelar e Carmesim), tamanho do texto e voz, em CONFIGUR
 
 ## Roda onde você quiser
 
-Roda num **Raspberry Pi 4**: é onde o @Pichi e o meu assistente do Telegram moram. Roda no Mac (Apple Silicon, sem Docker)
+Roda num **Raspberry Pi**: é onde o Pichi mora, atendendo no Telegram e no Discord. Roda no Mac (Apple Silicon, sem Docker)
 e em qualquer Linux. Interface, núcleo e conhecimento vão na mesma máquina por padrão, ou em máquinas separadas.
 
 ```sh

@@ -2,7 +2,7 @@
 
 <p align="center"><b>English</b> · <a href="README.pt-BR.md">Português</a></p>
 
-# Whitebeard OS
+<h1><picture><source media="(prefers-color-scheme: dark)" srcset="docs/marca/whitebeard-os-titulo-branco.png"><img src="docs/marca/whitebeard-os-titulo-preto.png" alt="Whitebeard OS" height="30"></picture></h1>
 
 **Everything you see in the hype, installed and working on your own machine. In one command.**
 
@@ -11,7 +11,7 @@ Discord, another on WhatsApp, each with its own memory and its own rules. Every 
 these pieces. The hard part was never knowing they exist: it is making all of them work together, on your computer,
 with your data, without turning into a weekend project that never ends.
 
-I am **Almerindo Rehem**, a software engineer and the founder of **Whitebeard**. Whitebeard OS is the setup I use every
+I am **Almerindo Rehem**, a software engineer and the founder of <a href="https://whitebeard.dev"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/marca/whitebeard-wordmark-branco.png"><img src="docs/marca/whitebeard-wordmark-preto.png" alt="Whitebeard" height="12"></picture></a>. Whitebeard OS is the setup I use every
 day, at home and at work, packaged so you can install it with one command and use it from your browser. It runs even on
 a **Raspberry Pi**.
 

@@ -2,7 +2,7 @@
 
 <p align="center"><a href="README.md">English</a> · <b>Português</b></p>
 
-# Whitebeard OS
+<h1><picture><source media="(prefers-color-scheme: dark)" srcset="docs/marca/whitebeard-os-titulo-branco.png"><img src="docs/marca/whitebeard-os-titulo-preto.png" alt="Whitebeard OS" height="30"></picture></h1>
 
 **Tudo o que você vê no hype, instalado e funcionando na sua máquina. Em um comando.**
 
@@ -11,7 +11,7 @@ outro no WhatsApp, cada um com a sua memória e as suas regras. Todo dia aparece
 O difícil nunca foi saber que elas existem: é fazer todas trabalharem juntas, no seu computador, com os seus dados,
 sem virar um projeto de fim de semana que nunca termina.
 
-Eu sou **Almerindo Rehem**, engenheiro de software e fundador da **Whitebeard**. O Whitebeard OS é o setup que eu uso
+Eu sou **Almerindo Rehem**, engenheiro de software e fundador da <a href="https://whitebeard.dev"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/marca/whitebeard-wordmark-branco.png"><img src="docs/marca/whitebeard-wordmark-preto.png" alt="Whitebeard" height="12"></picture></a>. O Whitebeard OS é o setup que eu uso
 todo dia, em casa e no trabalho, empacotado para você instalar com um comando e usar pelo navegador. Roda até num
 **Raspberry Pi**.
 

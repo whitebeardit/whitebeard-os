@@ -22,6 +22,8 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+from jarvis_i18n import T, idioma
+
 API = (os.environ.get("PAPERCLIP_API_URL") or "http://127.0.0.1:3100/api").rstrip("/")
 TETO_TAREFA = 500_000          # tokens numa tarefa só: acima disto, sinal
 FATOR_ROTINA = 3.0             # última execução da rotina > 3× a média das anteriores
@@ -148,7 +150,7 @@ def calcular(home: Path, cargos: list[dict], ids: dict, issues: list[dict] | Non
         # os modelos do OpenRouter vêm como fornecedor/modelo (ou openrouter/free)
         prov = "openrouter" if "/" in m else "claude" if m.startswith("claude") else "chatgpt" if (m.startswith("gpt") or m.startswith("o3") or m.startswith("o4") or "codex" in m) else "outro"
         por_prov.setdefault(prov, []).append(s_)
-    nomes_prov = {"claude": "Claude", "chatgpt": "ChatGPT", "openrouter": "OpenRouter", "outro": "Outro"}
+    nomes_prov = {"claude": "Claude", "chatgpt": "ChatGPT", "openrouter": "OpenRouter", "outro": T("Outro")}
     out["provedores"] = sorted(({"nome": k, "titulo": nomes_prov[k], **soma(v)} for k, v in por_prov.items()), key=lambda x: -x["total"])
     out["provedores"] = [x for x in out["provedores"] if x["total"] > 0]
     for c in cargos:
@@ -157,7 +159,7 @@ def calcular(home: Path, cargos: list[dict], ids: dict, issues: list[dict] | Non
     # tarefas (todas as que têm sessão), com rotina e cargo
     tarefas = []
     for iid, ss in por_tarefa.items():
-        it = por_id.get(iid) or {"title": "(tarefa apagada)"}
+        it = por_id.get(iid) or {"title": T("(tarefa apagada)")}
         desc = it.get("description") or ""
         m = re.search(r"\[rotina:\s*([^\]]+)\]", desc)
         tarefas.append({"id": iid, "numero": it.get("identifier") or iid[:8], "titulo": it.get("title") or "", "cargo": ss[0]["cargo"],
@@ -180,40 +182,41 @@ def calcular(home: Path, cargos: list[dict], ids: dict, issues: list[dict] | Non
             media_ant = sum(t["total"] for t in anteriores) / len(anteriores)
             if media_ant > 0 and ts_[-1]["total"] > FATOR_ROTINA * media_ant:
                 out["alertas"].append({"tipo": "rotina-cara", "nivel": "warn", "rotina": nome, "tarefa": ts_[-1]["numero"],
-                                       "texto": f"A rotina {ts_[-1]['titulo']} gastou {fmt(ts_[-1]['total'])} tokens na última vez, {ts_[-1]['total'] / media_ant:.0f}× a média dela.",
-                                       "dica": "Encurte o pedido, restrinja a área do second brain que ela lê ou reduza a frequência."})
+                                       "texto": T("A rotina {titulo} gastou {tokens} tokens na última vez, {vezes}× a média dela.", titulo=ts_[-1]["titulo"], tokens=fmt(ts_[-1]["total"]), vezes=f"{ts_[-1]['total'] / media_ant:.0f}"),
+                                       "dica": T("Encurte o pedido, restrinja a área do second brain que ela lê ou reduza a frequência.")})
     # sinais
     for t in out["tarefas"]:
         if t["total"] > TETO_TAREFA:
             out["alertas"].append({"tipo": "tarefa-cara", "nivel": "warn", "tarefa": t["numero"],
-                                   "texto": f"A tarefa {t['numero']} ({t['titulo'][:40]}) passou de {fmt(TETO_TAREFA)} tokens: {fmt(t['total'])}.",
-                                   "dica": "Pedidos grandes rendem mais em partes; veja se o cargo releu o second brain inteiro a cada passo."})
+                                   "texto": T("A tarefa {numero} ({titulo}) passou de {teto} tokens: {tokens}.", numero=t["numero"], titulo=t["titulo"][:40], teto=fmt(TETO_TAREFA), tokens=fmt(t["total"])),
+                                   "dica": T("Pedidos grandes rendem mais em partes; veja se o cargo releu o second brain inteiro a cada passo.")})
     for c in out["cargos"]:
         if c["mes_anterior"] >= 100_000 and c["total"] > FATOR_CARGO * c["mes_anterior"]:
             out["alertas"].append({"tipo": "cargo-dobrou", "nivel": "warn", "cargo": c["nome"],
-                                   "texto": f"O cargo {c['titulo']} já gastou {fmt(c['total'])} tokens este mês, mais que o dobro do mês passado ({fmt(c['mes_anterior'])}).",
-                                   "dica": "Veja as tarefas mais caras dele abaixo; uma rotina nova costuma ser a causa."})
+                                   "texto": T("O cargo {titulo} já gastou {tokens} tokens este mês, mais que o dobro do mês passado ({anterior}).", titulo=c["titulo"], tokens=fmt(c["total"]), anterior=fmt(c["mes_anterior"])),
+                                   "dica": T("Veja as tarefas mais caras dele abaixo; uma rotina nova costuma ser a causa.")})
     for it in issues:
         if it.get("status") in ("todo", "in_progress") and it.get("assigneeAgentId") in agente_cargo:
             parada = agora - ts(it.get("updatedAt") or it.get("createdAt") or "")
             if parada > HORAS_PRESA * 3600:
                 c = agente_cargo[it["assigneeAgentId"]]
                 out["alertas"].append({"tipo": "tarefa-presa", "nivel": "alert", "tarefa": it.get("identifier") or "",
-                                       "texto": f"A tarefa {it.get('identifier')} ({(it.get('title') or '')[:40]}) está parada há {int(parada // 3600)} h com o cargo {c.get('titulo') or c['nome']}.",
-                                       "dica": "Veja o registro do Paperclip em DIAGNÓSTICOS; se o cargo travou, recuse a tarefa e peça de novo."})
+                                       "texto": T("A tarefa {numero} ({titulo}) está parada há {horas} h com o cargo {cargo}.", numero=it.get("identifier"), titulo=(it.get("title") or "")[:40], horas=int(parada // 3600), cargo=c.get("titulo") or c["nome"]),
+                                       "dica": T("Veja o registro do Paperclip em DIAGNÓSTICOS; se o cargo travou, recuse a tarefa e peça de novo.")})
     for c in cargos:
         execs = sorted(exec_cargo[c["nome"]], key=lambda e: e["inicio"])[-FALHAS_SEGUIDAS:]
         if len(execs) == FALHAS_SEGUIDAS and all(e["status"] in ("failed", "timed_out", "cancelled") for e in execs):
             out["alertas"].append({"tipo": "cargo-falhando", "nivel": "alert", "cargo": c["nome"],
-                                   "texto": f"O cargo {c.get('titulo') or c['nome']} falhou nas últimas {FALHAS_SEGUIDAS} execuções.",
-                                   "dica": "Veja o registro do Paperclip em DIAGNÓSTICOS; costuma ser o Hermes sem modelo ou o Escritório fora do ar."})
+                                   "texto": T("O cargo {cargo} falhou nas últimas {n} execuções.", cargo=c.get("titulo") or c["nome"], n=FALHAS_SEGUIDAS),
+                                   "dica": T("Veja o registro do Paperclip em DIAGNÓSTICOS; costuma ser o Hermes sem modelo ou o Escritório fora do ar.")})
     return out
 
 
 def com_cache(home: Path, cargos: list[dict], ids: dict, ttl: int = 60) -> dict:
     """O cálculo lê o banco do Hermes e as execuções do Paperclip: a página pergunta a cada poucos segundos, então o
-    resultado fica um minuto em escritorio/tokens.json."""
-    cache = home / "escritorio" / "tokens.json"
+    resultado fica um minuto em escritorio/tokens.json. Os alertas levam texto no idioma da interface: o inglês tem o
+    seu próprio arquivo (tokens.en.json), para a troca de idioma não mostrar o texto guardado no outro."""
+    cache = home / "escritorio" / ("tokens.json" if idioma() == "pt-BR" else "tokens.en.json")
     try:
         if time.time() - cache.stat().st_mtime < ttl:
             return json.loads(cache.read_text(encoding="utf-8"))
@@ -230,6 +233,8 @@ def com_cache(home: Path, cargos: list[dict], ids: dict, ttl: int = 60) -> dict:
 
 def fmt(n: int) -> str:
     n = int(n or 0)
+    if idioma() == "en":
+        return f"{n / 1_000_000:.1f}M" if n >= 1_000_000 else f"{n // 1000}k" if n >= 1_000 else str(n)
     if n >= 1_000_000:
         return f"{n / 1_000_000:.1f} mi".replace(".", ",")
     if n >= 1_000:

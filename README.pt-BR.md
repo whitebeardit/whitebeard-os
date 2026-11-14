@@ -19,6 +19,9 @@ todo dia, em casa e no trabalho, empacotado para você instalar com um comando e
 curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh
 ```
 
+> A interface fala **português (Brasil)** e **inglês** (o padrão): segue o idioma do navegador, e você troca em
+> CONFIGURAÇÕES → IDIOMA.
+
 <p align="center"><img src="docs/midia/visao-geral.gif" alt="Visão geral do Whitebeard OS: a pessoa pergunta quem está atrasado nas entregas e o JARVIS responde a partir do second brain" width="100%"></p>
 
 <p align="center"><a href="#pergunte-ao-seu-second-brain">Second brain</a> ·

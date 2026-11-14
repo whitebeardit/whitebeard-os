@@ -28,6 +28,9 @@ jobs:
       - name: lint de privacidade
         run: |
           "$HOME/.local/bin/uv" run --quiet kernel/bin/privacy_lint.py
+      - name: lint de idiomas (toda frase de T() tem tradução)
+        run: |
+          "$HOME/.local/bin/uv" run --quiet kernel/bin/i18n_lint.py
       - name: esquema e tenant de exemplo (dry-run, três papéis)
         run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge --dry-run
 
@@ -42,6 +45,9 @@ jobs:
           - os: macos-latest
             roles: desktop,core
     runs-on: ${{ matrix.os }}
+    env:
+      # as conferências abaixo comparam textos em português; o padrão do kernel (sem a variável) é inglês
+      JARVIS_IDIOMA: pt-BR
     steps:
       - uses: actions/checkout@v4
       - name: instalação zerada (${{ matrix.roles }}, sem subir serviços)
@@ -127,6 +133,11 @@ jobs:
           assert e["ligado"] and [c["nome"] for c in e["cargos"]] == ["trabalho", "redator"], e
           r = {x["nome"]: x for x in e["rotinas"]}
           assert r["status-diario"]["quando_texto"] == "de segunda a sexta às 08:30" and r["resumo-da-semana"]["padrao"], r'
+          # o kernel responde no idioma da interface: este job roda em pt-BR (env do job); sem a variável, inglês
+          env -u JARVIS_IDIOMA python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
+          import json, sys
+          r = {x["nome"]: x for x in json.load(sys.stdin)["escritorio"]["rotinas"]}
+          assert r["status-diario"]["quando_texto"] == "Monday to Friday at 08:30", r'
           # rotina criada pela página: vale sem colocar em uso; agenda inválida é recusada
           echo "{\"nome\":\"ping\",\"titulo\":\"Ping\",\"faz\":\"Diga oi.\",\"quando\":\"*/5 * * * *\",\"cargo\":\"redator\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": true"
           echo "{\"nome\":\"ruim\",\"titulo\":\"Ruim\",\"faz\":\"x\",\"quando\":\"99 * * * *\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": false"

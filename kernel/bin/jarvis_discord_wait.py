@@ -28,6 +28,8 @@ from datetime import datetime
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+from jarvis_i18n import T
+
 GATEWAY = "wss://gateway.discord.gg/?v=10&encoding=json"
 API = "https://discord.com/api/v10"
 INTENTS = (1 << 0) | (1 << 9) | (1 << 12)  # GUILDS, GUILD_MESSAGES, DIRECT_MESSAGES (nenhuma privilegiada)
@@ -47,10 +49,10 @@ def epoch(ts: str) -> float:
         return time.time()
 
 
-FATAIS = {4004: "o Discord recusou o token (confira em Developer Portal → Bot → Reset Token)",
-          4010: "o Discord recusou a conexão do bot (shard inválido)", 4011: "o bot precisa de sharding; fale com o suporte",
-          4012: "versão da API do Discord inválida", 4013: "o Discord recusou as permissões do bot (intents inválidas)",
-          4014: "o Discord recusou as permissões do bot"}
+FATAIS = {4004: T("o Discord recusou o token (confira em Developer Portal → Bot → Reset Token)"),
+          4010: T("o Discord recusou a conexão do bot (shard inválido)"), 4011: T("o bot precisa de sharding; fale com o suporte"),
+          4012: T("versão da API do Discord inválida"), 4013: T("o Discord recusou as permissões do bot (intents inválidas)"),
+          4014: T("o Discord recusou as permissões do bot")}
 
 
 async def esperar(token: str, seconds: int, since: int) -> dict:
@@ -70,7 +72,7 @@ async def esperar(token: str, seconds: int, since: int) -> dict:
     def resultado() -> dict:
         if achados:
             return {"ok": True, "reconhecidos": achados, **achados[0]}
-        return {"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True}
+        return {"ok": False, "erro": T("nenhuma mensagem chegou ao bot"), "tempo_esgotado": True}
 
     def guarda(item: dict) -> None:
         nonlocal deadline
@@ -155,16 +157,16 @@ async def esperar(token: str, seconds: int, since: int) -> dict:
 async def main() -> int:
     token = os.environ.get("DISCORD_BOT_TOKEN", "")
     if not token:
-        print(json.dumps({"ok": False, "erro": "sem token"}))
+        print(json.dumps({"ok": False, "erro": T("sem token")}))
         return 1
     seconds = max(5, min(int(sys.argv[1]) if len(sys.argv) > 1 else 25, 300))
     since = int(sys.argv[2]) if len(sys.argv) > 2 else 0
     try:
         res = await asyncio.wait_for(esperar(token, seconds, since), timeout=seconds + JUNTA_S + 10)
     except asyncio.TimeoutError:
-        res = {"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True}
+        res = {"ok": False, "erro": T("nenhuma mensagem chegou ao bot"), "tempo_esgotado": True}
     except OSError as e:
-        res = {"ok": False, "erro": f"não consegui falar com o Discord ({e.__class__.__name__})"}
+        res = {"ok": False, "erro": T("não consegui falar com o Discord ({classe})", classe=e.__class__.__name__)}
     print(json.dumps(res, ensure_ascii=False))
     return 0
 

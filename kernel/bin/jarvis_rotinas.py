@@ -23,6 +23,8 @@ import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from jarvis_i18n import T
+
 API = (os.environ.get("PAPERCLIP_API_URL") or "http://127.0.0.1:3100/api").rstrip("/")
 NOME_RE = re.compile(r"^[a-z][a-z0-9-]{1,30}$")
 CARGO_PADRAO = {"nome": "trabalho", "titulo": "Assistente de trabalho",
@@ -31,6 +33,11 @@ ROTINA_PADRAO = {"nome": "resumo-da-semana", "titulo": "Resumo da semana", "quan
                  "faz": ("Faça o resumo da semana do Escritório e do second brain: o que foi entregue, o que está pendente ou parado, "
                          "e o que mudou nas páginas do second brain nos últimos sete dias. Em tópicos curtos, em português do Brasil.")}
 DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"]
+
+
+def dias_na_tela() -> list[str]:
+    """Os dias da semana (0=domingo) no idioma da interface."""
+    return [T("domingo"), T("segunda"), T("terça"), T("quarta"), T("quinta"), T("sexta"), T("sábado")]
 
 
 # ---------------------------------------------------------------- arquivos
@@ -132,7 +139,7 @@ def _campo(expr: str, lo: int, hi: int) -> set[int]:
             parte, p = parte.split("/", 1)
             passo = int(p)
             if passo < 1:
-                raise ValueError("passo inválido")
+                raise ValueError(T("passo inválido"))
         if parte in ("*", ""):
             a, b = lo, hi
         elif "-" in parte:
@@ -142,7 +149,7 @@ def _campo(expr: str, lo: int, hi: int) -> set[int]:
             if passo > 1:
                 b = hi
         if a < lo or b > hi or a > b:
-            raise ValueError(f"fora do intervalo {lo}-{hi}: {parte}")
+            raise ValueError(T("fora do intervalo {lo}-{hi}: {parte}", lo=lo, hi=hi, parte=parte))
         out.update(range(a, b + 1, passo))
     return out
 
@@ -151,7 +158,7 @@ def analisa(quando: str) -> dict:
     """Minutos, horas, dias do mês, meses e dias da semana (0=domingo) que a expressão aceita."""
     campos = (quando or "").split()
     if len(campos) != 5:
-        raise ValueError("a agenda precisa de 5 campos: minuto hora dia mês dia-da-semana")
+        raise ValueError(T("a agenda precisa de 5 campos: minuto hora dia mês dia-da-semana"))
     mi, ho, dm, me, ds = campos
     dias_semana = {d % 7 for d in _campo(ds, 0, 7)}
     return {"minutos": _campo(mi, 0, 59), "horas": _campo(ho, 0, 23), "dias_mes": _campo(dm, 1, 31), "meses": _campo(me, 1, 12),
@@ -206,7 +213,7 @@ def proxima(quando: str, agora: datetime, dias: int = 400) -> datetime | None:
 
 
 def quando_texto(quando: str) -> str:
-    """Como uma pessoa diria a agenda; se for exótica, a própria expressão."""
+    """Como uma pessoa diria a agenda, no idioma da interface; se for exótica, a própria expressão."""
     try:
         c = analisa(quando)
     except ValueError:
@@ -215,43 +222,43 @@ def quando_texto(quando: str) -> str:
     if len(c["minutos"]) == 1 and len(c["horas"]) == 1:
         hora = f"{next(iter(c['horas'])):02d}:{next(iter(c['minutos'])):02d}"
         if c["dm_livre"] and c["ds_livre"] and len(c["meses"]) == 12:
-            return f"todo dia às {hora}"
+            return T("todo dia às {hora}", hora=hora)
         if c["dm_livre"] and len(c["meses"]) == 12:
             ds = sorted(c["dias_semana"])
             if ds == [1, 2, 3, 4, 5]:
-                return f"de segunda a sexta às {hora}"
+                return T("de segunda a sexta às {hora}", hora=hora)
             if ds == [0, 6]:
-                return f"aos sábados e domingos às {hora}"
+                return T("aos sábados e domingos às {hora}", hora=hora)
             if len(ds) == 1:
-                d = DIAS[ds[0]]
-                return f"todo {d} às {hora}" if d in ("domingo", "sábado") else f"toda {d} às {hora}"
-            return "às " + ", ".join(DIAS[d] for d in ds) + f" às {hora}"
+                d = dias_na_tela()[ds[0]]
+                return T("todo {dia} às {hora}", dia=d, hora=hora) if ds[0] in (0, 6) else T("toda {dia} às {hora}", dia=d, hora=hora)
+            return T("às {dias} às {hora}", dias=", ".join(dias_na_tela()[d] for d in ds), hora=hora)
         if c["ds_livre"] and len(c["meses"]) == 12 and len(c["dias_mes"]) == 1:
-            return f"todo dia {next(iter(c['dias_mes']))} do mês às {hora}"
+            return T("todo dia {dia} do mês às {hora}", dia=next(iter(c["dias_mes"])), hora=hora)
     if mi.startswith("*/") and ho == "*" and c["dm_livre"] and c["ds_livre"]:
-        return f"a cada {mi[2:]} minutos"
+        return T("a cada {n} minutos", n=mi[2:])
     if mi.isdigit() and ho.startswith("*/") and c["dm_livre"] and c["ds_livre"]:
-        return f"a cada {ho[2:]} horas"
+        return T("a cada {n} horas", n=ho[2:])
     return quando
 
 
 def valida_rotina(r: dict, cargos: list[dict]) -> str | None:
     """Mensagem de erro para a pessoa, ou None."""
     if not NOME_RE.match(r.get("nome") or ""):
-        return "nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)"
+        return T("nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)")
     if not (r.get("titulo") or "").strip():
-        return "a rotina precisa de um título"
+        return T("a rotina precisa de um título")
     if not (r.get("faz") or "").strip():
-        return "diga o que a rotina faz"
+        return T("diga o que a rotina faz")
     try:
         analisa(r.get("quando") or "")
     except ValueError as e:
-        return f"quando: {e}"
+        return T("quando: {erro}", erro=e)
     onde = r.get("onde") or "telegram"
     if onde != "telegram" and not re.match(r"^assistente:[a-z][a-z0-9-]{1,30}$", onde):
-        return "onde: 'telegram' ou 'assistente:<nome>'"
+        return T("onde: 'telegram' ou 'assistente:<nome>'")
     if cargos and r.get("cargo") not in {c["nome"] for c in cargos}:
-        return f"cargo desconhecido: {r.get('cargo')}"
+        return T("cargo desconhecido: {cargo}", cargo=r.get("cargo"))
     return None
 
 
@@ -264,9 +271,9 @@ def api(method: str, path: str, body=None):
             raw = r.read()
             return json.loads(raw) if raw else None
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"Paperclip respondeu HTTP {e.code}: {e.read().decode('utf-8', 'replace')[:200]}") from e
+        raise RuntimeError(T("Paperclip respondeu HTTP {codigo}: {detalhe}", codigo=e.code, detalhe=e.read().decode("utf-8", "replace")[:200])) from e
     except (urllib.error.URLError, OSError) as e:
-        raise RuntimeError("o Escritório (Paperclip) não está no ar neste computador") from e
+        raise RuntimeError(T("o Escritório (Paperclip) não está no ar neste computador")) from e
 
 
 def lista(d, chave):
@@ -278,10 +285,10 @@ def disparar(home: Path, rotina: dict, quando: datetime | None = None) -> dict:
     ids = cargos_ids(home)
     cargo = ids.get(rotina.get("cargo") or "trabalho") or {}
     if not cargo.get("id"):
-        raise RuntimeError(f"o cargo {rotina.get('cargo')} ainda não está em uso (coloque em uso na página ESCRITÓRIO)")
+        raise RuntimeError(T("o cargo {cargo} ainda não está em uso (coloque em uso na página ESCRITÓRIO)", cargo=rotina.get("cargo")))
     comp = lista(api("GET", "/companies"), "companies")
     if not comp:
-        raise RuntimeError("nenhuma empresa no Escritório")
+        raise RuntimeError(T("nenhuma empresa no Escritório"))
     marca = (quando or datetime.now()).strftime("%d/%m/%Y %H:%M")
     desc = (rotina.get("faz") or "").strip() + f"\n\n(rotina {rotina['nome']}, disparada em {marca})\n\n[origem: {rotina.get('onde') or 'telegram'}]\n[rotina: {rotina['nome']}]"
     it = api("POST", f"/companies/{comp[0]['id']}/issues",

@@ -38,6 +38,8 @@ import time
 import urllib.parse
 from pathlib import Path
 
+from jarvis_i18n import T  # mesmo diretório (o do script está em sys.path)
+
 NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 # o kernel gera ou deriva estes; o Telegram tem o seu próprio passo
 HIDDEN = {"GBRAIN_MCP_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHANNEL"}
@@ -46,6 +48,36 @@ HIDDEN = {"GBRAIN_MCP_TOKEN", "TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHANNEL"}
 def out(obj: dict) -> int:
     print(json.dumps(obj, ensure_ascii=False))
     return 0 if obj.get("ok", True) else 1
+
+
+def tv(valor):
+    """T() para texto que vem de dado (arquivo do kernel, tenant, outro módulo): o padrão do kernel que tem tradução
+    sai no idioma da interface; o que a pessoa escreveu passa igual. Só na resposta, nunca no que é gravado."""
+    return T(valor) if isinstance(valor, str) and valor else valor
+
+
+# Textos dos segredos de cada assistente: o render os grava com o nome do assistente dentro (render/secrets.json)
+SEGREDO_MOLDES = [
+    (re.compile(r"^Token do bot do assistente (?P<nome>\S+)$"), lambda m: T("Token do bot do assistente {nome}", nome=m["nome"])),
+    (re.compile(r"^Token do bot do assistente (?P<nome>\S+) \((?P<canal>[^()]+)\)$"),
+     lambda m: T("Token do bot do assistente {nome} ({canal})", nome=m["nome"], canal=m["canal"])),
+    (re.compile(r"^Quem fala com o assistente (?P<nome>\S+)$"), lambda m: T("Quem fala com o assistente {nome}", nome=m["nome"])),
+    (re.compile(r"^Grupos do assistente (?P<nome>\S+)$"), lambda m: T("Grupos do assistente {nome}", nome=m["nome"])),
+    (re.compile(r"^Canais do assistente (?P<nome>\S+)$"), lambda m: T("Canais do assistente {nome}", nome=m["nome"])),
+    (re.compile(r"^Token do bot deste assistente no (?P<canal>\S+) \((?P<rotulo>.*)\)\. Um bot, um assistente\.$", re.S),
+     lambda m: T("Token do bot deste assistente no {canal} ({rotulo}). Um bot, um assistente.", canal=m["canal"], rotulo=tv(m["rotulo"]))),
+]
+
+
+def texto_segredo(valor: str) -> str:
+    """Título, descrição ou "como obter" de um segredo, no idioma da interface."""
+    if not valor:
+        return valor
+    for molde, frase in SEGREDO_MOLDES:
+        m = molde.match(valor)
+        if m:
+            return frase(m)
+    return T(valor)
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -162,18 +194,18 @@ def whatsapp_ponte_pronta(home: Path) -> str | None:
     """Garante a ponte (Node) do Hermes com as dependências instaladas. Devolve o erro, ou None."""
     ponte = whatsapp_ponte_dir(home)
     if not (ponte / "bridge.js").is_file():
-        return "a ponte do WhatsApp do Hermes não está instalada neste computador"
+        return T("a ponte do WhatsApp do Hermes não está instalada neste computador")
     if (ponte / "node_modules").is_dir():
         return None
     npm = shutil.which("npm")
     if not npm or not shutil.which("node"):
-        return "node/npm não encontrados; o kernel fixa o Node na instalação (rode o instalador de novo)"
+        return T("node/npm não encontrados; o kernel fixa o Node na instalação (rode o instalador de novo)")
     try:
         r = subprocess.run([npm, "install", "--omit=dev", "--no-audit", "--no-fund", "--silent"], cwd=str(ponte), capture_output=True, text=True, timeout=600, check=False)
     except (OSError, subprocess.SubprocessError) as e:
-        return f"não consegui preparar a ponte do WhatsApp ({e.__class__.__name__})"
+        return T("não consegui preparar a ponte do WhatsApp ({erro})", erro=e.__class__.__name__)
     if r.returncode != 0:
-        return "não consegui preparar a ponte do WhatsApp (npm install falhou; veja a internet e tente de novo)"
+        return T("não consegui preparar a ponte do WhatsApp (npm install falhou; veja a internet e tente de novo)")
     return None
 
 
@@ -195,7 +227,7 @@ def whatsapp_pareamento_vivo(home: Path, nome: str) -> dict | None:
         return None
     if d.get("estado") in ("preparando", "esperando", "qr") and not vivo:
         d["estado"] = "erro" if d.get("estado") != "qr" else "expirado"
-        d["erro"] = d.get("erro") or "o pareamento parou; gere outro QR"
+        d["erro"] = d.get("erro") or T("o pareamento parou; gere outro QR")
     return d
 
 
@@ -249,14 +281,14 @@ def nomes_vivos(home: Path, nomes: object, chave: str) -> list[str]:
     """Nomes das pessoas/grupos reconhecidos cujo id ainda está na lista do secrets.env (ordem da lista)."""
     ids = [x for x in read_env(home / "secrets.env").get(chave, "").split(",") if x]
     mapa = nomes if isinstance(nomes, dict) else {}
-    return [mapa.get(i) or "(sem nome)" for i in ids]
+    return [mapa.get(i) or T("(sem nome)") for i in ids]
 
 
 def lista_viva(home: Path, nomes: object, chave: str) -> list[dict]:
     """Como nomes_vivos, com o id: é por ele que a página tira alguém da lista."""
     ids = [x for x in read_env(home / "secrets.env").get(chave, "").split(",") if x]
     mapa = nomes if isinstance(nomes, dict) else {}
-    return [{"id": i, "nome": mapa.get(i) or "(sem nome)"} for i in ids]
+    return [{"id": i, "nome": mapa.get(i) or T("(sem nome)")} for i in ids]
 
 
 def hermes_profile_dir(home: Path, nome: str) -> Path:
@@ -309,7 +341,7 @@ def assistentes_status(home: Path, filled: dict[str, bool]) -> list[dict]:
             wa = {"modo": a.get("whatsapp_modo") or "bot", "pareado": (sess / "creds.json").is_file(), "telefone": whatsapp_telefone(sess),
                   "pareando": par.get("estado") if par.get("estado") in ("preparando", "esperando", "qr") else None}
         out_.append({
-            "nome": nome, "tipo": tipo, "canal": canal, "descricao": a.get("descricao", ""), "bot": a.get("bot", "") or cat_a.get("bot", ""),
+            "nome": nome, "tipo": tipo, "canal": canal, "descricao": tv(a.get("descricao", "")), "bot": a.get("bot", "") or cat_a.get("bot", ""),
             "app_id": a.get("app_id", ""), "whatsapp": wa,
             "skills": a.get("skills") if a.get("skills") is not None else (cat_a.get("skills") or []),
             "ajustes": {"computador": bool((a.get("ajustes") or {}).get("computador")), "anotar": bool((a.get("ajustes") or {}).get("anotar"))},
@@ -338,27 +370,27 @@ def cmd_assistente_add(home: Path) -> int:
     try:
         dados = json.loads(raw or "{}")
     except ValueError:
-        return out({"ok": False, "erro": "dados inválidos"})
+        return out({"ok": False, "erro": T("dados inválidos")})
     nome = str(dados.get("nome") or "").strip().lower()
     tipo = str(dados.get("tipo") or "").strip()
     canal = str(dados.get("canal") or "telegram").strip()
     descricao = str(dados.get("descricao") or "").strip()[:400]
     if not ASSISTENTE_NOME_RE.match(nome):
-        return out({"ok": False, "erro": "nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)"})
+        return out({"ok": False, "erro": T("nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)")})
     if tipo not in ASSISTENTE_TIPOS:
-        return out({"ok": False, "erro": "tipo desconhecido"})
+        return out({"ok": False, "erro": T("tipo desconhecido")})
     if canal not in ASSISTENTE_CANAIS:
-        return out({"ok": False, "erro": "canal desconhecido"})
+        return out({"ok": False, "erro": T("canal desconhecido")})
     modo = str(dados.get("whatsapp_modo") or "bot")
     if canal == "whatsapp" and modo not in WHATSAPP_MODOS:
-        return out({"ok": False, "erro": "modo do WhatsApp desconhecido"})
+        return out({"ok": False, "erro": T("modo do WhatsApp desconhecido")})
     if nome == "default":
-        return out({"ok": False, "erro": "esse nome é reservado"})
+        return out({"ok": False, "erro": T("esse nome é reservado")})
     itens = load_store(home)
     if any(a.get("nome") == nome and not a.get("removido") for a in itens) or (
         (home / "render" / "hermes" / "assistentes" / nome).is_dir() and not any(a.get("nome") == nome and a.get("removido") for a in itens)
     ):
-        return out({"ok": False, "erro": f"já existe um assistente chamado {nome}"})
+        return out({"ok": False, "erro": T("já existe um assistente chamado {nome}", nome=nome)})
     itens = [a for a in itens if a.get("nome") != nome]
     itens.append({"nome": nome, "tipo": tipo, "canal": canal, "descricao": descricao, "criado_em": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
                   **({"whatsapp_modo": modo} if canal == "whatsapp" else {})})
@@ -381,7 +413,7 @@ def cmd_assistente_remove(home: Path, nome: str) -> int:
     na_loja = any(a.get("nome") == nome and not a.get("removido") for a in itens)
     do_pacote = (no_catalogo(home, nome) or {}).get("do_pacote") or (not na_loja and no_catalogo(home, nome) is not None)
     if not na_loja and not do_pacote:
-        return out({"ok": False, "erro": "assistente desconhecido"})
+        return out({"ok": False, "erro": T("assistente desconhecido")})
     itens = [a for a in itens if a.get("nome") != nome]
     if do_pacote:
         # o pacote continua a declará-lo; a marca faz o render ignorá-lo (e o bootstrap estaciona o perfil)
@@ -396,13 +428,13 @@ def cmd_assistente_esquecer(home: Path, nome: str, qual: str, ident: str) -> int
     """Tira uma pessoa (ou um grupo/canal) da lista de quem fala com o assistente. Vale depois de colocar em uso."""
     a = assistente_do_store(home, nome)
     if not a:
-        return out({"ok": False, "erro": "assistente desconhecido"})
+        return out({"ok": False, "erro": T("assistente desconhecido")})
     if qual not in ("pessoa", "grupo"):
-        return out({"ok": False, "erro": "diga se é pessoa ou grupo"})
+        return out({"ok": False, "erro": T("diga se é pessoa ou grupo")})
     chave = chaves_assistente(nome, canal_de(a))["pessoas" if qual == "pessoa" else "grupos"]
     atual = [x for x in read_env(home / "secrets.env").get(chave, "").split(",") if x]
     if ident not in atual:
-        return out({"ok": False, "erro": "essa pessoa não está na lista" if qual == "pessoa" else "esse grupo não está na lista"})
+        return out({"ok": False, "erro": T("essa pessoa não está na lista") if qual == "pessoa" else T("esse grupo não está na lista")})
     set_secret(home / "secrets.env", chave, ",".join(x for x in atual if x != ident))
     campo = "pessoas_nomes" if qual == "pessoa" else "grupos_nomes"
     itens = load_store(home)
@@ -420,20 +452,20 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
     try:
         dados = json.loads(raw or "{}")
     except ValueError:
-        return out({"ok": False, "erro": "dados inválidos"})
+        return out({"ok": False, "erro": T("dados inválidos")})
     itens = load_store(home)
     atual = next((a for a in itens if a.get("nome") == nome and not a.get("removido")), None)
     if atual is None:
         base = no_catalogo(home, nome)
         if base is None:
-            return out({"ok": False, "erro": "assistente desconhecido"})
+            return out({"ok": False, "erro": T("assistente desconhecido")})
         atual = {"nome": nome, "tipo": base.get("tipo", ""), "canal": base.get("canal") or "telegram", "descricao": base.get("descricao", ""),
                  "skills": base.get("skills") or [], "ajustes": base.get("ajustes") or {}, "do_pacote": True}
         itens.append(atual)
     if "canal" in dados:
         canal = str(dados.get("canal") or "telegram")
         if canal not in ASSISTENTE_CANAIS:
-            return out({"ok": False, "erro": "canal desconhecido"})
+            return out({"ok": False, "erro": T("canal desconhecido")})
         if canal != canal_de(atual):
             # trocar de canal é recomeçar: o bot, as pessoas e os grupos do canal antigo não valem no novo
             apagar_segredos_assistente(home, nome)
@@ -443,7 +475,7 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
     if "whatsapp_modo" in dados and canal_de(atual) == "whatsapp":
         modo = str(dados.get("whatsapp_modo") or "bot")
         if modo not in WHATSAPP_MODOS:
-            return out({"ok": False, "erro": "modo do WhatsApp desconhecido"})
+            return out({"ok": False, "erro": T("modo do WhatsApp desconhecido")})
         if modo != (atual.get("whatsapp_modo") or "bot"):
             # trocar o modo é parear de novo (outro número)
             apagar_segredos_assistente(home, nome)
@@ -454,7 +486,7 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
     if "tipo" in dados:
         tipo = str(dados.get("tipo") or "")
         if tipo not in ASSISTENTE_TIPOS:
-            return out({"ok": False, "erro": "tipo desconhecido"})
+            return out({"ok": False, "erro": T("tipo desconhecido")})
         if tipo != atual.get("tipo"):
             atual["tipo"] = tipo
             atual.pop("skills", None)  # skills padrão do tipo novo
@@ -462,14 +494,14 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
     if "ajustes" in dados:
         aj = dados.get("ajustes") or {}
         if atual.get("tipo") in ("cliente", "rotinas") and any(aj.values()):
-            return out({"ok": False, "erro": "este tipo não aceita ajustes"})
+            return out({"ok": False, "erro": T("este tipo não aceita ajustes")})
         atual["ajustes"] = {k: bool(aj.get(k)) for k in ("computador", "anotar") if k in aj}
     if "skills" in dados and isinstance(dados.get("skills"), list):
         atual["skills"] = [str(s) for s in dados["skills"] if re.match(r"^[a-z][a-z0-9-]*$", str(s))]
     if "nivel" in dados:
         nv = str(dados.get("nivel") or "")
         if nv and nv not in ("rapido", "equilibrado", "capaz"):
-            return out({"ok": False, "erro": "nível desconhecido"})
+            return out({"ok": False, "erro": T("nível desconhecido")})
         if nv:
             atual["nivel"] = nv
         else:
@@ -477,7 +509,7 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
     if "provedor" in dados:
         pv = str(dados.get("provedor") or "")
         if pv and pv not in ("claude", "chatgpt", "openrouter"):
-            return out({"ok": False, "erro": "assinatura desconhecida"})
+            return out({"ok": False, "erro": T("assinatura desconhecida")})
         if pv:
             atual["provedor"] = pv
         else:
@@ -502,15 +534,15 @@ def assistente_do_store(home: Path, nome: str) -> dict | None:
 def cmd_assistente_token(home: Path, nome: str) -> int:
     a = assistente_do_store(home, nome)
     if not a:
-        return out({"ok": False, "erro": "assistente desconhecido"})
+        return out({"ok": False, "erro": T("assistente desconhecido")})
     token = stdin_value()
     if not token:
-        return out({"ok": False, "erro": "token vazio"})
+        return out({"ok": False, "erro": T("token vazio")})
     canal = canal_de(a)
     ch = chaves_assistente(nome, canal)
     app_id = ""
     if canal == "whatsapp":
-        return out({"ok": False, "erro": "o WhatsApp não usa token: leia o QR na página"})
+        return out({"ok": False, "erro": T("o WhatsApp não usa token: leia o QR na página")})
     if canal == "discord":
         try:
             me = discord_api(token, "/users/@me")
@@ -518,23 +550,23 @@ def cmd_assistente_token(home: Path, nome: str) -> int:
             app_id = str((discord_api(token, "/oauth2/applications/@me") or {}).get("id") or "")
         except DiscordError as e:
             if e.code in (401, 403):
-                return out({"ok": False, "erro": "o Discord recusou o token (confira em Developer Portal → Bot → Reset Token)"})
-            return out({"ok": False, "erro": "não consegui falar com o Discord; confira a internet e tente de novo"})
-        onde = "crie outra aplicação no Developer Portal"
+                return out({"ok": False, "erro": T("o Discord recusou o token (confira em Developer Portal → Bot → Reset Token)")})
+            return out({"ok": False, "erro": T("não consegui falar com o Discord; confira a internet e tente de novo")})
+        onde = T("crie outra aplicação no Developer Portal")
     else:
         try:
             me = tg_api(token, "getMe", http_timeout=20)
         except TelegramError as e:
             if e.code in (401, 404):
-                return out({"ok": False, "erro": "o Telegram recusou o token (confira em @BotFather)"})
-            return out({"ok": False, "erro": "não consegui falar com o Telegram; confira a internet e tente de novo"})
+                return out({"ok": False, "erro": T("o Telegram recusou o token (confira em @BotFather)")})
+            return out({"ok": False, "erro": T("não consegui falar com o Telegram; confira a internet e tente de novo")})
         username = str(me.get("username") or "")
-        onde = "crie outro no @BotFather"
+        onde = T("crie outro no @BotFather")
     # o mesmo bot não pode ser dois assistentes (nem o do dono)
     prefixo = ASSISTENTE_CANAIS[canal]["token"]
     for k, v in read_env(home / "secrets.env").items():
         if k.startswith(prefixo) and k != ch["token"] and v == token:
-            return out({"ok": False, "erro": f"esse bot já é usado por outro assistente; {onde}"})
+            return out({"ok": False, "erro": T("esse bot já é usado por outro assistente; {onde}", onde=onde)})
     set_secret(home / "secrets.env", ch["token"], token)
     itens = load_store(home)
     for it in itens:
@@ -601,7 +633,7 @@ def assistente_wait_discord(home: Path, nome: str, tipo: str, token: str, second
     a equipe). O gateway do Hermes pode continuar ligado: o Discord aceita mais de uma sessão do mesmo bot."""
     py = hermes_python(home)
     if not py:
-        return out({"ok": False, "erro": "o Hermes não está instalado neste computador"})
+        return out({"ok": False, "erro": T("o Hermes não está instalado neste computador")})
     ch = chaves_assistente(nome, "discord")
     script = Path(__file__).resolve().parent / "jarvis_discord_wait.py"
     env = dict(os.environ, DISCORD_BOT_TOKEN=token)
@@ -611,9 +643,9 @@ def assistente_wait_discord(home: Path, nome: str, tipo: str, token: str, second
     except (OSError, subprocess.SubprocessError, ValueError):
         res = {}
     if not res:
-        return out({"ok": False, "erro": "não consegui falar com o Discord; tente de novo"})
+        return out({"ok": False, "erro": T("não consegui falar com o Discord; tente de novo")})
     if not res.get("ok"):
-        return out(res)
+        return out({**res, "erro": tv(res.get("erro"))} if "erro" in res else res)
     reconhecidos = []
     for it in res.get("reconhecidos") or [res]:
         if it.get("grupo_id") and aceita_grupo:
@@ -630,7 +662,7 @@ def assistente_wait_discord(home: Path, nome: str, tipo: str, token: str, second
         # o que o tipo não aceita (cliente em conversa direta; mim num canal) é ignorado
     if reconhecidos:
         return out({"ok": True, "reconhecidos": reconhecidos, **reconhecidos[0]})
-    return out({"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
+    return out({"ok": False, "erro": T("nenhuma mensagem chegou ao bot"), "tempo_esgotado": True})
 
 
 def estaciona_perfil(home: Path, nome: str) -> None:
@@ -653,7 +685,7 @@ def cmd_assistente_whatsapp_parear(home: Path, nome: str) -> int:
     """Começa o pareamento por QR em segundo plano; a página acompanha por whatsapp-status."""
     a = assistente_do_store(home, nome)
     if not a or canal_de(a) != "whatsapp":
-        return out({"ok": False, "erro": "assistente desconhecido ou não é do WhatsApp"})
+        return out({"ok": False, "erro": T("assistente desconhecido ou não é do WhatsApp")})
     raw = stdin_value()
     try:
         dados = json.loads(raw or "{}")
@@ -661,7 +693,7 @@ def cmd_assistente_whatsapp_parear(home: Path, nome: str) -> int:
         dados = {}
     modo = str(dados.get("modo") or a.get("whatsapp_modo") or "bot")
     if modo not in WHATSAPP_MODOS:
-        return out({"ok": False, "erro": "modo do WhatsApp desconhecido"})
+        return out({"ok": False, "erro": T("modo do WhatsApp desconhecido")})
     erro = whatsapp_ponte_pronta(home)
     if erro:
         return out({"ok": False, "erro": erro})
@@ -683,14 +715,14 @@ def cmd_assistente_whatsapp_parear(home: Path, nome: str) -> int:
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError as e:
         desestaciona_perfil(home, nome)
-        return out({"ok": False, "erro": f"não consegui iniciar o pareamento ({e.__class__.__name__})"})
+        return out({"ok": False, "erro": T("não consegui iniciar o pareamento ({erro})", erro=e.__class__.__name__)})
     return out({"ok": True, "estado": "preparando"})
 
 
 def cmd_assistente_whatsapp_status(home: Path, nome: str) -> int:
     a = assistente_do_store(home, nome)
     if not a or canal_de(a) != "whatsapp":
-        return out({"ok": False, "erro": "assistente desconhecido ou não é do WhatsApp"})
+        return out({"ok": False, "erro": T("assistente desconhecido ou não é do WhatsApp")})
     sess = whatsapp_sessao(home, nome)
     par = whatsapp_pareamento_vivo(home, nome) or {}
     pareado = (sess / "creds.json").is_file() and par.get("estado") in (None, "conectado")
@@ -698,13 +730,13 @@ def cmd_assistente_whatsapp_status(home: Path, nome: str) -> int:
         desestaciona_perfil(home, nome)
     return out({"ok": True, "pareado": pareado, "telefone": whatsapp_telefone(sess) if pareado else "", "nome": par.get("nome", ""),
                 "estado": par.get("estado") or ("conectado" if pareado else "nenhum"), "qr": par.get("qr") if par.get("estado") == "qr" else None,
-                "erro": par.get("erro"), "modo": a.get("whatsapp_modo") or "bot"})
+                "erro": tv(par.get("erro")), "modo": a.get("whatsapp_modo") or "bot"})
 
 
 def cmd_assistente_whatsapp_desparear(home: Path, nome: str) -> int:
     a = assistente_do_store(home, nome)
     if not a or canal_de(a) != "whatsapp":
-        return out({"ok": False, "erro": "assistente desconhecido ou não é do WhatsApp"})
+        return out({"ok": False, "erro": T("assistente desconhecido ou não é do WhatsApp")})
     whatsapp_parar_pareamento(home, nome)
     shutil.rmtree(whatsapp_sessao(home, nome), ignore_errors=True)
     desestaciona_perfil(home, nome)
@@ -730,7 +762,7 @@ def assistente_wait_whatsapp(home: Path, nome: str, a: dict, seconds: int, since
                                 cwd=str(whatsapp_ponte_dir(home)), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError as e:
         desestaciona_perfil(home, nome)
-        return out({"ok": False, "erro": f"não consegui subir a ponte do WhatsApp ({e.__class__.__name__})"})
+        return out({"ok": False, "erro": T("não consegui subir a ponte do WhatsApp ({erro})", erro=e.__class__.__name__)})
 
     def ponte_get(path: str):
         conn = http.client.HTTPConnection("127.0.0.1", porta, timeout=10)
@@ -789,7 +821,7 @@ def assistente_wait_whatsapp(home: Path, nome: str, a: dict, seconds: int, since
             desestaciona_perfil(home, nome)
     if achados:
         return out({"ok": True, "reconhecidos": achados, **achados[0]})
-    return out({"ok": False, "erro": "nenhuma mensagem chegou", "tempo_esgotado": True})
+    return out({"ok": False, "erro": T("nenhuma mensagem chegou"), "tempo_esgotado": True})
 
 
 def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
@@ -799,13 +831,13 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
     PARAR ou 3 min. O que o tipo não aceita é ignorado (cliente não ganha pessoas; mim não ganha grupos)."""
     a = assistente_do_store(home, nome)
     if not a:
-        return out({"ok": False, "erro": "assistente desconhecido"})
+        return out({"ok": False, "erro": T("assistente desconhecido")})
     tipo = a.get("tipo", "")
     canal = canal_de(a)
     ch = chaves_assistente(nome, canal)
     token = read_env(home / "secrets.env").get(ch["token"], "") if ch["token"] else ("pareado" if (whatsapp_sessao(home, nome) / "creds.json").is_file() else "")
     if not token:
-        return out({"ok": False, "erro": "sem token do bot deste assistente" if ch["token"] else "o WhatsApp deste assistente ainda não foi pareado"})
+        return out({"ok": False, "erro": T("sem token do bot deste assistente") if ch["token"] else T("o WhatsApp deste assistente ainda não foi pareado")})
     aceita_pessoa = tipo in ("mim", "equipe")
     aceita_grupo = tipo in ("equipe", "cliente")
     seconds = max(5, min(seconds, 300))
@@ -896,7 +928,7 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
             desestaciona()
         if achados:
             return out({"ok": True, "reconhecidos": achados, **achados[0]})
-        return out({"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
+        return out({"ok": False, "erro": T("nenhuma mensagem chegou ao bot"), "tempo_esgotado": True})
 
     try:
         # o que ficou pendente (as mensagens antigas são descartadas por `since`)
@@ -905,7 +937,7 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
             return fim()
     except TelegramError as e:
         if e.code != 409:
-            return out({"ok": False, "erro": "não consegui falar com o Telegram"})
+            return out({"ok": False, "erro": T("não consegui falar com o Telegram")})
     while time.time() < deadline:
         try:
             ups = tg_api(token, "getUpdates", http_timeout=35, offset=offset, allowed_updates='["message","my_chat_member"]',
@@ -919,7 +951,7 @@ def cmd_assistente_wait(home: Path, nome: str, seconds: int, since: int) -> int:
                 continue
             if stopped_gateway:
                 hermes_gateway("start")
-            return out({"ok": False, "erro": "o Telegram não entregou mensagens; tente de novo"})
+            return out({"ok": False, "erro": T("o Telegram não entregou mensagens; tente de novo")})
         junta(ups)
         if achados:
             return fim()
@@ -970,12 +1002,12 @@ def escritorio_status(home: Path, roles: list[str]) -> dict:
             for ag in esc.lista(esc.api("GET", f"/companies/{esc.empresa_id()}/agents"), "agents"):
                 agentes[ag.get("id")] = ag
         except RuntimeError as e:
-            out_["erro"] = str(e)[:200]
+            out_["erro"] = tv(str(e)[:200])
     por_agente: dict = {}
     for c in cat["cargos"]:
         reg = ids.get(c["nome"]) or {}
         ag = agentes.get(reg.get("id")) or {}
-        item = {"nome": c["nome"], "titulo": c["titulo"], "faz": c["faz"], "nivel": c.get("nivel") or "", "padrao": c["padrao"],
+        item = {"nome": c["nome"], "titulo": tv(c["titulo"]), "faz": tv(c["faz"]), "nivel": c.get("nivel") or "", "padrao": c["padrao"],
                 "aplicado": bool(reg.get("id")) and c["aplicado"], "estado": ag.get("status") or "", "tarefas_feitas": 0}
         if reg.get("id"):
             por_agente[reg["id"]] = item
@@ -993,14 +1025,14 @@ def escritorio_status(home: Path, roles: list[str]) -> dict:
             prox = rot.proxima(r["quando"], agora) if r["ligada"] else None
         except ValueError:
             prox = None
-        out_["rotinas"].append({**r, "quando_texto": rot.quando_texto(r["quando"]), "ultima": reg.get("ultima") or "", "ultima_tarefa": reg.get("tarefa") or "",
+        out_["rotinas"].append({**r, "titulo": tv(r["titulo"]), "faz": tv(r["faz"]), "quando_texto": rot.quando_texto(r["quando"]), "ultima": reg.get("ultima") or "", "ultima_tarefa": reg.get("tarefa") or "",
                                 "proxima": prox.strftime("%Y-%m-%dT%H:%M") if prox else ""})
     out_["tokens"] = {"mes": {}, "cargos": [], "rotinas": [], "tarefas": [], "alertas": []}
     if not out_["aplicado"]:
         return out_
     try:
         import jarvis_escritorio_tokens as tok
-        out_["tokens"] = tok.com_cache(home, cat["cargos"], ids)
+        out_["tokens"] = tokens_traduzidos(tok.com_cache(home, cat["cargos"], ids))
     except Exception:  # sem tokens a página continua; o resto do status não depende disto
         pass
     try:
@@ -1011,7 +1043,7 @@ def escritorio_status(home: Path, roles: list[str]) -> dict:
                 por_agente[it["assigneeAgentId"]]["tarefas_feitas"] += 1
         for it in itens[:40]:
             desc = it.get("description") or ""
-            t = {"id": it.get("id"), "numero": it.get("identifier"), "titulo": it.get("title"), "estado": it.get("status"),
+            t = {"id": it.get("id"), "numero": it.get("identifier"), "titulo": tv(it.get("title")), "estado": it.get("status"),
                  "criada_em": it.get("createdAt"), "atualizada_em": it.get("updatedAt"),
                  "origem": (re.search(r"\[origem:\s*([^\]]+)\]", desc) or [None, ""])[1] if "[origem:" in desc else "",
                  "rotina": rot.rotina_de_tarefa(desc), "cargo": (por_agente.get(it.get("assigneeAgentId")) or {}).get("titulo") or "",
@@ -1031,7 +1063,19 @@ def escritorio_status(home: Path, roles: list[str]) -> dict:
                     break
             out_["tarefas"].append(t)
     except RuntimeError as e:
-        out_["erro"] = str(e)[:200]
+        out_["erro"] = tv(str(e)[:200])
+    return out_
+
+
+def tokens_traduzidos(tokens: dict) -> dict:
+    """Os nomes e as dicas que o cálculo de tokens devolve (e guarda em português no cache), no idioma da interface."""
+    if not isinstance(tokens, dict):
+        return tokens
+    out_ = dict(tokens)
+    for chave, campos in (("cargos", ("titulo",)), ("rotinas", ("titulo",)), ("tarefas", ("titulo",)), ("provedores", ("titulo",)),
+                          ("alertas", ("texto", "dica"))):
+        if isinstance(out_.get(chave), list):
+            out_[chave] = [{**x, **{k: tv(x[k]) for k in campos if k in x}} if isinstance(x, dict) else x for x in out_[chave]]
     return out_
 
 
@@ -1040,7 +1084,7 @@ def cmd_escritorio_set(home: Path) -> int:
     try:
         dados = json.loads(raw or "{}")
     except ValueError:
-        return out({"ok": False, "erro": "dados inválidos"})
+        return out({"ok": False, "erro": T("dados inválidos")})
     ligado = bool(dados.get("ligado"))
     loja = loja_escritorio(home)
     loja["ligado"] = ligado
@@ -1077,33 +1121,33 @@ def cmd_escritorio_cargo(home: Path, acao: str, nome: str = "") -> int:
     cargos = [c for c in (loja.get("cargos") or []) if isinstance(c, dict) and c.get("nome")]
     if acao == "remove":
         if nome == "trabalho":
-            return out({"ok": False, "erro": "o Assistente de trabalho é o cargo padrão: não se apaga"})
+            return out({"ok": False, "erro": T("o Assistente de trabalho é o cargo padrão: não se apaga")})
         existe = any(c["nome"] == nome and not c.get("removido") for c in cargos) or any(c["nome"] == nome for c in rot.catalogo(home)["cargos"])
         if not existe:
-            return out({"ok": False, "erro": f"não há cargo chamado {nome}"})
+            return out({"ok": False, "erro": T("não há cargo chamado {nome}", nome=nome)})
         cargos = [c for c in cargos if c["nome"] != nome] + [{"nome": nome, "removido": True}]
         loja["cargos"] = cargos
         gravar_loja_escritorio(home, loja)
         return out({"ok": True, "nome": nome})
     dados = dados_stdin()
     if dados is None:
-        return out({"ok": False, "erro": "dados inválidos"})
+        return out({"ok": False, "erro": T("dados inválidos")})
     if acao == "add":
         nome = str(dados.get("nome") or "").strip().lower()
         if not rot.NOME_RE.match(nome):
-            return out({"ok": False, "erro": "nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)"})
+            return out({"ok": False, "erro": T("nome: só letras minúsculas, números e hífen, começando por letra (2 a 31 caracteres)")})
         if nome == "trabalho" or any(c["nome"] == nome for c in rot.catalogo(home)["cargos"]):
-            return out({"ok": False, "erro": f"já existe um cargo chamado {nome}"})
+            return out({"ok": False, "erro": T("já existe um cargo chamado {nome}", nome=nome)})
         if (hermes_profile_dir(home, nome)).is_dir() or any(a.get("nome") == nome and not a.get("removido") for a in load_store(home)):
-            return out({"ok": False, "erro": f"já existe um assistente ou perfil chamado {nome}; escolha outro nome"})
+            return out({"ok": False, "erro": T("já existe um assistente ou perfil chamado {nome}; escolha outro nome", nome=nome)})
         novo = rot.normaliza_cargo({**dados, "nome": nome})
     else:
         atual = next((c for c in rot.catalogo(home)["cargos"] if c["nome"] == nome), None)
         if atual is None:
-            return out({"ok": False, "erro": f"não há cargo chamado {nome}"})
+            return out({"ok": False, "erro": T("não há cargo chamado {nome}", nome=nome)})
         novo = rot.normaliza_cargo({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz", "nivel")}, "nome": nome})
     if not novo["titulo"]:
-        return out({"ok": False, "erro": "o cargo precisa de um título"})
+        return out({"ok": False, "erro": T("o cargo precisa de um título")})
     cargos = [c for c in cargos if c["nome"] != nome] + [novo]
     loja["cargos"] = cargos
     gravar_loja_escritorio(home, loja)
@@ -1119,11 +1163,11 @@ def cmd_escritorio_rotina(home: Path, acao: str, nome: str = "") -> int:
     if acao == "run":
         r = next((x for x in cat["rotinas"] if x["nome"] == nome), None)
         if r is None:
-            return out({"ok": False, "erro": f"não há rotina chamada {nome}"})
+            return out({"ok": False, "erro": T("não há rotina chamada {nome}", nome=nome)})
         try:
             t = rot.disparar(home, r)
         except RuntimeError as e:
-            return out({"ok": False, "erro": str(e)[:200]})
+            return out({"ok": False, "erro": tv(str(e)[:200])})
         estado_path = home / "escritorio" / "carteiro.json"
         estado = rot.ler_json(estado_path, {})
         if isinstance(estado, dict):
@@ -1132,26 +1176,26 @@ def cmd_escritorio_rotina(home: Path, acao: str, nome: str = "") -> int:
         return out({"ok": True, "tarefa": t})
     if acao == "remove":
         if not any(x["nome"] == nome for x in cat["rotinas"]):
-            return out({"ok": False, "erro": f"não há rotina chamada {nome}"})
+            return out({"ok": False, "erro": T("não há rotina chamada {nome}", nome=nome)})
         loja = [x for x in loja if x["nome"] != nome] + [{"nome": nome, "removido": True}]
         rot.gravar_json(home / "escritorio" / "rotinas.json", loja)
         return out({"ok": True, "nome": nome})
     dados = dados_stdin()
     if dados is None:
-        return out({"ok": False, "erro": "dados inválidos"})
+        return out({"ok": False, "erro": T("dados inválidos")})
     if acao == "add":
         nome = str(dados.get("nome") or "").strip().lower()
         if any(x["nome"] == nome for x in cat["rotinas"]):
-            return out({"ok": False, "erro": f"já existe uma rotina chamada {nome}"})
+            return out({"ok": False, "erro": T("já existe uma rotina chamada {nome}", nome=nome)})
         nova = rot.normaliza_rotina({**dados, "nome": nome})
     else:
         atual = next((x for x in cat["rotinas"] if x["nome"] == nome), None)
         if atual is None:
-            return out({"ok": False, "erro": f"não há rotina chamada {nome}"})
+            return out({"ok": False, "erro": T("não há rotina chamada {nome}", nome=nome)})
         nova = rot.normaliza_rotina({**atual, **{k: v for k, v in dados.items() if k in ("titulo", "faz", "quando", "onde", "cargo", "ligada")}, "nome": nome})
     erro = rot.valida_rotina(nova, cat["cargos"])
     if erro:
-        return out({"ok": False, "erro": erro})
+        return out({"ok": False, "erro": tv(erro)})
     loja = [x for x in loja if x["nome"] != nome] + [nova]
     rot.gravar_json(home / "escritorio" / "rotinas.json", loja)
     return out({"ok": True, "rotina": nova})
@@ -1162,12 +1206,12 @@ def cmd_escritorio_decidir(home: Path, tarefa: str, aprovar: bool) -> int:
     try:
         import jarvis_escritorio_mcp as esc
     except ImportError:
-        return out({"ok": False, "erro": "ferramentas do Escritório ausentes"})
+        return out({"ok": False, "erro": T("ferramentas do Escritório ausentes")})
     nota = stdin_value()
     try:
         r = esc.aprovar(tarefa, nota) if aprovar else esc.recusar(tarefa, nota)
     except RuntimeError as e:
-        return out({"ok": False, "erro": str(e)[:200]})
+        return out({"ok": False, "erro": tv(str(e)[:200])})
     return out(r)
 
 
@@ -1194,9 +1238,15 @@ def pensa_status(home: Path, roles: list[str]) -> dict:
     except ImportError:
         return {"disponivel": False}
     try:
-        return {"disponivel": "core" in roles, **pensa.status(home, Path(__file__).resolve().parent.parent, tenant_hermes(home))}
+        st = pensa.status(home, Path(__file__).resolve().parent.parent, tenant_hermes(home))
+        # nomes dos níveis (Rápido, Equilibrado, Mais capaz) e o erro do login guardado em pensa.login.json
+        if isinstance(st.get("niveis"), list):
+            st["niveis"] = [{**n, "nome": tv(n.get("nome"))} if isinstance(n, dict) else n for n in st["niveis"]]
+        if isinstance(st.get("login"), dict) and st["login"].get("erro"):
+            st["login"] = {**st["login"], "erro": tv(st["login"]["erro"])}
+        return {"disponivel": "core" in roles, **st}
     except Exception as e:  # o status geral não pode cair por causa disto
-        return {"disponivel": "core" in roles, "erro": str(e)[:200]}
+        return {"disponivel": "core" in roles, "erro": tv(str(e)[:200])}
 
 
 def cmd_pensa(home: Path, acao: str, arg: str = "") -> int:
@@ -1205,13 +1255,13 @@ def cmd_pensa(home: Path, acao: str, arg: str = "") -> int:
     if acao == "set":
         dados = dados_stdin()
         if dados is None:
-            return out({"ok": False, "erro": "dados inválidos"})
+            return out({"ok": False, "erro": T("dados inválidos")})
         return out(pensa.definir(home, dados.get("provedor"), dados.get("nivel")))
     if acao == "login":
         return out(pensa.entrar(home, arg))
     if acao == "login-status":
         estado = pensa.atualizar_login(home)
-        return out({"ok": True, "login": {k: v for k, v in estado.items() if k != "pid"}})
+        return out({"ok": True, "login": {k: (tv(v) if k == "erro" else v) for k, v in estado.items() if k != "pid"}})
     if acao == "login-cancel":
         return out(pensa.cancelar(home))
     if acao == "logout":
@@ -1239,9 +1289,9 @@ def cmd_status(home: Path) -> int:
             continue
         segredos.append({
             "nome": nome,
-            "titulo": s.get("titulo", ""),
-            "descricao": s.get("descricao", ""),
-            "obter": s.get("obter", ""),
+            "titulo": texto_segredo(s.get("titulo", "")),
+            "descricao": texto_segredo(s.get("descricao", "")),
+            "obter": texto_segredo(s.get("obter", "")),
             "obrigatorio": bool(s.get("obrigatorio")),
             "implicito": bool(s.get("implicito")),
             "assistente": s.get("assistente") or "",
@@ -1278,17 +1328,17 @@ def cmd_status(home: Path) -> int:
 # ---------------------------------------------------------------- set-secret
 def cmd_set_secret(home: Path, name: str) -> int:
     if not NAME_RE.match(name or ""):
-        return out({"ok": False, "erro": "nome de segredo inválido"})
+        return out({"ok": False, "erro": T("nome de segredo inválido")})
     declared = declared_secrets(home)
     known = {s.get("nome") for s in declared} | set(read_env(home / "secrets.env"))
     generated = {s.get("nome") for s in declared if s.get("gerado")}
     # os gerados pelo kernel (senha do banco, tokens de bootstrap) não são da pessoa: trocá-los quebraria
     # o que já foi criado com eles
     if name not in known or name in HIDDEN or name in generated:
-        return out({"ok": False, "erro": f"{name} não é um segredo deste tenant"})
+        return out({"ok": False, "erro": T("{name} não é um segredo deste tenant", name=name)})
     value = stdin_value()
     if "\n" in value:
-        return out({"ok": False, "erro": "o valor tem mais de uma linha"})
+        return out({"ok": False, "erro": T("o valor tem mais de uma linha")})
     set_secret(home / "secrets.env", name, value)
     return out({"ok": True, "nome": name, "preenchido": bool(value)})
 
@@ -1355,13 +1405,13 @@ def tg_api(token: str, method: str, http_timeout: int = 40, **q):
 def cmd_telegram_token(home: Path) -> int:
     token = stdin_value()
     if not token:
-        return out({"ok": False, "erro": "token vazio"})
+        return out({"ok": False, "erro": T("token vazio")})
     try:
         me = tg_api(token, "getMe", http_timeout=20)
     except TelegramError as e:
         if e.code in (401, 404):
-            return out({"ok": False, "erro": "o Telegram recusou o token (confira em @BotFather)"})
-        return out({"ok": False, "erro": "não consegui falar com o Telegram; confira a internet e tente de novo"})
+            return out({"ok": False, "erro": T("o Telegram recusou o token (confira em @BotFather)")})
+        return out({"ok": False, "erro": T("não consegui falar com o Telegram; confira a internet e tente de novo")})
     username = str(me.get("username") or "")
     set_secret(home / "secrets.env", "TELEGRAM_BOT_TOKEN", token)
     (home / "telegram.bot").write_text(username + "\n", encoding="utf-8")
@@ -1389,7 +1439,7 @@ def hermes_gateway(action: str) -> None:
 def cmd_telegram_wait(home: Path, seconds: int, since: int) -> int:
     token = read_env(home / "secrets.env").get("TELEGRAM_BOT_TOKEN", "")
     if not token:
-        return out({"ok": False, "erro": "sem token do bot"})
+        return out({"ok": False, "erro": T("sem token do bot")})
     seconds = max(5, min(seconds, 300))
     deadline = time.time() + seconds
     offset = 0
@@ -1405,7 +1455,7 @@ def cmd_telegram_wait(home: Path, seconds: int, since: int) -> int:
                 return finish_wait(home, token, offset, m, stopped_gateway)
     except TelegramError as e:
         if e.code != 409:
-            return out({"ok": False, "erro": "não consegui falar com o Telegram"})
+            return out({"ok": False, "erro": T("não consegui falar com o Telegram")})
     while time.time() < deadline:
         try:
             ups = tg_api(token, "getUpdates", http_timeout=35, offset=offset, allowed_updates='["message"]',
@@ -1422,7 +1472,7 @@ def cmd_telegram_wait(home: Path, seconds: int, since: int) -> int:
                 continue
             if stopped_gateway:
                 hermes_gateway("start")
-            return out({"ok": False, "erro": "o Telegram não entregou mensagens; tente de novo"})
+            return out({"ok": False, "erro": T("o Telegram não entregou mensagens; tente de novo")})
         for u in ups:
             offset = u["update_id"] + 1
             m = u.get("message") or {}
@@ -1432,7 +1482,7 @@ def cmd_telegram_wait(home: Path, seconds: int, since: int) -> int:
                 return finish_wait(home, token, offset, m, stopped_gateway)
     if stopped_gateway:
         hermes_gateway("start")
-    return out({"ok": False, "erro": "nenhuma mensagem chegou ao bot", "tempo_esgotado": True})
+    return out({"ok": False, "erro": T("nenhuma mensagem chegou ao bot"), "tempo_esgotado": True})
 
 
 def finish_wait(home: Path, token: str, offset: int, m: dict, stopped_gateway: bool) -> int:
@@ -1554,7 +1604,7 @@ def release_notes(web_url: str) -> str:
 def cmd_update_check(home: Path, max_age: int, force: bool) -> int:
     kernel = kernel_dir(home)
     if not kernel:
-        return out({"ok": False, "erro": "kernel não encontrado (kernel.path)"})
+        return out({"ok": False, "erro": T("kernel não encontrado (kernel.path)")})
     local = local_versions(home, kernel)
     cache_path = home / "update.json"
     cached: dict = {}
@@ -1594,7 +1644,7 @@ def cmd_update_check(home: Path, max_age: int, force: bool) -> int:
         "remoto": {"web": remoto.get("web", ""), "kernel": sha},
         "notas": cached.get("notas", "") if disponivel else "",
         "verificado": cached.get("verificado"),
-        "erro": cached.get("erro"),
+        "erro": tv(cached.get("erro")),  # guardado em português no update.json; traduzido só aqui
         "consultou": consultou,
     })
 
@@ -1650,12 +1700,12 @@ def run_state(home: Path) -> dict:
 def cmd_update_run(home: Path) -> int:
     kernel = kernel_dir(home)
     if not kernel:
-        return out({"ok": False, "erro": "kernel não encontrado (kernel.path)"})
+        return out({"ok": False, "erro": T("kernel não encontrado (kernel.path)")})
     install = kernel / "install.sh"
     if not install.is_file():
-        return out({"ok": False, "erro": "install.sh não encontrado no kernel"})
+        return out({"ok": False, "erro": T("install.sh não encontrado no kernel")})
     if run_state(home)["rodando"]:
-        return out({"ok": False, "erro": "já há uma atualização em andamento"})
+        return out({"ok": False, "erro": T("já há uma atualização em andamento")})
     run_path, exit_path, log_path = update_paths(home)
     profile = read_env(home / "profile.env")
     local = local_versions(home, kernel)
@@ -1664,7 +1714,7 @@ def cmd_update_run(home: Path) -> int:
     except OSError:
         tenant = ""
     if not tenant:
-        return out({"ok": False, "erro": "tenant.path ausente: não sei qual tenant reinstalar"})
+        return out({"ok": False, "erro": T("tenant.path ausente: não sei qual tenant reinstalar")})
     args = ["sh", str(install), "--no-prompt"]
     if profile.get("JARVIS_ROLE"):
         args += ["--role", profile["JARVIS_ROLE"]]
@@ -1699,7 +1749,7 @@ def cmd_update_run(home: Path) -> int:
                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                  start_new_session=True)
         except OSError as e:
-            return out({"ok": False, "erro": f"não consegui iniciar a atualização: {e}"})
+            return out({"ok": False, "erro": T("não consegui iniciar a atualização: {erro}", erro=e)})
         record["pid"] = p.pid
     run_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
     return out({"ok": True, "inicio": now})
@@ -1776,7 +1826,7 @@ def main() -> int:
     args = ap.parse_args()
     home = Path(args.home).expanduser()
     if not (home / "profile.env").is_file():
-        return out({"ok": False, "erro": f"instalação não encontrada em {home}"})
+        return out({"ok": False, "erro": T("instalação não encontrada em {home}", home=home)})
     if args.cmd == "status":
         return cmd_status(home)
     if args.cmd == "set-secret":

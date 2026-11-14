@@ -22,12 +22,31 @@ import subprocess
 import time
 from pathlib import Path
 
+from jarvis_i18n import T
+
 # entrada: como a pessoa conecta. claude-code = o login do Claude Code; codigo = código de dispositivo; chave = chave de API
 PROVEDORES = {"claude": {"hermes": "anthropic", "nome": "Claude", "entrada": "claude-code"},
               "chatgpt": {"hermes": "openai-codex", "nome": "ChatGPT", "entrada": "codigo"},
               "openrouter": {"hermes": "openrouter", "nome": "OpenRouter", "entrada": "chave"}}
 NIVEIS = {"rapido": "Rápido", "equilibrado": "Equilibrado", "capaz": "Mais capaz"}
+# erros do login gravados em pensa.login.json: ficam em português no arquivo e saem no idioma da interface (login_na_tela)
+ERRO_LOGIN_EXPIROU = "O código expirou ou o login foi cancelado. Tente de novo."
+ERRO_LOGIN_INCOMPLETO = "o login não terminou"
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def nomes_niveis() -> dict:
+    """Os nomes dos níveis como a página os mostra (no idioma da interface)."""
+    return {"rapido": T("Rápido"), "equilibrado": T("Equilibrado"), "capaz": T("Mais capaz")}
+
+
+def login_na_tela(estado: dict) -> dict:
+    """O estado do login como vai para a página: o erro gravado em português sai no idioma da interface."""
+    if estado.get("erro") == ERRO_LOGIN_EXPIROU:
+        return {**estado, "erro": T("O código expirou ou o login foi cancelado. Tente de novo.")}
+    if estado.get("erro") == ERRO_LOGIN_INCOMPLETO:
+        return {**estado, "erro": T("o login não terminou")}
+    return estado
 
 
 def hermes_bin() -> str:
@@ -138,13 +157,13 @@ def status(home: Path, kernel: Path, tenant_hermes: dict | None = None) -> dict:
     provedor = lj.get("provedor") or th.get("provedor") or ("chatgpt" if th.get("provider") == "openai-codex" else "claude")
     nivel = lj.get("nivel") or th.get("nivel") or "equilibrado"
     logados = {p: logado(p) for p in PROVEDORES}
-    login = ler(home / "pensa.login.json", {})
+    login = login_na_tela(ler(home / "pensa.login.json", {}))
     if login.get("estado") in ("esperando", "preparando") and not vivo(login.get("pid")):
         login = atualizar_login(home)
     tab = modelos(kernel)
     aviso = ""
     if not logados.get(provedor) and provedor != "claude":
-        aviso = f"O {PROVEDORES[provedor]['nome']} está escolhido, mas a conta não está conectada: entre de novo ou use o Claude."
+        aviso = T("O {nome} está escolhido, mas a conta não está conectada: entre de novo ou use o Claude.", nome=PROVEDORES[provedor]["nome"])
         provedor = "claude"
     reserva = next((p for p in PROVEDORES if p != provedor and logados.get(p)), None)
     return {"provedor": provedor, "nivel": nivel, "escolhido": bool(lj) or bool(th.get("provedor") or th.get("nivel")),
@@ -153,7 +172,7 @@ def status(home: Path, kernel: Path, tenant_hermes: dict | None = None) -> dict:
             # modelo de cada nível na assinatura em uso: a página mostra no seletor de nível (assistente, cargo)
             "modelos": dict(tab.get(provedor) or {}),
             "modelos_por_provedor": {k: dict(v) for k, v in tab.items()},
-            "niveis": [{"id": k, "nome": v} for k, v in NIVEIS.items()],
+            "niveis": [{"id": k, "nome": v} for k, v in nomes_niveis().items()],
             "provedores": [{"id": k, "nome": v["nome"], "entrada": v["entrada"]} for k, v in PROVEDORES.items()],
             "login": {k: login.get(k) for k in ("provedor", "estado", "endereco", "codigo", "erro", "inicio") if login.get(k) is not None} or None}
 
@@ -164,13 +183,13 @@ def definir(home: Path, provedor: str | None, nivel: str | None) -> dict:
     lj = loja(home)
     if provedor is not None:
         if provedor not in PROVEDORES:
-            return {"ok": False, "erro": "provedor desconhecido"}
+            return {"ok": False, "erro": T("provedor desconhecido")}
         if not logado(provedor, fresco=True):
-            return {"ok": False, "erro": f"entre na sua conta do {PROVEDORES[provedor]['nome']} primeiro"}
+            return {"ok": False, "erro": T("entre na sua conta do {nome} primeiro", nome=PROVEDORES[provedor]["nome"])}
         lj["provedor"] = provedor
     if nivel is not None:
         if nivel not in NIVEIS:
-            return {"ok": False, "erro": "nível desconhecido"}
+            return {"ok": False, "erro": T("nível desconhecido")}
         lj["nivel"] = nivel
     lj.setdefault("provedor", "claude")
     lj.setdefault("nivel", "equilibrado")
@@ -192,7 +211,7 @@ def entrar(home: Path, provedor: str) -> dict:
     global _HOME
     _HOME = home
     if provedor != "chatgpt":
-        return {"ok": False, "erro": "o Claude entra pelo login do Claude Code, feito na instalação"}
+        return {"ok": False, "erro": T("o Claude entra pelo login do Claude Code, feito na instalação")}
     atual = ler(home / "pensa.login.json", {})
     if atual.get("estado") in ("preparando", "esperando") and vivo(atual.get("pid")):
         return {"ok": True, "login": atual}
@@ -240,12 +259,12 @@ def atualizar_login(home: Path) -> dict:
             lj.setdefault("nivel", "equilibrado")
             gravar(home / "pensa.json", lj)
         else:
-            ult = [l.strip() for l in txt.splitlines() if l.strip()][-1:] or ["o login não terminou"]
+            ult = [l.strip() for l in txt.splitlines() if l.strip()][-1:] or [ERRO_LOGIN_INCOMPLETO]
             estado["estado"] = "erro"
-            estado["erro"] = ("O código expirou ou o login foi cancelado. Tente de novo." if "cancel" in txt.lower() or "expired" in txt.lower()
+            estado["erro"] = (ERRO_LOGIN_EXPIROU if "cancel" in txt.lower() or "expired" in txt.lower()
                               else ult[0][:200])
     gravar(home / "pensa.login.json", estado)
-    return estado
+    return login_na_tela(estado)
 
 
 def cancelar(home: Path) -> dict:
@@ -272,10 +291,10 @@ def chave_valida(chave: str) -> tuple[bool, str]:
             return (r.status == 200, "")
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            return False, "o OpenRouter recusou a chave; confira em openrouter.ai/keys e cole de novo"
-        return False, f"o OpenRouter respondeu {e.code}; tente de novo"
+            return False, T("o OpenRouter recusou a chave; confira em openrouter.ai/keys e cole de novo")
+        return False, T("o OpenRouter respondeu {codigo}; tente de novo", codigo=e.code)
     except (OSError, ValueError):
-        return False, "não consegui falar com o OpenRouter; confira a internet e tente de novo"
+        return False, T("não consegui falar com o OpenRouter; confira a internet e tente de novo")
 
 
 def conectar_chave(home: Path, provedor: str, chave: str) -> dict:
@@ -283,10 +302,10 @@ def conectar_chave(home: Path, provedor: str, chave: str) -> dict:
     global _HOME
     _HOME = home
     if PROVEDORES.get(provedor, {}).get("entrada") != "chave":
-        return {"ok": False, "erro": "este provedor não entra por chave"}
+        return {"ok": False, "erro": T("este provedor não entra por chave")}
     chave = (chave or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9._-]{20,300}", chave):
-        return {"ok": False, "erro": "cole a chave do OpenRouter (começa com sk-or-)"}
+        return {"ok": False, "erro": T("cole a chave do OpenRouter (começa com sk-or-)")}
     ok, motivo = chave_valida(chave)
     if not ok:
         return {"ok": False, "erro": motivo}
@@ -298,9 +317,9 @@ def conectar_chave(home: Path, provedor: str, chave: str) -> dict:
         r = subprocess.run([hermes_bin(), "auth", "add", hp, "--type", "api-key", "--label", ROTULO, "--priority", "0"], input=chave + "\n",
                            capture_output=True, text=True, timeout=40, check=False, env=env, start_new_session=True)
     except (OSError, subprocess.SubprocessError) as e:
-        return {"ok": False, "erro": f"não consegui guardar a chave no Hermes: {e.__class__.__name__}"}
+        return {"ok": False, "erro": T("não consegui guardar a chave no Hermes: {classe}", classe=e.__class__.__name__)}
     if r.returncode != 0 or not logado(provedor, fresco=True):
-        return {"ok": False, "erro": "o Hermes não aceitou a chave; atualize o Whitebeard OS e tente de novo"}
+        return {"ok": False, "erro": T("o Hermes não aceitou a chave; atualize o Whitebeard OS e tente de novo")}
     lj = loja(home)
     lj["logados"] = sorted(set(lj.get("logados") or []) | {provedor})
     lj.setdefault("provedor", "claude")
@@ -315,14 +334,14 @@ def sair(home: Path, provedor: str) -> dict:
     global _HOME
     _HOME = home
     if PROVEDORES.get(provedor, {}).get("entrada") not in ("codigo", "chave"):
-        return {"ok": False, "erro": "a conta do Claude é a do Claude Code; saia por lá"}
+        return {"ok": False, "erro": T("a conta do Claude é a do Claude Code; saia por lá")}
     try:
         if PROVEDORES[provedor]["entrada"] == "chave":
             _tirar_chaves(provedor)
         else:
             subprocess.run([hermes_bin(), "auth", "logout", PROVEDORES[provedor]["hermes"]], capture_output=True, text=True, timeout=30, check=False)
     except (OSError, subprocess.SubprocessError) as e:
-        return {"ok": False, "erro": f"não consegui sair: {e.__class__.__name__}"}
+        return {"ok": False, "erro": T("não consegui sair: {classe}", classe=e.__class__.__name__)}
     lj = loja(home)
     lj["logados"] = [p for p in (lj.get("logados") or []) if p != provedor]
     logado(provedor, fresco=True)

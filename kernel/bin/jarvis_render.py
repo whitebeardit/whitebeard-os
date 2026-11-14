@@ -164,6 +164,7 @@ def catalogo_escritorio(home: Path, data: dict) -> tuple[list[dict], list[dict]]
 
 
 _QP: dict = {}
+PROVEDORES_PAGINA = ("claude", "chatgpt", "openrouter")  # os de kernel/modelos.yaml
 
 
 def quem_pensa(home: Path, kernel: Path, data: dict, forcar: bool = False) -> dict | None:
@@ -344,7 +345,7 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
         tools = FERRAMENTAS_TIPO[tipo]
         if tools is not None and tipo == "equipe" and ajustes.get("computador"):
             tools = tools + FERRAMENTAS_COMPUTADOR
-        provedor_a = a.get("provedor") if a.get("provedor") in ("claude", "chatgpt") else None
+        provedor_a = a.get("provedor") if a.get("provedor") in PROVEDORES_PAGINA else None
         model, fb = modelo_resolvido(quem_pensa(home, Path(__file__).resolve().parent.parent, data, forcar=bool(provedor_a)), hermes_cfg,
                                      a.get("nivel"), a.get("modelo"), provedor_a, nome)
         cfg: dict = {"model": model}
@@ -526,7 +527,7 @@ def main() -> int:
                             "skills": a.get("skills") if a.get("skills") is not None else skills_padrao[a["tipo"]],
                             **({"ajustes": a["ajustes"]} if a.get("ajustes") else {}),
                             **({"nivel": a["nivel"]} if a.get("nivel") in ("rapido", "equilibrado", "capaz") else {}),
-                            **({"provedor": a["provedor"]} if a.get("provedor") in ("claude", "chatgpt") else {}),
+                            **({"provedor": a["provedor"]} if a.get("provedor") in PROVEDORES_PAGINA else {}),
                             **({"do_pacote": True} if a.get("do_pacote") else {})})
     for a in assistentes:
         if canal_de(a) not in CANAIS:

@@ -61,7 +61,7 @@ pode esquecer.
 | **Para um cliente** | Atende um grupo só sobre o papel dele, sem ferramentas | o grupo da empresa que patrocina as bolsas (e, de verdade, o grupo da Sauvvitech, logo abaixo) |
 | **Só rotinas** | Não conversa; publica avisos no horário | o calendário da semana |
 
-Cada bot também escolhe **a assinatura** (Claude ou ChatGPT, a sua, sem chave de API) e **o nível** (Rápido, Equilibrado
+Cada bot também escolhe **a assinatura** (Claude ou ChatGPT, a sua, sem chave de API; ou modelos gratuitos pelo OpenRouter) e **o nível** (Rápido, Equilibrado
 ou Mais capaz). A página mostra o modelo que cada escolha usa, e a outra assinatura conectada vira reserva automática.
 
 <p align="center"><img src="docs/midia/modalidades.gif" alt="Página Assistentes: quatro bots de tipos e canais diferentes, o que cada um faz e não faz, e a escolha de assinatura e nível por bot" width="100%"></p>
@@ -365,7 +365,8 @@ exemplo em `tenants/exemplo/jarvis.yaml`.
 todos: o JARVIS, os assistentes e os cargos. A pessoa nunca vê ids de modelo: a tabela provedor × nível fica em
 `kernel/modelos.yaml` e muda por release. O Claude usa o login do Claude Code; o ChatGPT entra pela página
 (PRIMEIROS PASSOS → QUEM PENSA) com um código de dispositivo do Hermes (`openai-codex`). Com as duas contas, a outra
-vira reserva automática no mesmo nível. Assistentes e cargos aceitam `nivel` próprio, e assistentes também a própria
+vira reserva automática no mesmo nível. O **OpenRouter** (`openrouter`) é a terceira opção: entra por chave de API, colada
+na mesma página, e os três níveis usam modelos gratuitos (com o limite diário de pedidos do OpenRouter). Assistentes e cargos aceitam `nivel` próprio, e assistentes também a própria
 assinatura; `modelo` explícito continua
 valendo para quem é técnico. A escolha da página fica em `$JARVIS_HOME/pensa.json` e vale depois de colocar em uso.
 

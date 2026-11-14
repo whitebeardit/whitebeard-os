@@ -476,7 +476,7 @@ def cmd_assistente_update(home: Path, nome: str) -> int:
             atual.pop("nivel", None)  # vazio: segue o nível geral
     if "provedor" in dados:
         pv = str(dados.get("provedor") or "")
-        if pv and pv not in ("claude", "chatgpt"):
+        if pv and pv not in ("claude", "chatgpt", "openrouter"):
             return out({"ok": False, "erro": "assinatura desconhecida"})
         if pv:
             atual["provedor"] = pv
@@ -1216,6 +1216,9 @@ def cmd_pensa(home: Path, acao: str, arg: str = "") -> int:
         return out(pensa.cancelar(home))
     if acao == "logout":
         return out(pensa.sair(home, arg))
+    if acao == "chave":
+        # a chave vem pela entrada padrão e nunca volta na resposta
+        return out(pensa.conectar_chave(home, arg, stdin_value()))
     return 2
 
 
@@ -1767,7 +1770,7 @@ def main() -> int:
     sub.add_parser("pensa-set")
     sub.add_parser("pensa-login-status")
     sub.add_parser("pensa-login-cancel")
-    for c in ("pensa-login", "pensa-logout"):
+    for c in ("pensa-login", "pensa-logout", "pensa-chave"):
         p = sub.add_parser(c)
         p.add_argument("provedor")
     args = ap.parse_args()

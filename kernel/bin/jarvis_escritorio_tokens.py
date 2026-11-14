@@ -145,9 +145,10 @@ def calcular(home: Path, cargos: list[dict], ids: dict, issues: list[dict] | Non
     por_prov: dict[str, list[dict]] = {}
     for s_ in sess_mes:
         m = (s_.get("modelo") or "").lower()
-        prov = "claude" if m.startswith("claude") else "chatgpt" if (m.startswith("gpt") or m.startswith("o3") or m.startswith("o4") or "codex" in m) else "outro"
+        # os modelos do OpenRouter vêm como fornecedor/modelo (ou openrouter/free)
+        prov = "openrouter" if "/" in m else "claude" if m.startswith("claude") else "chatgpt" if (m.startswith("gpt") or m.startswith("o3") or m.startswith("o4") or "codex" in m) else "outro"
         por_prov.setdefault(prov, []).append(s_)
-    nomes_prov = {"claude": "Claude", "chatgpt": "ChatGPT", "outro": "Outro"}
+    nomes_prov = {"claude": "Claude", "chatgpt": "ChatGPT", "openrouter": "OpenRouter", "outro": "Outro"}
     out["provedores"] = sorted(({"nome": k, "titulo": nomes_prov[k], **soma(v)} for k, v in por_prov.items()), key=lambda x: -x["total"])
     out["provedores"] = [x for x in out["provedores"] if x["total"] > 0]
     for c in cargos:

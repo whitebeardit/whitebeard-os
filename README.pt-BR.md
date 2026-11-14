@@ -88,7 +88,8 @@ O trabalho que demora sai do chat. Você pede ao JARVIS, um **cargo** executa (u
 volta no chat e fica no second brain. **Rotinas** criam a tarefa sozinhas, no horário. O que exigir enviar, pagar ou
 publicar **para e pergunta a você** antes.
 
-No curso, o Escritório fica com três cargos e três rotinas:
+No curso, o Escritório fica com três cargos próprios (corretor de exercícios, coordenação da turma e conteúdo dos
+módulos) e três rotinas, além do assistente de trabalho e do resumo da semana que já vêm com o sistema:
 
 | Rotina | Quando | Cargo | Onde publica |
 | --- | --- | --- | --- |

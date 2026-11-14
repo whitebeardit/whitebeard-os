@@ -1,5 +1,9 @@
 # Termos de uso do Whitebeard OS (minuta)
 
+> **Substituída.** Decisão de produto posterior: o Whitebeard OS passou a ser grátis para uso pessoal, sob a
+> [LICENSE](../LICENSE) do repositório; uso comercial é por contrato com a Whitebeard (https://whitebeard.dev).
+> Esta minuta de licença paga fica só como referência para o contrato comercial.
+
 > **Minuta para revisão jurídica.** Não é o texto final. Decisão de produto que ela reflete (31/10/2026):
 > licença única, só para baixar e usar. Antes da primeira venda em autoatendimento, revisar com a skill de
 > revisão de contratos e com um advogado.

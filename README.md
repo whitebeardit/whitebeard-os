@@ -1,5 +1,7 @@
 <p align="center"><img src="docs/banner.png" alt="Whitebeard OS: tudo o que você vê no hype, instalado e funcionando na sua máquina" width="100%"></p>
 
+<p align="center"><b>Português</b> · <a href="README.en.md">English</a></p>
+
 # Whitebeard OS
 
 **Tudo o que você vê no hype, instalado e funcionando na sua máquina. Em um comando.**
@@ -363,7 +365,8 @@ exemplo em `tenants/exemplo/jarvis.yaml`.
 todos: o JARVIS, os assistentes e os cargos. A pessoa nunca vê ids de modelo: a tabela provedor × nível fica em
 `kernel/modelos.yaml` e muda por release. O Claude usa o login do Claude Code; o ChatGPT entra pela página
 (PRIMEIROS PASSOS → QUEM PENSA) com um código de dispositivo do Hermes (`openai-codex`). Com as duas contas, a outra
-vira reserva automática no mesmo nível. Assistentes e cargos aceitam `nivel` próprio; `modelo` explícito continua
+vira reserva automática no mesmo nível. Assistentes e cargos aceitam `nivel` próprio, e assistentes também a própria
+assinatura; `modelo` explícito continua
 valendo para quem é técnico. A escolha da página fica em `$JARVIS_HOME/pensa.json` e vale depois de colocar em uso.
 
 ### O Escritório (cargos e rotinas)

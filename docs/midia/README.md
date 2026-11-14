@@ -1,10 +1,14 @@
 # Kit de divulgação
 
 Tudo o que aparece no README, em alta resolução, para posts, apresentações e páginas:
-**[baixar o kit (zip, 65 MB)](https://github.com/whitebeardit/whitebeard-os-releases/releases/download/kit-divulgacao-2026-11/whitebeard-os-kit-divulgacao.zip)**.
+**[baixar o kit (zip, 147 MB)](https://github.com/whitebeardit/whitebeard-os-releases/releases/download/kit-divulgacao-2026-11/whitebeard-os-kit-divulgacao.zip)**.
 
 Dentro do zip: `prints/` (28 PNG, a maioria em 1440×900), `videos/` (9 MP4, para Reels, Shorts e LinkedIn) e `gifs/` (os mesmos
 desta pasta).
+
+A pasta `en/` do zip traz as mesmas sete cenas da interface gravadas em **inglês**, com os dados de exemplo também
+em inglês: `en/gifs/` (os de [`docs/midia/en/`](en/), usados no README principal), `en/videos/` (7 MP4) e `en/prints/`
+(25 PNG). As conversas reais no Telegram e no Discord existem só em português.
 
 ## O caso que as telas contam
 

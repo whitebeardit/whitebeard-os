@@ -20,10 +20,10 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 ```
 
 > The interface speaks **English** (the default) and **Brazilian Portuguese**: it follows your browser language, and you
-> can switch in SETTINGS → LANGUAGE. The recordings below were made with the Portuguese interface, so button and page
-> names are quoted as they appear in them, with a translation next to them.
+> can switch in SETTINGS → LANGUAGE. The recordings below show the English interface. The real Telegram and Discord
+> conversations shown are in Portuguese: bots answer in the language they are instructed in (Portuguese by default).
 
-<p align="center"><img src="docs/midia/visao-geral.gif" alt="Whitebeard OS overview: someone asks who is behind on their assignments and JARVIS answers from the second brain" width="100%"></p>
+<p align="center"><img src="docs/midia/en/visao-geral.gif" alt="Whitebeard OS overview: someone types 'Who is behind on their assignments?' and JARVIS answers from the second brain" width="100%"></p>
 
 <p align="center"><a href="#ask-your-second-brain">Second brain</a> ·
 <a href="#one-bot-per-channel-in-three-steps">Bots per channel</a> ·
@@ -43,15 +43,15 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 Your Markdown notes (they open in Obsidian) become a brain with semantic search: embeddings generated on your machine,
 a graph of links, a tree of maps and search. JARVIS and every bot query the same brain. Nothing leaves your computer.
 
-<p align="center"><img src="docs/midia/second-brain.gif" alt="Knowledge page: the course's second brain graph, filtering by area, searching for git and opening the Module 3 note" width="100%"></p>
+<p align="center"><img src="docs/midia/en/second-brain.gif" alt="Knowledge page: the course's second brain graph, filtering by area, searching for git and opening the Module 3 note" width="100%"></p>
 
 ## One bot per channel, in three steps
 
-Choose who it is for and where it talks (Telegram, Discord or WhatsApp), paste the bot token and click ESPERAR
-(wait): whoever messages the bot during that window joins the list of people who can talk to it. Several people at
-once, until you click PARAR (stop).
+Choose who it is for and where it talks (Telegram, Discord or WhatsApp), paste the bot token and click WAIT:
+whoever messages the bot during that window joins the list of people who can talk to it. Several people at once, until
+you click STOP.
 
-<p align="center"><img src="docs/midia/criar-assistente.gif" alt="Creating an assistant on Discord: type, channel, name, token, and three people recognized in the same wait" width="100%"></p>
+<p align="center"><img src="docs/midia/en/criar-assistente.gif" alt="Creating an assistant on Discord: type, channel, name, token, and three people recognized in the same wait" width="100%"></p>
 
 ## Each bot with its own role and model
 
@@ -60,29 +60,29 @@ in a prompt that it can forget.
 
 | Type | What for | In the course |
 | --- | --- | --- |
-| **Para mim** (for me) | A second assistant that is only yours | the owner's JARVIS, on Telegram |
-| **Para a minha equipe** (for my team) | Answers the people you allow; reads and writes to the second brain | @Pichi on Discord and the front desk on WhatsApp |
-| **Para um cliente** (for a client) | Serves one group, only within its role, with no tools | the group of the company sponsoring scholarships (and, for real, the Sauvvitech group, below) |
-| **Só rotinas** (routines only) | Does not chat; posts announcements on schedule | the weekly calendar |
+| **For me** | A second assistant that is only yours | the owner's JARVIS, on Telegram |
+| **For my team** | Answers the people you allow; reads and writes to the second brain | @Pichi on Discord and the front desk on WhatsApp |
+| **For a client** | Serves one group, only within its role, with no tools | the group of the company sponsoring scholarships (and, for real, the Sauvvitech group, below) |
+| **Routines only** | Does not chat; posts announcements on schedule | the weekly calendar |
 
-Each bot also picks **the subscription** (Claude or ChatGPT, your own, no API key; or free models through OpenRouter) and **the level** (Rápido/fast,
-Equilibrado/balanced or Mais capaz/most capable). The page shows which model each choice uses, and the other connected
-subscription becomes an automatic fallback.
+Each bot also picks **the subscription** (Claude or ChatGPT, your own, no API key; or free models through OpenRouter) and **the level** (Fast,
+Balanced or Most capable). The page shows which model each choice uses, and the other connected subscription becomes an
+automatic fallback.
 
-<p align="center"><img src="docs/midia/modalidades.gif" alt="Assistants page: four bots of different types and channels, what each one does and does not do, and the per-bot choice of subscription and level" width="100%"></p>
+<p align="center"><img src="docs/midia/en/modalidades.gif" alt="Assistants page: four bots of different types and channels, what each one does and does not do, and the per-bot choice of subscription and level" width="100%"></p>
 
 ### Test with a free model (OpenRouter)
 
-You do not need a paid plan to put a bot to the test. **OpenRouter** is the third option in QUEM PENSA ("who
-thinks"), next to Claude and ChatGPT: create a free key at [openrouter.ai/keys](https://openrouter.ai/keys), paste it
-on the page and the three levels start using **free models**. Use it for everything, or only on the bot you are
-trying out (EDITAR → ASSINATURA DELE, "its subscription"). With Claude or ChatGPT also connected, OpenRouter becomes
-the automatic fallback when the main one runs out.
+You do not need a paid plan to put a bot to the test. **OpenRouter** is the third option in WHO THINKS, next to
+Claude and ChatGPT: create a free key at [openrouter.ai/keys](https://openrouter.ai/keys), paste it on the page and the
+three levels start using **free models**. Use it for everything, or only on the bot you are trying out (EDIT → ITS
+SUBSCRIPTION). With Claude or ChatGPT also connected, OpenRouter becomes the automatic fallback when the main one runs
+out.
 
 Free models have a daily request limit and are slower and less capable than the paid ones: good for testing and for
 simple bots, not for heavy work.
 
-<p align="center"><img src="docs/midia/modelo-gratuito.gif" alt="QUEM PENSA: the OpenRouter key is pasted and checked, the card shows connected, and a bot is switched to OpenRouter at the fast level, which uses a free model" width="100%"></p>
+<p align="center"><img src="docs/midia/en/modelo-gratuito.gif" alt="WHO THINKS: the OpenRouter key is pasted and checked, the card shows connected, and a bot is switched to OpenRouter at the Fast level, which uses a free model" width="100%"></p>
 
 ## The Office: work that runs on its own
 
@@ -90,15 +90,16 @@ Work that takes time leaves the chat. You ask JARVIS, a **role** carries it out 
 result comes back to the chat and stays in the second brain. **Routines** create the task by themselves, on schedule.
 Anything that would send, pay or publish **stops and asks you** first.
 
-In the course, the Office (ESCRITÓRIO) has three roles and three routines:
+In the course, the Office has three roles of its own (exercise grader, class coordination and module content) and
+three routines, on top of the work assistant and the weekly summary that come with the system:
 
 | Routine | When | Role | Where it posts |
 | --- | --- | --- | --- |
-| Grade the day's submissions: grades with the rubric, points out the mistake with an example and never hands over the answer | every day, 10 pm | Exercise grader | in @Pichi's channel |
+| Grading of the day's submissions: grades with the rubric, points out the mistake with an example and never hands over the answer | every day, 10 pm | Exercise grader | in @Pichi's channel |
 | Assignment reminders: reminds whoever has not submitted yet, with the deadline | Wednesday and Friday, 6 pm | Class coordination | in @Pichi's channel |
-| Weekly check-in: what each student submitted, what is late, and the average | every Monday, 9 am | Class coordination | in @Pichi's channel |
+| Weekly progress report: what each student submitted, what is late, and the average | every Monday, 9 am | Class coordination | in @Pichi's channel |
 
-<p align="center"><img src="docs/midia/escritorio.gif" alt="Office page: approving the publication of the Module 3 grades, org chart, roles, the course routines, and token usage per role and per routine" width="100%"></p>
+<p align="center"><img src="docs/midia/en/escritorio.gif" alt="Office page: approving the publication of the Module 3 grades, org chart, roles, the course routines, and token usage per role and per routine" width="100%"></p>
 
 Token usage shows up per subscription, per role, per routine and per task, with an alert when something is out of the
 ordinary.
@@ -124,10 +125,10 @@ with the people in the group and knows where its job ends. Asked in the group it
 
 ## Your way
 
-Three themes (HUD, Atlas estelar and Carmesim), text size and voice, in CONFIGURAÇÕES (settings). Changes apply
-instantly, on this device.
+Three themes (HUD, Star atlas and Crimson), text size and voice, in SETTINGS. Changes apply instantly, on this
+device.
 
-<p align="center"><img src="docs/midia/temas.gif" alt="Settings: switching between the Atlas estelar, Carmesim and HUD themes and seeing the result on the overview" width="100%"></p>
+<p align="center"><img src="docs/midia/en/temas.gif" alt="Settings: switching between the HUD, Star atlas and Crimson themes and seeing the result on the overview" width="100%"></p>
 
 ## What's inside
 
@@ -140,7 +141,7 @@ instantly, on this device.
 | **Paperclip** | The task and approval engine under the Office, already configured |
 | **Claude Code, ChatGPT and OpenRouter** | Your subscription is the account the agents use (the Claude Code login; ChatGPT signs in with a device code). Or **free models** through OpenRouter, with a free API key, to test. Skills and MCPs already installed |
 | **Telegram, WhatsApp, Discord** | Assistants isolated by audience: one bot per channel, each with its own memory, skills, permissions and model, created in three steps |
-| **Voice** | Talk to the assistant through the interface: local transcription with Whisper and a spoken answer in Portuguese |
+| **Voice** | Talk to the assistant through the interface: local transcription with Whisper and a spoken answer, both in Portuguese |
 | **Interface** | A web page on your computer or phone (installs as an app, with a QR code): overview, knowledge, assistants, office, token usage, diagnostics |
 
 ## Runs wherever you want
@@ -266,11 +267,11 @@ person does:
 2. signs in to their Claude account when the browser opens (the only interactive step: Hermes and Paperclip use that
    login);
 3. answers whether they want JARVIS on Telegram (they can say no and turn it on later);
-4. at the end, JARVIS Web opens by itself in the browser, at `http://localhost:8017`, on the **PRIMEIROS PASSOS**
-   (first steps) page: there the person turns on Telegram (pastes the bot token and sends a "hi"), fills in the keys
-   the tenant asks for, sees how to open it on their phone, and applies. None of this goes back to the terminal: the
+4. at the end, JARVIS Web opens by itself in the browser, at `http://localhost:8017`, on the **FIRST STEPS**
+   page: there the person turns on Telegram (pastes the bot token and sends a "hi"), fills in the keys the tenant asks
+   for, sees how to open it on their phone, and applies. None of this goes back to the terminal: the
    page calls `kernel/bin/jarvis_setup.py` (state and writes, stdin only) and `bootstrap.sh --apply` (render, MCPs and
-   Hermes, without reinstalling anything). The page stays under CONFIGURAÇÕES (settings) to come back to later.
+   Hermes, without reinstalling anything). The page stays under SETTINGS to come back to later.
 
 No keys, invitations or files to edit. What is not ours (npm, the Hermes installer, Paperclip) does not show on screen:
 it goes to `~/.jarvis/logs/`. A company's tenant: `JARVIS_TENANT=<name, folder or /path/jarvis.yaml>` before the
@@ -283,22 +284,22 @@ types, with limits set by structure (what the type does not allow, the assistant
 (only the role's skills, no tools or MCPs, answers only in the allowed group and when mentioned) and `rotinas` (does
 not chat). The render writes one profile per assistant in `render/hermes/assistentes/<name>/`; the bootstrap creates
 the profile (`hermes profile create`) and applies config, variables, persona (`SOUL.md`) and skills
-(`kernel/bin/jarvis_assistente.py`). The token goes into `secrets.env` as `TELEGRAM_BOT_TOKEN_<NAME>` (PRIMEIROS PASSOS
+(`kernel/bin/jarvis_assistente.py`). The token goes into `secrets.env` as `TELEGRAM_BOT_TOKEN_<NAME>` (FIRST STEPS
 shows it with a title), people and groups as `TELEGRAM_ALLOWED_USERS_<NAME>` and `TELEGRAM_GROUP_ALLOWED_CHATS_<NAME>`.
 `canal: discord` puts the same assistant in a Discord bot (`DISCORD_BOT_TOKEN_<NAME>`, `DISCORD_ALLOWED_USERS_<NAME>`,
 `DISCORD_ALLOWED_CHANNELS_<NAME>`); `canal: whatsapp` uses the Hermes bridge (Baileys, unofficial): no token, the
-session is paired by QR code on the ASSISTENTES (assistants) page and lives in
+session is paired by QR code on the ASSISTANTS page and lives in
 `$JARVIS_HOME/assistentes/<name>/whatsapp/session` (`whatsapp_modo: bot` with a dedicated number, or `self-chat` with
 your own number); without `canal`, it is Telegram. An assistant that leaves the tenant is parked, never deleted.
 `tenants/exemplo` shows the two most common types and an assistant on Discord.
 
 **Updates** arrive through JARVIS Web itself: once a day it asks the kernel whether the GitHub origin has a new commit
 or a new JARVIS Web package (`jarvis_setup.py update-check`, answer stored in `~/.jarvis/update.json`) and, if so,
-shows the "ATUALIZAÇÃO DISPONÍVEL" (update available) banner with the release notes and the ATUALIZAR / DEPOIS (update /
-later) buttons (also in CONFIGURAÇÕES, with VERIFICAR AGORA, check now). ATUALIZAR runs `install.sh` detached from the
-service (`update-run`: its own systemd unit on Linux, its own session on macOS, because JARVIS Web is restarted midway),
-logging to `~/.jarvis/logs/update.log`; the page follows along (`update-status`), waits for the server to come back and
-reloads. Tenant, secrets, vault and data are not touched. From the terminal, it is the same command as the install.
+shows the "UPDATE AVAILABLE" banner with the release notes and the UPDATE / LATER buttons (also in SETTINGS, with
+CHECK NOW). UPDATE runs `install.sh` detached from the service (`update-run`: its own systemd unit on Linux, its own
+session on macOS, because JARVIS Web is restarted midway), logging to `~/.jarvis/logs/update.log`; the page follows
+along (`update-status`), waits for the server to come back and reloads. Tenant, secrets, vault and data are not
+touched. From the terminal, it is the same command as the install.
 
 To uninstall: `~/DEV/whitebeard-os/uninstall.sh` removes services and programs and **keeps** the second brain and
 `secrets.env` (with `--delete-data`, it removes both too). Claude Code and your login are never touched.
@@ -317,7 +318,7 @@ reapply the configuration of an existing install). CI runs with `--skip web` bec
 the runner does not have the key; on your own host, JARVIS Web joins the desktop role and serves at
 `http://localhost:8017` on this machine (no certificate warning) and at `https://<host>:8017` on the local network
 (token in `$JARVIS_DATA/jarvis-web.json`; self-signed certificate in `~/.jarvis/tls`, which the phone installs to allow
-the microphone; the PRIMEIROS PASSOS page offers the file).
+the microphone; the FIRST STEPS page offers the file).
 
 The bootstrap is idempotent and only writes inside `$HOME`:
 
@@ -386,11 +387,11 @@ skill packs, Hermes model, profiles, crons, monitored services, nodes, assistant
 `hermes.provedor` (`claude`, `chatgpt` or `openrouter`) and `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) choose the model for
 everyone: JARVIS, the assistants and the roles. The person never sees model ids: the provider × level table lives in
 `kernel/modelos.yaml` and changes per release. Claude uses the Claude Code login; ChatGPT signs in through the page
-(PRIMEIROS PASSOS → QUEM PENSA, "who thinks") with a Hermes device code (`openai-codex`). With both accounts, the other
+(FIRST STEPS → WHO THINKS) with a Hermes device code (`openai-codex`). With both accounts, the other
 one becomes an automatic fallback at the same level. **OpenRouter** (`openrouter`) is the third option: it connects with an
 API key, pasted on the same page, and the three levels use free models (within OpenRouter's daily request limit). Assistants and roles accept their own `nivel`, and assistants their
 own subscription; an explicit `modelo` still works for technical users. The page's choice is stored in
-`$JARVIS_HOME/pensa.json` and takes effect after "colocar em uso" (put into use).
+`$JARVIS_HOME/pensa.json` and takes effect after PUT INTO USE.
 
 ### The Office (roles and routines)
 
@@ -399,7 +400,7 @@ task, a **role** carries it out (a Hermes profile with a team assistant's tools,
 underneath), the result lands in `projects-doc/escritorio/entregas/` in the second brain and comes back to the original
 chat through the mail carrier (`kernel/bin/jarvis_carteiro.py`, every minute). Anything that would send, pay or publish
 stops and asks. The `trabalho` role (work assistant) always exists; other roles go in `escritorio.cargos` (or through
-the ESCRITÓRIO page) and take effect after "colocar em uso". **Routines** (`escritorio.rotinas` or through the page)
+the OFFICE page) and take effect after PUT INTO USE. **Routines** (`escritorio.rotinas` or through the page)
 create the task by themselves on schedule (5-field cron, the computer's time zone) and post the result to your
 conversation with JARVIS (`onde: telegram`) or to an assistant's group (`onde: assistente:<name>`); they take effect
 immediately, without putting into use. The `resumo-da-semana` (weekly summary) routine (Monday, 8 am) comes by default.

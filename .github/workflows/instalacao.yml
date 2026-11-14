@@ -129,7 +129,12 @@ jobs:
           e = json.load(sys.stdin)["escritorio"]
           assert e["ligado"] and [c["nome"] for c in e["cargos"]] == ["trabalho", "redator"], e
           r = {x["nome"]: x for x in e["rotinas"]}
-          assert r["status-diario"]["quando_texto"] == "de segunda a sexta às 08:30" and r["resumo-da-semana"]["padrao"], r'
+          assert r["status-diario"]["quando_texto"] == "Monday to Friday at 08:30" and r["resumo-da-semana"]["padrao"], r'
+          # o kernel responde no idioma da interface: sem JARVIS_IDIOMA, inglês; com pt-BR, português
+          JARVIS_IDIOMA=pt-BR python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
+          import json, sys
+          r = {x["nome"]: x for x in json.load(sys.stdin)["escritorio"]["rotinas"]}
+          assert r["status-diario"]["quando_texto"] == "de segunda a sexta às 08:30", r'
           # rotina criada pela página: vale sem colocar em uso; agenda inválida é recusada
           echo "{\"nome\":\"ping\",\"titulo\":\"Ping\",\"faz\":\"Diga oi.\",\"quando\":\"*/5 * * * *\",\"cargo\":\"redator\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": true"
           echo "{\"nome\":\"ruim\",\"titulo\":\"Ruim\",\"faz\":\"x\",\"quando\":\"99 * * * *\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": false"

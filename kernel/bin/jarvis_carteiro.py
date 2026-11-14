@@ -132,6 +132,8 @@ def main() -> int:
     ap.add_argument("--home", required=True)
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
+    # este processo escreve em chats e no registro, não na interface: os erros do jarvis_rotinas seguem em português
+    os.environ["JARVIS_IDIOMA"] = "pt-BR"
     home = Path(a.home).expanduser()
     pasta = home / "escritorio"
     pasta.mkdir(parents=True, exist_ok=True)

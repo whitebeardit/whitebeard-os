@@ -489,7 +489,9 @@ PY
 
 # Estado e gravação da configuração pós-instalação (segredos, Telegram), em JSON: o mesmo código que a
 # página PRIMEIROS PASSOS do JARVIS Web chama. Só biblioteca padrão do python3.
-setup_py() { python3 "$KERNEL_DIR/bin/jarvis_setup.py" --home "$JARVIS_HOME" "$@"; }
+# O terminal do instalador fala português; o kernel responde no mesmo idioma (sem a variável seria inglês, o padrão da
+# interface).
+setup_py() { JARVIS_IDIOMA="${JARVIS_IDIOMA:-pt-BR}" python3 "$KERNEL_DIR/bin/jarvis_setup.py" --home "$JARVIS_HOME" "$@"; }
 
 # Terminal de verdade para perguntar (ssh sem -t, cron e CI têm /dev/tty que não abre).
 can_prompt() { [ "$NO_PROMPT" != 1 ] && ( : </dev/tty ) 2>/dev/null; }

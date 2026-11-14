@@ -18,6 +18,8 @@ import sys
 import urllib.error
 import urllib.request
 
+from jarvis_i18n import T
+
 API = (os.environ.get("PAPERCLIP_API_URL") or "http://127.0.0.1:3100/api").rstrip("/")
 if not API.endswith("/api"):
     API += "/api"
@@ -66,9 +68,9 @@ def api(method: str, path: str, body: dict | None = None):
             return json.loads(raw) if raw else None
     except urllib.error.HTTPError as e:
         detalhe = e.read().decode("utf-8", "replace")[:300]
-        raise RuntimeError(f"Paperclip respondeu HTTP {e.code}: {detalhe}") from e
+        raise RuntimeError(T("Paperclip respondeu HTTP {codigo}: {detalhe}", codigo=e.code, detalhe=detalhe)) from e
     except (urllib.error.URLError, OSError) as e:
-        raise RuntimeError("o Escritório (Paperclip) não está no ar neste computador") from e
+        raise RuntimeError(T("o Escritório (Paperclip) não está no ar neste computador")) from e
 
 
 def lista(d, chave):
@@ -81,7 +83,7 @@ def empresa_id() -> str:
         return EMPRESA
     comp = lista(api("GET", "/companies"), "companies")
     if not comp:
-        raise RuntimeError("nenhuma empresa no Escritório")
+        raise RuntimeError(T("nenhuma empresa no Escritório"))
     EMPRESA = comp[0]["id"]
     return EMPRESA
 
@@ -90,7 +92,7 @@ def resolve_tarefa(ref: str) -> dict:
     """Aceita o id, o identificador (PES-12) ou parte do título."""
     ref = (ref or "").strip()
     if not ref:
-        raise RuntimeError("diga qual tarefa")
+        raise RuntimeError(T("diga qual tarefa"))
     try:
         return api("GET", f"/issues/{ref}")
     except RuntimeError:
@@ -98,7 +100,7 @@ def resolve_tarefa(ref: str) -> dict:
     for it in lista(api("GET", f"/companies/{empresa_id()}/issues"), "issues"):
         if it.get("identifier", "").lower() == ref.lower() or ref.lower() in (it.get("title") or "").lower():
             return it
-    raise RuntimeError(f"tarefa não encontrada: {ref}")
+    raise RuntimeError(T("tarefa não encontrada: {ref}", ref=ref))
 
 
 def resumo_tarefa(it: dict) -> dict:
@@ -255,6 +257,8 @@ def responder(id_, result=None, error=None):
 
 
 def main() -> int:
+    # este processo fala com agentes, não com a interface: os erros das ferramentas seguem em português
+    os.environ["JARVIS_IDIOMA"] = "pt-BR"
     for linha in sys.stdin:
         linha = linha.strip()
         if not linha:

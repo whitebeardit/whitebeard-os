@@ -20,6 +20,8 @@ import sys
 import time
 from pathlib import Path
 
+from jarvis_i18n import T
+
 
 def escreve(path: Path, **campos) -> None:
     campos["atualizado_em"] = int(time.time())
@@ -50,7 +52,7 @@ def main() -> int:
     sessao.mkdir(parents=True, exist_ok=True)
     node = shutil.which("node")
     if not node:
-        escreve(estado, estado="erro", erro="node não encontrado")
+        escreve(estado, estado="erro", erro=T("node não encontrado"))
         return 1
     escreve(estado, estado="preparando", pid=os.getpid())
     env = dict(os.environ, WHATSAPP_MODE=a.modo, WHATSAPP_DM_POLICY="pairing")
@@ -75,7 +77,7 @@ def main() -> int:
     try:
         while True:
             if time.time() > fim:
-                escreve(estado, estado="expirado", erro="o QR não foi lido em 5 minutos; gere outro")
+                escreve(estado, estado="expirado", erro=T("o QR não foi lido em 5 minutos; gere outro"))
                 encerra()
                 break
             linha = proc.stdout.readline() if proc.stdout else ""
@@ -85,7 +87,7 @@ def main() -> int:
                     if cancelado["sim"]:
                         break
                     if atual.get("estado") not in ("conectado", "erro", "expirado", "cancelado"):
-                        escreve(estado, estado="erro", erro="a ponte do WhatsApp encerrou antes de parear (veja o registro do Hermes)")
+                        escreve(estado, estado="erro", erro=T("a ponte do WhatsApp encerrou antes de parear (veja o registro do Hermes)"))
                         rc = 1
                     break
                 time.sleep(0.2)
@@ -105,7 +107,7 @@ def main() -> int:
             elif tipo == "error":
                 motivo = str(ev.get("error") or ev.get("reason") or "erro")
                 if motivo == "logged_out":
-                    motivo = "o WhatsApp desconectou este aparelho; pareie de novo"
+                    motivo = T("o WhatsApp desconectou este aparelho; pareie de novo")
                 escreve(estado, estado="erro", erro=motivo)
                 rc = 1
                 encerra()

@@ -147,9 +147,9 @@ configuration, isolation between the client bot and the team bot. It is all deci
 
 ## For companies
 
-This is my personal setup, open. The same foundation serves corporate use: tenants per area, assistants per client,
-roles per job, a second brain per team, all on your infrastructure. Talk to Whitebeard:
-**[whitebeard.dev](https://whitebeard.dev)**.
+This is my personal setup, free for personal use. The same foundation serves corporate use: tenants per area,
+assistants per client, roles per job, a second brain per team, all on your infrastructure. Commercial use requires a
+license ([details](#license)); talk to Whitebeard: **[whitebeard.dev](https://whitebeard.dev)**.
 
 <sub>Included today: Hermes, Paperclip, GBrain, Ollama with `bge-m3`, Claude Code, Node 24, ffmpeg with Whisper;
 versions pinned in `kernel/versions.env`, licenses in [External components and licenses](#external-components-and-licenses).
@@ -400,13 +400,14 @@ immediately, without putting into use. The `resumo-da-semana` (weekly summary) r
 | FFmpeg 9.0 | LGPL | our own build with the Whisper filter (whisper.cpp), published in [whitebeard-os-releases](https://github.com/whitebeardit/whitebeard-os-releases) with sha256: macOS arm64 with Metal GPU and avfoundation (camera and microphone), static Linux x86_64 on CPU (`ffmpeg-whisper.yml` workflow); other platforms: a third-party static build pinned by URL, without Whisper |
 | Models (Anthropic, OpenAI, others) | the user's accounts | keys and logins only in `secrets.env` and local OAuth |
 
-## Product licensing
+## License
 
-Model decided on 2026-10-31: **a one-time license, to download and use**. One-time payment per key; the key grants the
-right to download and install the kernel and its updates, with no time limit, on the buyer's own machines. No
-subscription, no support SLA, no redistribution of the kernel. Hermes, Paperclip and GBrain remain under their
-upstream MIT licenses and are not part of the license. The legal text of the terms of use is still to be written;
-while the repository is private, access is by read invitation.
+**Free for personal use. Commercial use requires a license.** Whitebeard OS is under the
+[Whitebeard OS Personal Use License](LICENSE): an individual may download, install, modify and use it on their own
+machines for personal, non-commercial purposes. Use by or for a company or organization, in paid work or for clients,
+in a business's operations, or offering it (or services based on it) to others requires a commercial license:
+**[whitebeard.dev](https://whitebeard.dev)**. Third-party components installed by the kernel (Hermes, Paperclip,
+GBrain, Ollama and the others in the table above) keep their own licenses.
 
 ## Repository rules
 

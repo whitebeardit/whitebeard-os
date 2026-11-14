@@ -1,0 +1,125 @@
+Whitebeard OS Personal Use License 1.0
+Copyright (c) 2026 Whitebeard (https://whitebeard.dev). All rights reserved except as granted below.
+
+Este arquivo tem duas versões, em português e em inglês. Em caso de divergência, vale a versão em português.
+This file has two versions, Portuguese and English. If they differ, the Portuguese version prevails.
+
+==========================================================================================================
+PORTUGUÊS
+==========================================================================================================
+
+1. O que esta licença cobre
+
+   O Whitebeard OS ("Software"): o código deste repositório e os pacotes publicados pela Whitebeard para ele
+   (por exemplo, o pacote do JARVIS Web), em qualquer versão. Componentes de terceiros que o Software baixa e
+   instala (Hermes Agent, Paperclip, GBrain, pgvector, Ollama, FFmpeg, Node, uv, Claude Code e outros) não
+   fazem parte desta licença: cada um segue a própria licença.
+
+2. O que você pode fazer: uso pessoal
+
+   A Whitebeard concede a você, pessoa física, uma licença gratuita, mundial, não exclusiva e intransferível
+   para baixar, instalar, executar, copiar e modificar o Software, em quantas máquinas suas quiser, somente
+   para uso pessoal.
+
+   Uso pessoal é o uso por uma pessoa física para fins próprios e não comerciais: estudo, organização
+   pessoal, projetos pessoais e de hobby, a sua casa. Continua sendo uso pessoal mesmo que você converse
+   com outras pessoas pelos assistentes, desde que você não receba pagamento, direto ou indireto, por isso.
+
+3. O que exige licença comercial
+
+   Qualquer uso que não seja pessoal exige uma licença comercial separada, por escrito, com a Whitebeard.
+   Isso inclui, entre outros:
+
+   a) uso por empresa, órgão público, associação ou qualquer organização, ou em nome dela;
+   b) uso em trabalho remunerado ou para atender clientes, inclusive como freelancer ou consultor;
+   c) uso nas operações internas de um negócio;
+   d) oferecer o Software, ou serviços baseados nele, a terceiros (hospedagem, instalação, suporte,
+      customização, revenda, SaaS);
+   e) distribuir o Software, modificado ou não, como parte de um produto ou serviço.
+
+   Para licença comercial: https://whitebeard.dev
+
+4. Compartilhar
+
+   Você pode compartilhar cópias do Software, modificadas ou não, somente para uso pessoal de quem as
+   recebe, mantendo este arquivo e os avisos de autoria. Quem recebe fica sujeito a esta mesma licença.
+
+5. Avisos
+
+   Não remova nem altere os avisos de autoria e de licença do Software.
+
+6. Sem garantia
+
+   O Software é fornecido "no estado em que se encontra", sem garantia de qualquer tipo, expressa ou
+   implícita, inclusive de adequação a um fim específico ou de ausência de erros. Na extensão permitida
+   pela lei, a Whitebeard não responde por danos de qualquer natureza decorrentes do uso do Software,
+   inclusive perda de dados. Você é responsável pelos seus backups e pelas máquinas onde o Software roda.
+
+7. Fim da licença
+
+   Esta licença termina automaticamente se você a descumprir. Se você corrigir o descumprimento em até 30
+   dias depois de ser avisado pela Whitebeard, a licença volta a valer, uma única vez.
+
+8. Lei aplicável
+
+   Lei brasileira. Foro da comarca da sede da Whitebeard.
+
+==========================================================================================================
+ENGLISH
+==========================================================================================================
+
+1. What this license covers
+
+   Whitebeard OS (the "Software"): the code in this repository and the packages Whitebeard publishes for it
+   (for example, the JARVIS Web package), in any version. Third-party components that the Software downloads
+   and installs (Hermes Agent, Paperclip, GBrain, pgvector, Ollama, FFmpeg, Node, uv, Claude Code and
+   others) are not part of this license: each one follows its own license.
+
+2. What you may do: personal use
+
+   Whitebeard grants you, as an individual, a free, worldwide, non-exclusive, non-transferable license to
+   download, install, run, copy and modify the Software, on as many of your own machines as you want, for
+   personal use only.
+
+   Personal use means use by an individual for their own non-commercial purposes: study, personal
+   organization, personal and hobby projects, their home. It is still personal use if you talk to other
+   people through the assistants, as long as you receive no payment, direct or indirect, for it.
+
+3. What requires a commercial license
+
+   Any use that is not personal requires a separate, written commercial license from Whitebeard. This
+   includes, among others:
+
+   a) use by or on behalf of a company, government body, association or any organization;
+   b) use in paid work or to serve clients, including as a freelancer or consultant;
+   c) use in the internal operations of a business;
+   d) offering the Software, or services based on it, to third parties (hosting, installation, support,
+      customization, resale, SaaS);
+   e) distributing the Software, modified or not, as part of a product or service.
+
+   For a commercial license: https://whitebeard.dev
+
+4. Sharing
+
+   You may share copies of the Software, modified or not, only for the recipients' personal use, keeping
+   this file and the authorship notices. Recipients are bound by this same license.
+
+5. Notices
+
+   Do not remove or change the Software's authorship and license notices.
+
+6. No warranty
+
+   The Software is provided "as is", without warranty of any kind, express or implied, including fitness
+   for a particular purpose or freedom from errors. To the extent permitted by law, Whitebeard is not liable
+   for damages of any kind arising from the use of the Software, including data loss. You are responsible
+   for your backups and for the machines the Software runs on.
+
+7. Termination
+
+   This license ends automatically if you breach it. If you cure the breach within 30 days of being notified
+   by Whitebeard, the license is reinstated, once.
+
+8. Governing law
+
+   Brazilian law. Courts of the district where Whitebeard has its registered office.

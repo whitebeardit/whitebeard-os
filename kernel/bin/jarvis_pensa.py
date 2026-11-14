@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""jarvis_pensa.py — Quem pensa: qual assinatura (Claude ou ChatGPT) e qual nível (Rápido, Equilibrado, Mais capaz)
+"""jarvis_pensa.py — Quem pensa: qual assinatura (Claude, ChatGPT ou OpenRouter) e qual nível (Rápido, Equilibrado, Mais capaz)
 o JARVIS, os assistentes e os cargos usam. Usado pelo jarvis_setup.py (status e comandos da página).
 
 A escolha da página fica em $JARVIS_HOME/pensa.json {provedor, nivel, logados} e vale depois de "colocar em uso"
 (o render resolve nível → modelo por kernel/modelos.yaml). O login do ChatGPT é o do Hermes por código de
 dispositivo (`hermes auth add openai-codex --type oauth --no-browser`): o processo mostra um endereço e um código, a
 pessoa entra na conta dela em qualquer aparelho e o Hermes guarda a credencial no pool dele. Este módulo só lança o
-processo em segundo plano, lê o endereço e o código da saída e acompanha. Nunca lê nem imprime credencial.
+processo em segundo plano, lê o endereço e o código da saída e acompanha. O OpenRouter entra por chave de API
+(`hermes auth add openrouter --type api-key`, com a chave pela entrada padrão, nunca na linha de comando): a chave é
+conferida no OpenRouter e guardada no pool do Hermes, não em arquivo nosso. Nunca lê nem imprime credencial.
 Só biblioteca padrão (a tabela de modelos é lida por regex simples, sem PyYAML).
 """
 from __future__ import annotations
@@ -20,7 +22,10 @@ import subprocess
 import time
 from pathlib import Path
 
-PROVEDORES = {"claude": {"hermes": "anthropic", "nome": "Claude"}, "chatgpt": {"hermes": "openai-codex", "nome": "ChatGPT"}}
+# entrada: como a pessoa conecta. claude-code = o login do Claude Code; codigo = código de dispositivo; chave = chave de API
+PROVEDORES = {"claude": {"hermes": "anthropic", "nome": "Claude", "entrada": "claude-code"},
+              "chatgpt": {"hermes": "openai-codex", "nome": "ChatGPT", "entrada": "codigo"},
+              "openrouter": {"hermes": "openrouter", "nome": "OpenRouter", "entrada": "chave"}}
 NIVEIS = {"rapido": "Rápido", "equilibrado": "Equilibrado", "capaz": "Mais capaz"}
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
@@ -68,8 +73,32 @@ def logado(provedor: str, fresco: bool = False) -> bool:
     return r
 
 
+ROTULO = "whitebeard-os"  # o rótulo das credenciais que este módulo põe no pool do Hermes
+
+
+def _chaves(provedor: str) -> list[str]:
+    """Rótulos das chaves de API deste provedor no pool do Hermes (`hermes auth list`; o `auth status` não as vê)."""
+    try:
+        r = subprocess.run([hermes_bin(), "auth", "list", PROVEDORES[provedor]["hermes"]], capture_output=True, text=True, timeout=20,
+                           check=False, env={**os.environ, "NO_COLOR": "1", "TERM": "dumb"})
+    except (OSError, subprocess.SubprocessError):
+        return []
+    # linhas como "  #1  whitebeard-os        api_key id=6f4782 priority=0 manual"
+    return [m.group(1) for m in re.finditer(r"^\s*#\d+\s+(\S+)\s+api_key\b", ANSI.sub("", r.stdout or ""), re.M)]
+
+
+def _tirar_chaves(provedor: str) -> None:
+    """Tira do pool só as chaves que este módulo pôs (rótulo whitebeard-os); as que a pessoa pôs à mão ficam."""
+    for _ in range(10):
+        if ROTULO not in _chaves(provedor):
+            return
+        subprocess.run([hermes_bin(), "auth", "remove", PROVEDORES[provedor]["hermes"], ROTULO], capture_output=True, text=True, timeout=30, check=False)
+
+
 def _logado(provedor: str) -> bool:
     """O Hermes tem credencial para este provedor? (`hermes auth status`, sem ler o arquivo de credenciais)."""
+    if PROVEDORES[provedor]["entrada"] == "chave":
+        return bool(_chaves(provedor))
     try:
         r = subprocess.run([hermes_bin(), "auth", "status", PROVEDORES[provedor]["hermes"]], capture_output=True, text=True, timeout=20, check=False)
     except (OSError, subprocess.SubprocessError):
@@ -88,7 +117,7 @@ def modelos(kernel: Path) -> dict:
         return out
     atual = None
     for line in txt.splitlines():
-        m = re.match(r"^  (claude|chatgpt):\s*$", line)
+        m = re.match(r"^  (%s):\s*$" % "|".join(PROVEDORES), line)
         if m:
             atual = m.group(1)
             out[atual] = {}
@@ -125,7 +154,7 @@ def status(home: Path, kernel: Path, tenant_hermes: dict | None = None) -> dict:
             "modelos": dict(tab.get(provedor) or {}),
             "modelos_por_provedor": {k: dict(v) for k, v in tab.items()},
             "niveis": [{"id": k, "nome": v} for k, v in NIVEIS.items()],
-            "provedores": [{"id": k, "nome": v["nome"]} for k, v in PROVEDORES.items()],
+            "provedores": [{"id": k, "nome": v["nome"], "entrada": v["entrada"]} for k, v in PROVEDORES.items()],
             "login": {k: login.get(k) for k in ("provedor", "estado", "endereco", "codigo", "erro", "inicio") if login.get(k) is not None} or None}
 
 
@@ -233,15 +262,65 @@ def cancelar(home: Path) -> dict:
     return {"ok": True}
 
 
-def sair(home: Path, provedor: str) -> dict:
-    """Tira a assinatura do pool do Hermes (só a do ChatGPT; a do Claude é a do Claude Code). Se era a principal, o
-    Claude volta a ser."""
+def chave_valida(chave: str) -> tuple[bool, str]:
+    """Confere a chave no OpenRouter (GET /api/v1/key). (ok, motivo). A chave não entra em mensagem nem em log."""
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request("https://openrouter.ai/api/v1/key", headers={"Authorization": f"Bearer {chave}", "User-Agent": "whitebeard-os"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return (r.status == 200, "")
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return False, "o OpenRouter recusou a chave; confira em openrouter.ai/keys e cole de novo"
+        return False, f"o OpenRouter respondeu {e.code}; tente de novo"
+    except (OSError, ValueError):
+        return False, "não consegui falar com o OpenRouter; confira a internet e tente de novo"
+
+
+def conectar_chave(home: Path, provedor: str, chave: str) -> dict:
+    """Conecta um provedor que entra por chave de API (OpenRouter): confere a chave e a guarda no pool do Hermes."""
     global _HOME
     _HOME = home
-    if provedor != "chatgpt":
+    if PROVEDORES.get(provedor, {}).get("entrada") != "chave":
+        return {"ok": False, "erro": "este provedor não entra por chave"}
+    chave = (chave or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9._-]{20,300}", chave):
+        return {"ok": False, "erro": "cole a chave do OpenRouter (começa com sk-or-)"}
+    ok, motivo = chave_valida(chave)
+    if not ok:
+        return {"ok": False, "erro": motivo}
+    hp = PROVEDORES[provedor]["hermes"]
+    env = {**os.environ, "NO_COLOR": "1", "TERM": "dumb"}
+    try:
+        # chave nova substitui a anterior; sem terminal, o Hermes lê a chave da entrada padrão
+        _tirar_chaves(provedor)
+        r = subprocess.run([hermes_bin(), "auth", "add", hp, "--type", "api-key", "--label", ROTULO, "--priority", "0"], input=chave + "\n",
+                           capture_output=True, text=True, timeout=40, check=False, env=env, start_new_session=True)
+    except (OSError, subprocess.SubprocessError) as e:
+        return {"ok": False, "erro": f"não consegui guardar a chave no Hermes: {e.__class__.__name__}"}
+    if r.returncode != 0 or not logado(provedor, fresco=True):
+        return {"ok": False, "erro": "o Hermes não aceitou a chave; atualize o Whitebeard OS e tente de novo"}
+    lj = loja(home)
+    lj["logados"] = sorted(set(lj.get("logados") or []) | {provedor})
+    lj.setdefault("provedor", "claude")
+    lj.setdefault("nivel", "equilibrado")
+    gravar(home / "pensa.json", lj)
+    return {"ok": True, "provedor": lj["provedor"], "logados": lj["logados"]}
+
+
+def sair(home: Path, provedor: str) -> dict:
+    """Tira a assinatura do pool do Hermes (ChatGPT ou OpenRouter; a do Claude é a do Claude Code). Se era a
+    principal, o Claude volta a ser."""
+    global _HOME
+    _HOME = home
+    if PROVEDORES.get(provedor, {}).get("entrada") not in ("codigo", "chave"):
         return {"ok": False, "erro": "a conta do Claude é a do Claude Code; saia por lá"}
     try:
-        subprocess.run([hermes_bin(), "auth", "logout", "openai-codex"], capture_output=True, text=True, timeout=30, check=False)
+        if PROVEDORES[provedor]["entrada"] == "chave":
+            _tirar_chaves(provedor)
+        else:
+            subprocess.run([hermes_bin(), "auth", "logout", PROVEDORES[provedor]["hermes"]], capture_output=True, text=True, timeout=30, check=False)
     except (OSError, subprocess.SubprocessError) as e:
         return {"ok": False, "erro": f"não consegui sair: {e.__class__.__name__}"}
     lj = loja(home)

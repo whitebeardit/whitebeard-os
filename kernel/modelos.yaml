@@ -17,6 +17,16 @@ provedores:
       rapido: gpt-5.4-mini
       equilibrado: gpt-5.5
       capaz: gpt-5.6-sol
+  openrouter:
+    hermes: openrouter          # credencial: chave de API do OpenRouter (hermes auth add openrouter --type api-key)
+    nome: OpenRouter
+    # só modelos gratuitos com suporte a ferramentas, conferidos em openrouter.ai/api/v1/models (11/2026).
+    # `openrouter/free` é o roteador do próprio OpenRouter: escolhe um modelo gratuito disponível, então não
+    # some quando um modelo sai do ar. Os gratuitos têm limite diário de pedidos por conta.
+    niveis:
+      rapido: openrouter/free
+      equilibrado: google/gemma-4-31b-it:free
+      capaz: nvidia/nemotron-3-ultra-550b-a55b:free
 niveis:
   rapido: {nome: Rápido, frase: "respostas curtas, gasta pouco"}
   equilibrado: {nome: Equilibrado, frase: "o padrão para quase tudo"}

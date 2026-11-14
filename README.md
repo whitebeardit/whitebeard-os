@@ -64,7 +64,7 @@ in a prompt that it can forget.
 | **Para um cliente** (for a client) | Serves one group, only within its role, with no tools | the group of the company sponsoring scholarships (and, for real, the Sauvvitech group, below) |
 | **Só rotinas** (routines only) | Does not chat; posts announcements on schedule | the weekly calendar |
 
-Each bot also picks **the subscription** (Claude or ChatGPT, your own, no API key) and **the level** (Rápido/fast,
+Each bot also picks **the subscription** (Claude or ChatGPT, your own, no API key; or free models through OpenRouter) and **the level** (Rápido/fast,
 Equilibrado/balanced or Mais capaz/most capable). The page shows which model each choice uses, and the other connected
 subscription becomes an automatic fallback.
 
@@ -373,7 +373,8 @@ skill packs, Hermes model, profiles, crons, monitored services, nodes, assistant
 everyone: JARVIS, the assistants and the roles. The person never sees model ids: the provider × level table lives in
 `kernel/modelos.yaml` and changes per release. Claude uses the Claude Code login; ChatGPT signs in through the page
 (PRIMEIROS PASSOS → QUEM PENSA, "who thinks") with a Hermes device code (`openai-codex`). With both accounts, the other
-one becomes an automatic fallback at the same level. Assistants and roles accept their own `nivel`, and assistants their
+one becomes an automatic fallback at the same level. **OpenRouter** (`openrouter`) is the third option: it connects with an
+API key, pasted on the same page, and the three levels use free models (within OpenRouter's daily request limit). Assistants and roles accept their own `nivel`, and assistants their
 own subscription; an explicit `modelo` still works for technical users. The page's choice is stored in
 `$JARVIS_HOME/pensa.json` and takes effect after "colocar em uso" (put into use).
 

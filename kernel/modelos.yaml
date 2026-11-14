@@ -20,12 +20,14 @@ provedores:
   openrouter:
     hermes: openrouter          # credencial: chave de API do OpenRouter (hermes auth add openrouter --type api-key)
     nome: OpenRouter
-    # só modelos gratuitos com suporte a ferramentas, conferidos em openrouter.ai/api/v1/models (11/2026).
-    # `openrouter/free` é o roteador do próprio OpenRouter: escolhe um modelo gratuito disponível, então não
-    # some quando um modelo sai do ar. Os gratuitos têm limite diário de pedidos por conta.
+    # só modelos gratuitos com suporte a ferramentas. `openrouter/free` é o roteador do próprio OpenRouter: escolhe
+    # um modelo gratuito disponível e desvia dos que estão limitados. Testado num Raspberry Pi em 13/11/2026, com
+    # conversa e uso de ferramenta: openrouter/free e nemotron-3-ultra passaram. Um modelo gratuito fixo pode ser
+    # limitado pelo fornecedor (erro 429); aí o Hermes põe a chave inteira em espera por 1 hora e o trabalho segue
+    # na reserva. Foi o que houve com google/gemma-4-31b-it:free, por isso o nível equilibrado usa o roteador.
     niveis:
       rapido: openrouter/free
-      equilibrado: google/gemma-4-31b-it:free
+      equilibrado: openrouter/free
       capaz: nvidia/nemotron-3-ultra-550b-a55b:free
 niveis:
   rapido: {nome: Rápido, frase: "respostas curtas, gasta pouco"}

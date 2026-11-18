@@ -23,6 +23,21 @@ especializadas. É a metade de escrita de `knowledge` (que é só leitura).
   - `knowledge-domain/`: conhecimento do negócio e da área, que vale mesmo sem nenhum sistema.
   - `resources/`: pouso temporário de material bruto, capturas e rascunhos ainda não canônicos.
 
+## Como gravar
+
+- **Com acesso a arquivos** (Claude Code, terminal): edite os arquivos em `$VAULT_PATH` diretamente.
+- **Sem acesso a arquivos** (assistentes do Telegram, Discord, WhatsApp): use o MCP `cerebro`:
+  - `ler_nota(caminho)` devolve o conteúdo e a `versao` (ou `existe: false`);
+  - `escrever_nota(caminho, conteudo)` cria uma nota; para substituir uma que já existe, mande a `versao` lida;
+  - `editar_nota(caminho, trocar, por)` troca um trecho exato (acrescentar uma linha numa tabela, atualizar um
+    parágrafo).
+
+  O caminho é relativo ao vault e a gravação só vale dentro de `tenants/$JARVIS_TENANT/`. Se a resposta for
+  "a nota mudou desde que você leu", leia de novo e refaça a alteração.
+- **Não use** `put_page`, `edit_page` nem `add_timeline_entry` do MCP `knowledge`: a fonte do vault é só de
+  leitura para o cérebro (os arquivos são a fonte da verdade) e essas escritas são recusadas. O `knowledge`
+  continua sendo a busca; o que você gravar entra nela no próximo ciclo de sincronização (poucos minutos).
+
 ## Delegação
 
 | Situação | Skill |

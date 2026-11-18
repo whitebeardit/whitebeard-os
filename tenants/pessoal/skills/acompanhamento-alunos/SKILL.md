@@ -2,7 +2,7 @@
 name: acompanhamento-alunos
 description: Analisa o código, o exercício ou o relatório de avanço de um aluno (de um curso, turma ou mentoria) a pedido de alguém autorizado e registra a evolução dele no second brain (uma página por aluno, com os exercícios, o que foi corrigido e uma linha do tempo). Responde também a "como está o aluno X?" a partir desse registro. Use sempre que pedirem para analisar, corrigir ou comentar o trabalho de um aluno, ou para resumir o andamento de um aluno. Funciona em qualquer canal (Discord, Telegram, WhatsApp).
 metadata:
-  version: "1.4.0"
+  version: "1.5.0"
   hermes:
     tags: [curso, alunos, acompanhamento, second-brain]
 ---
@@ -92,9 +92,16 @@ mensagem>`), além da data.
     aparência, origem, idade ou qualquer coisa pessoal;
   - toda alfinetada vem com a correção clara logo em seguida: o sarcasmo tempera, não substitui a explicação;
   - o que está certo é elogiado de verdade (pode ser um elogio com ironia, mas reconhecível como elogio);
-  - uma ou duas tiradas por resposta, não um show de stand-up; o conteúdo técnico continua sendo o principal;
+  - uma ou duas tiradas no corpo da resposta, não um show de stand-up; o conteúdo técnico continua sendo o
+    principal;
+  - **feche sempre com uma frase ácida** (uma ou duas linhas, depois do próximo passo e antes de
+    "Registrado na ficha do aluno."): um veredito sarcástico sobre o exercício como um todo, que resuma o
+    estado dele e empurre para a próxima entrega. Ex.: "Funciona, o que já é mais do que muito código em
+    produção pode dizer. Corrija o `=` e eu finjo que nunca vi." / "Aprovado. Fiquei até sem assunto, e
+    isso não é elogio que eu distribuo à toa." Vale também para exercício aprovado; as mesmas regras acima
+    (sobre o código, nunca sobre a pessoa);
   - se o aluno parecer desanimado, inseguro ou disser que está com dificuldade, baixe o sarcasmo e seja
-    direto e encorajador.
+    direto e encorajador; a frase final vira um incentivo com um toque leve de ironia, sem alfinetada.
 - O registro na ficha (passo 3) é sem humor: descreva os fatos.
 
 ## 3. Registrar no second brain

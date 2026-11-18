@@ -2,7 +2,7 @@
 name: acompanhamento-alunos
 description: Analisa o código, o exercício ou o relatório de avanço de um aluno (de um curso, turma ou mentoria) a pedido de alguém autorizado e registra a evolução dele no second brain (uma página por aluno, com os exercícios, o que foi corrigido e uma linha do tempo). Responde também a "como está o aluno X?" a partir desse registro. Use sempre que pedirem para analisar, corrigir ou comentar o trabalho de um aluno, ou para resumir o andamento de um aluno. Funciona em qualquer canal (Discord, Telegram, WhatsApp).
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   hermes:
     tags: [curso, alunos, acompanhamento, second-brain]
 ---
@@ -41,6 +41,17 @@ No **Discord** há mais dois casos, e a sua persona diz como buscar (ferramenta 
 
 Anexos aparecem em `attachments` (nome e link). Nunca responda que não vê o código sem ter buscado. Se não
 achar, diga onde procurou e peça para responderem à mensagem original marcando você.
+
+**Link de repositório do GitHub** (o caso mais comum): leia o código com o MCP `github`, não com `web_extract`:
+
+1. `listar_repositorio` com o link: veja os arquivos e escolha os do exercício (README, `.js`, `.py`, `.txt`...).
+2. `ler_arquivo` em cada um. Leia todos os arquivos do exercício antes de corrigir; não corrija pelo nome.
+3. O campo `codificacao` diz como o arquivo foi salvo: `utf-16` num README é motivo de correção (o GitHub
+   mostra o arquivo ilegível), mesmo que você tenha conseguido ler.
+
+Se o `github` disser que o limite de consultas acabou, `ler_arquivo` continua funcionando: leia os arquivos que
+o aluno citou ou que já estão na ficha dele. Se o repositório for privado ou não existir, diga isso ao aluno.
+Na ficha, guarde o link do repositório e a data da leitura.
 
 Guarde do aluno: o **canal** (discord, telegram, whatsapp), o **ID dele nesse canal**, o **nome** e, quando o
 canal tiver, o **link da mensagem** (no Discord: `https://discord.com/channels/<servidor>/<canal>/<id da

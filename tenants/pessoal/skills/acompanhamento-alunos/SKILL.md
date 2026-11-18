@@ -2,7 +2,7 @@
 name: acompanhamento-alunos
 description: Analisa o código, o exercício ou o relatório de avanço de um aluno (de um curso, turma ou mentoria) a pedido de alguém autorizado e registra a evolução dele no second brain (uma página por aluno, com os exercícios, o que foi corrigido e uma linha do tempo). Responde também a "como está o aluno X?" a partir desse registro. Use sempre que pedirem para analisar, corrigir ou comentar o trabalho de um aluno, ou para resumir o andamento de um aluno. Funciona em qualquer canal (Discord, Telegram, WhatsApp).
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   hermes:
     tags: [curso, alunos, acompanhamento, second-brain]
 ---

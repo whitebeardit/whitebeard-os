@@ -81,6 +81,11 @@ def empresa_id() -> str:
     global EMPRESA
     if EMPRESA:
         return EMPRESA
+    if CHAVE:
+        # Dentro de um heartbeat o ator é um agente: GET /companies exige board (403), /agents/me não.
+        EMPRESA = (api("GET", "/agents/me") or {}).get("companyId") or ""
+        if EMPRESA:
+            return EMPRESA
     comp = lista(api("GET", "/companies"), "companies")
     if not comp:
         raise RuntimeError(T("nenhuma empresa no Escritório"))

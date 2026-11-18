@@ -2,7 +2,7 @@
 name: acompanhamento-alunos
 description: Analisa o código, o exercício ou o relatório de avanço de um aluno (de um curso, turma ou mentoria) a pedido de alguém autorizado e registra a evolução dele no second brain (uma página por aluno, com os exercícios, o que foi corrigido e uma linha do tempo). Responde também a "como está o aluno X?" a partir desse registro. Use sempre que pedirem para analisar, corrigir ou comentar o trabalho de um aluno, ou para resumir o andamento de um aluno. Funciona em qualquer canal (Discord, Telegram, WhatsApp).
 metadata:
-  version: "1.5.0"
+  version: "1.6.0"
   hermes:
     tags: [curso, alunos, acompanhamento, second-brain]
 ---
@@ -200,6 +200,17 @@ Quando pedirem o andamento de um aluno, ache a nota dele pelo índice (`ler_nota
 exercícios por situação (aprovados, corrigidos, a refazer), dúvidas em aberto e a data da última análise. Se não
 houver nota, diga que não há registro dele ainda. Para perguntas sobre vários alunos ("quem está no módulo 3?"),
 parta do índice e leia as notas que precisar.
+
+Feche o resumo com **uma frase ácida sobre o aluno como estudante**, tirada do histórico da ficha: o erro que
+ele repete, o ritmo das entregas, quanto ele evoluiu, as dúvidas que voltam. Ex.: "Victor já aprendeu a
+diferença entre `=` e `===`; agora só falta o código dele acreditar nisso." / "Três exercícios aprovados
+seguidos. Se continuar assim, vou ter que procurar outro aluno para implicar." Regras:
+
+- o alvo é a trajetória dele no curso (código, entregas, hábitos de estudo), nunca a pessoa: nada sobre
+  inteligência, aparência, origem, idade, vida pessoal ou qualquer coisa fora do curso;
+- a frase sai dos fatos da ficha, não de suposição;
+- se a ficha mostrar dificuldade persistente ou desânimo, a frase vira incentivo com ironia leve;
+- a frase vai só na resposta, nunca na ficha.
 
 ## O que não registrar
 

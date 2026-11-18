@@ -297,6 +297,8 @@ def soul_assistente(a: dict, tenant: str) -> str:
             "- O que você anota no second brain e no Paperclip fica marcado como seu.",
             "- Para gravar no second brain, use o MCP cerebro (ler_nota, escrever_nota, editar_nota). O MCP knowledge "
             "é só a busca: as escritas dele (put_page, edit_page) são recusadas.",
+            "- Para ler código de um repositório do GitHub, use o MCP github (listar_repositorio e ler_arquivo), não "
+            "web_extract: ele lê o arquivo cru, direto do GitHub.",
         ]
         if canal_de(a) == "discord":
             linhas += [
@@ -447,7 +449,7 @@ def render_assistentes(w: "Writer", home: Path, data: dict, assistentes: list[di
             env.append(f"WHATSAPP_REQUIRE_MENTION={'false' if tipo == 'mim' else 'true'}")
         env += [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", f"WHITEBEARD_ASSISTENTE={nome}", f"WHITEBEARD_ASSISTENTE_TIPO={tipo}"]
         if tipo in ("mim", "equipe"):
-            for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+            for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GITHUB_LEITURA_TOKEN"):
                 if values.get(k):
                     env.append(f"{k}={values[k]}")
         base = home / "render" / "hermes" / "assistentes" / nome
@@ -814,6 +816,12 @@ def main() -> int:
         if vault_path and "core" in roles and "cerebro" not in hermes_mcp:
             hermes_mcp["cerebro"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_cerebro_mcp.py")],
                                      "env": {"VAULT_PATH": vault_path, "JARVIS_TENANT": tenant}}
+        # ler código no GitHub: o web_extract do Hermes, sem chave, passa por serviços gratuitos de terceiros que
+        # recusam (403) com frequência; o `github` lê repositórios públicos direto (árvore pela API, arquivo pelo
+        # raw). Token opcional, só para subir o limite da API (o ${VAR} o Hermes resolve do .env do perfil).
+        if "core" in roles and "github" not in hermes_mcp:
+            hermes_mcp["github"] = {"command": "python3", "args": [str(kernel / "bin" / "jarvis_github_mcp.py")],
+                                    **({"env": {"GITHUB_TOKEN": "${GITHUB_LEITURA_TOKEN}"}} if values.get("GITHUB_LEITURA_TOKEN") else {})}
         w.write(home / "render" / "hermes" / "mcp.json",
                 json.dumps(hermes_mcp, ensure_ascii=False, indent=2) + "\n")
         mcp_refs = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", json.dumps(hermes_mcp))))
@@ -864,7 +872,7 @@ def main() -> int:
                                                "PAPERCLIP_RUN_ID": "${PAPERCLIP_RUN_ID}", "PAPERCLIP_TASK_ID": "${PAPERCLIP_TASK_ID}", "JARVIS_HOME": str(home)}}
             cfg_cargo["mcp_servers"] = mcp_cargo
             env_cargo = [f"VAULT_PATH={vault_path}", f"JARVIS_TENANT={tenant}", f"WHITEBEARD_CARGO={c['nome']}"]
-            for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+            for k in ("GBRAIN_MCP_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GITHUB_LEITURA_TOKEN"):
                 if values.get(k):
                     env_cargo.append(f"{k}={values[k]}")
             soul = "\n".join([

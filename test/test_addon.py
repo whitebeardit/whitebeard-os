@@ -239,12 +239,12 @@ class AddonTest(unittest.TestCase):
     def test_a6_secret_declared_in_tenant_not_duplicated(self) -> None:
         a = self.addon("dup", """\
             secrets:
-              - name: EXEMPLO_TOKEN
+              - name: EXAMPLE_TOKEN
                 required: false
             """)
         self.ok("--addon", str(a))
         text = (self.home / "secrets.env").read_text(encoding="utf-8")
-        self.assertEqual(text.count("\nEXEMPLO_TOKEN="), 1)
+        self.assertEqual(text.count("\nEXAMPLE_TOKEN="), 1)
 
     # ------------------------------------------------------------ A7
     def test_a7_paths_relative_to_addon(self) -> None:

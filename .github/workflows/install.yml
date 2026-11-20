@@ -99,8 +99,8 @@ jobs:
           assert a["support"]["channel"] == "telegram" and a["discord-example"]["channel"] == "discord", a
           assert a["discord-example"]["secrets"]["token"] == "DISCORD_BOT_TOKEN_DISCORD_EXAMPLE", a
           titles = {s["name"]: s["title"] for s in d["secrets"]}
-          assert titles.get("TELEGRAM_BOT_TOKEN_SUPORTE", "").startswith("Token do bot do assistente"), titles
-          assert "DISCORD_BOT_TOKEN_DISCORD_EXAMPLE" in titles and "TELEGRAM_BOT_TOKEN_DISCORD_EXEMPLO" not in titles, titles'
+          assert titles.get("TELEGRAM_BOT_TOKEN_SUPPORT", "").startswith("Token do bot do assistente"), titles
+          assert "DISCORD_BOT_TOKEN_DISCORD_EXAMPLE" in titles and "TELEGRAM_BOT_TOKEN_DISCORD_EXAMPLE" not in titles, titles'
           # o assistente do Discord rende as variáveis do Discord e nenhuma do Telegram
           grep -q "^DISCORD_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistants/discord-example/env"
           grep -q "^DISCORD_REQUIRE_MENTION=true" "$HOME/.jarvis/render/hermes/assistants/discord-example/env"

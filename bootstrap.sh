@@ -25,7 +25,7 @@ REMOVE_ADDONS="" # --remove-addon: um nome por linha
 # o knowledge gerou um segredo novo (token do MCP): render e MCPs precisam ser reaplicados
 RERENDER=0
 HERMES_RESTART=0
-KNOWLEDGE_ADIADO=0
+KNOWLEDGE_DEFERRED=0
 # knowledge no tudo-em-um do macOS é nativo (sem Docker); no Linux segue o compose
 KNOWLEDGE_NATIVE=0
 SKIP=","
@@ -40,8 +40,8 @@ usage() {
   cat <<EOF
 uso: $0 --tenant <jarvis.yaml> [opções]
 
-  --tenant <arquivo>   declaração do tenant (obrigatório; ex.: tenants/exemplo/jarvis.yaml)
-  --role a,b           papéis: desktop, core, knowledge. Padrão: os do host \`local\` em \`nos:\` do tenant (sem nos: os três, tudo-em-um)
+  --tenant <arquivo>   declaração do tenant (obrigatório; ex.: tenants/example/jarvis.yaml)
+  --role a,b           papéis: desktop, core, knowledge. Padrão: os do host \`local\` em \`nodes:\` do tenant (sem nodes: os três, tudo-em-um)
   --home <dir>         raiz da instalação (padrão: \$JARVIS_HOME ou ~/.jarvis)
   --with-hermes        instala o Hermes upstream (tag $HERMES_TAG); padrão: sim no papel core, não no desktop
   --without-hermes     não instala o Hermes
@@ -85,7 +85,7 @@ done
 # executável que o serviço do Paperclip chama (install_paperclip escreve; `paperclipai service install` lê
 # esta variável). Fora de ~/.local/bin de propósito: ali o doctor do Paperclip o tomaria por loja gerenciada.
 PAPERCLIP_SHIM_PATH="$JARVIS_HOME/bin/paperclipai"
-PAPERCLIP_FALHOU=0
+PAPERCLIP_FAILED=0
 export PAPERCLIP_SHIM_PATH
 # --apply: a instalação já diz qual tenant e quais papéis; quem chama (o JARVIS Web) não tem terminal
 if [ "$APPLY" = 1 ]; then
@@ -112,12 +112,12 @@ node_bin_dir() { printf '%s/versions/node/v%s/bin' "$NVM_DIR" "$NODE_VERSION"; }
 
 [ -n "$TENANT" ] || { usage >&2; die "--tenant é obrigatório"; }
 [ -f "$TENANT" ] || die "tenant não encontrado: $TENANT"
-# Leitura mínima de `nos:` sem yaml (o render valida de verdade). Esta máquina é o nó `local`/`localhost`
+# Leitura mínima de `nodes:` sem yaml (o render valida de verdade). Esta máquina é o nó `local`/`localhost`
 # ou o nó cujo host é o seu nome: nome curto casa com nome curto, nome com domínio só com o FQDN igual.
-#   nos_query roles   → papéis do nó desta máquina ("" se nenhum nó casa; "-" se o tenant não tem nos:)
-#   nos_query others  → quantos nós de nos: são outras máquinas
+#   nodes_query roles   → papéis do nó desta máquina ("" se nenhum nó casa; "-" se o tenant não tem nodes:)
+#   nodes_query others  → quantos nós de nodes: são outras máquinas
 HOST_FULL=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]')
-nos_query() {
+nodes_query() {
   python3 - "$TENANT" "$HOST_FULL" "$1" <<'PY'
 import re, sys
 txt, host, mode = open(sys.argv[1], encoding="utf-8").read(), sys.argv[2], sys.argv[3]
@@ -127,10 +127,10 @@ def is_me(name):
     if name in ("local", "localhost"):
         return True
     return name == host if "." in name else name == short
-m = re.search(r"^nos:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
+m = re.search(r"^nodes:\s*\n((?:[ \t-].*\n?)+)", txt, re.M)
 if not m:
     print("-" if mode == "roles" else "0"); sys.exit(0)
-# comentários fora; cada nó começa numa linha "- host:" (ou "- papeis:", quando o host vem depois)
+# comentários fora; cada nó começa numa linha "- host:" (ou "- roles:", quando o host vem depois)
 block = re.sub(r"#.*", "", m.group(1))
 roles, others = [], 0
 for item in re.split(r"\n(?=\s*-\s+\w+:)", "\n" + block):
@@ -140,7 +140,7 @@ for item in re.split(r"\n(?=\s*-\s+\w+:)", "\n" + block):
     if h and not is_me(h.group(1)):
         others += 1
         continue
-    for key in ("papeis", "papel"):
+    for key in ("roles", "role"):
         # em linha ([a, b]) ou valor único na mesma linha; o valor único não atravessa a quebra de linha
         # (senão o "-" da lista em bloco viraria um papel)
         k = re.search(key + r":[ \t]*\[([^\]]*)\]|" + key + r":[ \t]*([^\s\[-][^\s\[]*)", item)
@@ -153,15 +153,15 @@ for item in re.split(r"\n(?=\s*-\s+\w+:)", "\n" + block):
 print(",".join(dict.fromkeys(roles)) if mode == "roles" else others)
 PY
 }
-# Sem --role: os papéis do nó desta máquina. Sem `nos:`, tudo-em-um (desktop,core,knowledge). Com `nos:` mas
+# Sem --role: os papéis do nó desta máquina. Sem `nodes:`, tudo-em-um (desktop,core,knowledge). Com `nodes:` mas
 # sem nó que seja esta máquina, é erro: instalar os três papéis num servidor de produção por engano é pior
 # do que parar e pedir --role.
 if [ -z "$ROLES" ]; then
-  ROLES=$(nos_query roles)
+  ROLES=$(nodes_query roles)
   case "$ROLES" in
-    -) ROLES="desktop,core,knowledge"; log "papéis: tudo-em-um (o tenant não declara nos:)" ;;
-    "") die "nenhum nó em nos: do tenant é esta máquina (hostname $HOST_FULL). Acrescente-a em nos: ou informe --role" ;;
-    *) log "papéis (nó $HOST_FULL em nos: do tenant): $ROLES" ;;
+    -) ROLES="desktop,core,knowledge"; log "papéis: tudo-em-um (o tenant não declara nodes:)" ;;
+    "") die "nenhum nó em nodes: do tenant é esta máquina (hostname $HOST_FULL). Acrescente-a em nodes: ou informe --role" ;;
+    *) log "papéis (nó $HOST_FULL em nodes: do tenant): $ROLES" ;;
   esac
 fi
 old_ifs=$IFS
@@ -169,7 +169,7 @@ IFS=,
 for r in $ROLES; do
   case "$r" in
     desktop|core|knowledge) ;;
-    satelite) die "papel satelite ainda não implementado" ;;
+    satellite) die "papel satellite ainda não implementado" ;;
     *) die "papel desconhecido: $r (use desktop, core, knowledge)" ;;
   esac
 done
@@ -211,7 +211,7 @@ check_prereqs() {
         log "aviso: o papel knowledge precisa de Docker com o plugin compose (https://docs.docker.com/engine/install/). Seguindo sem knowledge"
       fi
       ROLES=$(printf '%s' "$ROLES" | tr ',' '\n' | grep -vx knowledge | paste -sd, -)
-      KNOWLEDGE_ADIADO=1
+      KNOWLEDGE_DEFERRED=1
     fi
   fi
 }
@@ -234,13 +234,13 @@ install_node() {
   if [ ! -s "$NVM_DIR/nvm.sh" ]; then
     log "instalando nvm $NVM_VERSION em $NVM_DIR"
     mkdir -p "$JARVIS_HOME/logs"
-    run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh' | env PROFILE=/dev/null NVM_DIR='$NVM_DIR' bash >>'$JARVIS_HOME/logs/instalacao-node.log' 2>&1"
-    [ "$DRY_RUN" = 1 ] || { mkdir -p "$JARVIS_HOME"; : > "$JARVIS_HOME/.nvm-instalado-pelo-kernel"; }
+    run "curl -fsSL 'https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh' | env PROFILE=/dev/null NVM_DIR='$NVM_DIR' bash >>'$JARVIS_HOME/logs/install-node.log' 2>&1"
+    [ "$DRY_RUN" = 1 ] || { mkdir -p "$JARVIS_HOME"; : > "$JARVIS_HOME/.nvm-installed-by-kernel"; }
   fi
   if [ "$DRY_RUN" = 1 ]; then printf '[dry-run] nvm install %s\n' "$NODE_VERSION"; return 0; fi
   mkdir -p "$JARVIS_HOME/logs"
-  with_node "nvm install '$NODE_VERSION' >>'$JARVIS_HOME/logs/instalacao-node.log' 2>&1 && nvm alias default '$NODE_VERSION' >/dev/null 2>&1" \
-    || die "node $NODE_VERSION não instalou (veja $JARVIS_HOME/logs/instalacao-node.log)"
+  with_node "nvm install '$NODE_VERSION' >>'$JARVIS_HOME/logs/install-node.log' 2>&1 && nvm alias default '$NODE_VERSION' >/dev/null 2>&1" \
+    || die "node $NODE_VERSION não instalou (veja $JARVIS_HOME/logs/install-node.log)"
   cur=$(with_node 'node -v' | tail -n 1)
   [ "$cur" = "v$NODE_VERSION" ] || die "node em uso é $cur, o kernel pede v$NODE_VERSION (nvm em $NVM_DIR)"
   log "node $cur pronto"
@@ -363,13 +363,13 @@ install_hermes() {
   if [ ! -d "$dir/.git" ]; then
     mkdir -p "$HERMES_HOME"
     mkdir -p "$JARVIS_HOME/logs"
-    git -c advice.detachedHead=false clone -q --depth 1 --branch "$HERMES_TAG" https://github.com/NousResearch/hermes-agent.git "$dir" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 \
+    git -c advice.detachedHead=false clone -q --depth 1 --branch "$HERMES_TAG" https://github.com/NousResearch/hermes-agent.git "$dir" >>"$JARVIS_HOME/logs/install-hermes.log" 2>&1 \
       || die "hermes: clone do hermes-agent falhou"
   fi
   mkdir -p "$JARVIS_HOME/logs"
-  log "hermes: instalando (alguns minutos; detalhes em $JARVIS_HOME/logs/instalacao-hermes.log)"
-  (cd "$dir" && printf 'nn' | bash setup-hermes.sh) >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 \
-    || die "hermes: instalador upstream falhou (veja $JARVIS_HOME/logs/instalacao-hermes.log)"
+  log "hermes: instalando (alguns minutos; detalhes em $JARVIS_HOME/logs/install-hermes.log)"
+  (cd "$dir" && printf 'nn' | bash setup-hermes.sh) >>"$JARVIS_HOME/logs/install-hermes.log" 2>&1 \
+    || die "hermes: instalador upstream falhou (veja $JARVIS_HOME/logs/install-hermes.log)"
   have hermes || [ -x "$HOME/.local/bin/hermes" ] || die "hermes: comando não encontrado depois da instalação"
 }
 
@@ -390,7 +390,7 @@ ensure_hermes_voice() {
   # mesmo isolamento do setup-hermes.sh upstream: o lock vale com o pyproject do checkout, sem config do usuário
   cfg=$(mktemp -d)
   (cd "$dir" && unset UV_NO_CONFIG UV_CONFIG_FILE && XDG_CONFIG_HOME="$cfg" XDG_CONFIG_DIRS="$cfg" \
-    UV_PROJECT_ENVIRONMENT="$dir/venv" uv sync --locked --inexact --extra voice --extra edge-tts) >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 \
+    UV_PROJECT_ENVIRONMENT="$dir/venv" uv sync --locked --inexact --extra voice --extra edge-tts) >>"$JARVIS_HOME/logs/install-hermes.log" 2>&1 \
     || log "aviso: não consegui instalar a voz no venv do Hermes; a interface segue sem STT"
   rmdir "$cfg" 2>/dev/null || true
 }
@@ -433,7 +433,7 @@ install_paperclip() {
 # Depois de instalar/iniciar o serviço do Paperclip: confirma que ele está mesmo rodando e respondendo.
 # Um serviço que sobe e cai (node errado, porta ocupada) fica em loop no launchd/systemd e, sem esta
 # conferência, o instalador diria "iniciado" com o JARVIS sem Paperclip. Espera até 40 s pela saúde.
-paperclip_conferir_servico() {
+paperclip_check_service() {
   n=0
   while [ "$n" -lt 20 ]; do
     st=$(with_node 'paperclipai service status --json' 2>/dev/null | tail -n 40)
@@ -443,13 +443,13 @@ paperclip_conferir_servico() {
     fi
     n=$((n + 1)); sleep 2
   done
-  detalhe=$(printf '%s' "$st" | python3 -c 'import json,sys
+  detail=$(printf '%s' "$st" | python3 -c 'import json,sys
 try:
     d=json.load(sys.stdin)
 except Exception:
     sys.exit(0)
 print("instalado" if d.get("installed") else "não instalado", "·", "ativo" if d.get("active") else "parado", "·", d.get("detail") or "", "·", (d.get("health") or {}).get("error") or "")' 2>/dev/null)
-  log "ERRO paperclip: o serviço não ficou de pé (${detalhe:-sem status})"
+  log "ERRO paperclip: o serviço não ficou de pé (${detail:-sem status})"
   for f in "$HOME/.paperclip/instances/default/logs/paperclipai.log" "$HOME/.paperclip/instances/default/logs/service.log" "$HOME/.paperclip/logs/paperclipai.log"; do
     if [ -s "$f" ]; then
       log "últimas linhas de $f:"; tail -n 12 "$f" | sed 's/^/    /'
@@ -513,7 +513,7 @@ PY
 # página PRIMEIROS PASSOS do JARVIS Web chama. Só biblioteca padrão do python3.
 # O terminal do instalador fala português; o kernel responde no mesmo idioma (sem a variável seria inglês, o padrão da
 # interface).
-setup_py() { JARVIS_IDIOMA="${JARVIS_IDIOMA:-pt-BR}" python3 "$KERNEL_DIR/bin/jarvis_setup.py" --home "$JARVIS_HOME" "$@"; }
+setup_py() { JARVIS_LANGUAGE="${JARVIS_LANGUAGE:-pt-BR}" python3 "$KERNEL_DIR/bin/jarvis_setup.py" --home "$JARVIS_HOME" "$@"; }
 
 # Terminal de verdade para perguntar (ssh sem -t, cron e CI têm /dev/tty que não abre).
 can_prompt() { [ "$NO_PROMPT" != 1 ] && ( : </dev/tty ) 2>/dev/null; }
@@ -526,11 +526,11 @@ telegram_setup() {
   s="$JARVIS_HOME/secrets.env"
   if [ "$WITH_TELEGRAM" != 1 ] && ! grep -q '^TELEGRAM_BOT_TOKEN=.' "$s" 2>/dev/null; then
     # sem token e sem --telegram: pergunta uma vez (a resposta fica guardada); "não" nunca pergunta de novo
-    [ -f "$JARVIS_HOME/telegram.decisao" ] && return 1
+    [ -f "$JARVIS_HOME/telegram.decision" ] && return 1
     can_prompt || return 1
     printf '\n  Quer falar com o JARVIS pelo Telegram? Pode ligar depois com ./install.sh --telegram. [s/N] ' >/dev/tty
     IFS= read -r resp </dev/tty
-    case "$resp" in s|S|sim|Sim|SIM|y|Y) WITH_TELEGRAM=1 ;; *) printf 'nao\n' >"$JARVIS_HOME/telegram.decisao"; log "telegram: desligado (para ligar: ./install.sh --telegram)"; return 1 ;; esac
+    case "$resp" in s|S|sim|Sim|SIM|y|Y) WITH_TELEGRAM=1 ;; *) printf 'no\n' >"$JARVIS_HOME/telegram.decision"; log "telegram: desligado (para ligar: ./install.sh --telegram)"; return 1 ;; esac
   fi
   if [ "$WITH_TELEGRAM" != 1 ]; then
     grep -q '^TELEGRAM_HOME_CHANNEL=.' "$s" 2>/dev/null && return 1
@@ -612,8 +612,8 @@ apply_hermes_config() {
   fi
   # Quem pensa: com provedor/nível escolhido (página ou tenant), model e fallback_model vão por cima do config
   # do Hermes a cada aplicação; o resto do config é do Hermes e da pessoa e fica como está.
-  if [ -f "$JARVIS_HOME/render/hermes/modelo.yaml" ] && [ -f "$HERMES_HOME/config.yaml" ]; then
-    if uv run --quiet --with 'pyyaml>=6,<7' python3 - "$JARVIS_HOME/render/hermes/modelo.yaml" "$HERMES_HOME/config.yaml" <<'PY'
+  if [ -f "$JARVIS_HOME/render/hermes/model.yaml" ] && [ -f "$HERMES_HOME/config.yaml" ]; then
+    if uv run --quiet --with 'pyyaml>=6,<7' python3 - "$JARVIS_HOME/render/hermes/model.yaml" "$HERMES_HOME/config.yaml" <<'PY'
 import sys, yaml
 src, dst = sys.argv[1], sys.argv[2]
 want = yaml.safe_load(open(src, encoding="utf-8")) or {}
@@ -733,71 +733,71 @@ print(f"[whitebeard-os] hermes: mcp ({len(applied)}): {', '.join(applied) or '-'
 PY
 }
 
-# Assistentes do Telegram do tenant (`assistentes:`): um perfil isolado do Hermes por assistente, criado
+# Assistentes do Telegram do tenant (`assistants:`): um perfil isolado do Hermes por assistente, criado
 # pelo próprio Hermes (`hermes profile create`) e preenchido com o que o render escreveu em
-# render/hermes/assistentes/<nome>/ (config, variáveis, persona, skills). Idempotente: o que o kernel
+# render/hermes/assistants/<name>/ (config, variáveis, persona, skills). Idempotente: o que o kernel
 # gerencia é sobrescrito; o que a pessoa mudou à mão no perfil (SOUL.md editado, chaves próprias no .env)
 # fica. Assistente que saiu do tenant é estacionado (gateway.parked), nunca apagado: apagar é decisão
 # da pessoa. O gateway é um só por máquina e serve todos os perfis (multiplex do Hermes).
-apply_hermes_assistentes() {
+apply_hermes_assistants() {
   [ "$WITH_HERMES" = 1 ] || return 0
   skipped hermes && return 0
-  cat_="$JARVIS_HOME/render/hermes/assistentes.json"
+  cat_="$JARVIS_HOME/render/hermes/assistants.json"
   [ -f "$cat_" ] || return 0
   if [ "$DRY_RUN" = 1 ]; then log "hermes: criaria/atualizaria os perfis dos assistentes de $cat_"; return 0; fi
   have hermes || { log "aviso: hermes ausente; assistentes não aplicados"; return 0; }
-  applied="$JARVIS_HOME/render/hermes/assistentes.applied"
-  mudou=0
+  applied="$JARVIS_HOME/render/hermes/assistants.applied"
+  changed=0
   # estaciona os que saíram do tenant (só os que o kernel criou)
   if [ -f "$applied" ]; then
-    while IFS= read -r antigo; do
-      [ -n "$antigo" ] || continue
-      if ! python3 -c 'import json,sys; sys.exit(0 if sys.argv[2] in [a["nome"] for a in json.load(open(sys.argv[1]))] else 1)' "$cat_" "$antigo"; then
-        pdir="$HERMES_HOME/profiles/$antigo"
+    while IFS= read -r old; do
+      [ -n "$old" ] || continue
+      if ! python3 -c 'import json,sys; sys.exit(0 if sys.argv[2] in [a["name"] for a in json.load(open(sys.argv[1]))] else 1)' "$cat_" "$old"; then
+        pdir="$HERMES_HOME/profiles/$old"
         if [ -d "$pdir" ] && [ ! -f "$pdir/gateway.parked" ]; then
-          : > "$pdir/gateway.parked"; mudou=1
-          log "hermes: assistente $antigo saiu do tenant; perfil estacionado (apague com: hermes profile delete $antigo)"
+          : > "$pdir/gateway.parked"; changed=1
+          log "hermes: assistente $old saiu do tenant; perfil estacionado (apague com: hermes profile delete $old)"
         fi
       fi
     done < "$applied"
   fi
   # assistente no WhatsApp: a ponte (Node) do Hermes precisa das dependências instaladas uma vez
-  if grep -qs '"canal": "whatsapp"' "$cat_"; then
-    ponte="$HERMES_HOME/hermes-agent/scripts/whatsapp-bridge"
-    if [ -f "$ponte/bridge.js" ] && [ ! -d "$ponte/node_modules" ]; then
-      if with_node "cd '$ponte' && npm install --omit=dev --no-audit --no-fund --silent" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1; then
+  if grep -qs '"channel": "whatsapp"' "$cat_"; then
+    bridge="$HERMES_HOME/hermes-agent/scripts/whatsapp-bridge"
+    if [ -f "$bridge/bridge.js" ] && [ ! -d "$bridge/node_modules" ]; then
+      if with_node "cd '$bridge' && npm install --omit=dev --no-audit --no-fund --silent" >>"$JARVIS_HOME/logs/install-hermes.log" 2>&1; then
         log "hermes: ponte do WhatsApp preparada"
       else
-        log "aviso: não consegui preparar a ponte do WhatsApp (veja $JARVIS_HOME/logs/instalacao-hermes.log)"
+        log "aviso: não consegui preparar a ponte do WhatsApp (veja $JARVIS_HOME/logs/install-hermes.log)"
       fi
     fi
   fi
-  : > "$applied.novo"
+  : > "$applied.new"
   # só os do catálogo atual (uma pasta renderizada antiga nunca reativa um assistente que saiu)
-  for nome in $(python3 -c 'import json,sys; print(" ".join(a["nome"] for a in json.load(open(sys.argv[1]))))' "$cat_"); do
-    dir="$JARVIS_HOME/render/hermes/assistentes/$nome/"
-    [ -d "$dir" ] || { log "aviso: assistente $nome sem pasta renderizada; pulei"; continue; }
-    pdir="$HERMES_HOME/profiles/$nome"
+  for name in $(python3 -c 'import json,sys; print(" ".join(a["name"] for a in json.load(open(sys.argv[1]))))' "$cat_"); do
+    dir="$JARVIS_HOME/render/hermes/assistants/$name/"
+    [ -d "$dir" ] || { log "aviso: assistente $name sem pasta renderizada; pulei"; continue; }
+    pdir="$HERMES_HOME/profiles/$name"
     if [ ! -d "$pdir" ]; then
-      desc=$(python3 -c 'import json,sys; print(next((a.get("descricao") or a["nome"] for a in json.load(open(sys.argv[1])) if a["nome"]==sys.argv[2]), sys.argv[2]))' "$cat_" "$nome")
+      desc=$(python3 -c 'import json,sys; print(next((a.get("description") or a["name"] for a in json.load(open(sys.argv[1])) if a["name"]==sys.argv[2]), sys.argv[2]))' "$cat_" "$name")
       mkdir -p "$JARVIS_HOME/logs"
-      if hermes profile create "$nome" --no-alias --no-skills --description "$desc" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1; then
-        log "hermes: perfil do assistente $nome criado"; mudou=1
+      if hermes profile create "$name" --no-alias --no-skills --description "$desc" >>"$JARVIS_HOME/logs/install-hermes.log" 2>&1; then
+        log "hermes: perfil do assistente $name criado"; changed=1
       else
-        log "aviso: não consegui criar o perfil do assistente $nome (veja $JARVIS_HOME/logs/instalacao-hermes.log)"; continue
+        log "aviso: não consegui criar o perfil do assistente $name (veja $JARVIS_HOME/logs/install-hermes.log)"; continue
       fi
     fi
-    if [ -f "$pdir/gateway.parked" ]; then rm -f "$pdir/gateway.parked"; mudou=1; log "hermes: assistente $nome de volta ao tenant; perfil reativado"; fi
-    if JARVIS_HOME="$JARVIS_HOME" uv run --quiet "$KERNEL_DIR/bin/jarvis_assistente.py" "$dir" "$pdir"; then
-      mudou=1; log "hermes: assistente $nome aplicado"
+    if [ -f "$pdir/gateway.parked" ]; then rm -f "$pdir/gateway.parked"; changed=1; log "hermes: assistente $name de volta ao tenant; perfil reativado"; fi
+    if JARVIS_HOME="$JARVIS_HOME" uv run --quiet "$KERNEL_DIR/bin/jarvis_assistant.py" "$dir" "$pdir"; then
+      changed=1; log "hermes: assistente $name aplicado"
     else
       rc=$?
-      if [ "$rc" = 3 ]; then log "hermes: assistente $nome já em dia"; else log "aviso: não consegui aplicar o assistente $nome"; fi
+      if [ "$rc" = 3 ]; then log "hermes: assistente $name já em dia"; else log "aviso: não consegui aplicar o assistente $name"; fi
     fi
-    printf '%s\n' "$nome" >> "$applied.novo"
+    printf '%s\n' "$name" >> "$applied.new"
   done
-  mv "$applied.novo" "$applied"
-  [ "$mudou" = 1 ] && HERMES_RESTART=1
+  mv "$applied.new" "$applied"
+  [ "$changed" = 1 ] && HERMES_RESTART=1
   return 0
 }
 
@@ -985,7 +985,7 @@ install_knowledge_native() {
   if [ ! -f "$gb_dir/.ok" ]; then
     log "knowledge: instalando GBrain $GBRAIN_REF"
     rm -rf "$gb_dir"
-    git -c advice.detachedHead=false clone -q --depth 1 --branch "$GBRAIN_REF" https://github.com/garrytan/gbrain.git "$gb_dir" >>"$JARVIS_HOME/logs/instalacao-gbrain.log" 2>&1 \
+    git -c advice.detachedHead=false clone -q --depth 1 --branch "$GBRAIN_REF" https://github.com/garrytan/gbrain.git "$gb_dir" >>"$JARVIS_HOME/logs/install-gbrain.log" 2>&1 \
       || die "knowledge: clone do GBrain falhou"
     # os scripts do GBrain (postinstall) chamam `bun` pelo PATH
     (cd "$gb_dir" && PATH="$bun_dir:$PATH" bun install --frozen-lockfile --silent) || die "knowledge: bun install do GBrain falhou"
@@ -1029,8 +1029,8 @@ for f in glob.glob(os.path.join(os.path.dirname(vault), ".gbrain-owner-*.json"))
         pass
 PY
     env "$gb_env" "$HOME/.local/bin/gbrain" init --pglite --non-interactive \
-      --embedding-model "ollama:$EMBED_MODEL" --embedding-dimensions 1024 >>"$JARVIS_HOME/logs/instalacao-gbrain.log" 2>&1 \
-      || die "knowledge: gbrain init falhou (veja $JARVIS_HOME/logs/instalacao-gbrain.log)"
+      --embedding-model "ollama:$EMBED_MODEL" --embedding-dimensions 1024 >>"$JARVIS_HOME/logs/install-gbrain.log" 2>&1 \
+      || die "knowledge: gbrain init falhou (veja $JARVIS_HOME/logs/install-gbrain.log)"
     log "knowledge: cérebro criado (PGLite em ~/.gbrain)"
   fi
   # a versão do GBrain é fixada pelo kernel: o aviso de self-upgrade em cada comando só confundiria
@@ -1041,8 +1041,8 @@ su = c.setdefault("self_upgrade", {})
 if su.get("mode") != "off":
     su.update({"mode": "off", "mode_prompted": True}); json.dump(c, open(p, "w", encoding="utf-8"), indent=2)
 PY
-  env "$gb_env" "$HOME/.local/bin/gbrain" apply-migrations --yes --no-autopilot-install >>"$JARVIS_HOME/logs/instalacao-gbrain.log" 2>&1 \
-    || die "knowledge: migrações do GBrain falharam (veja $JARVIS_HOME/logs/instalacao-gbrain.log)"
+  env "$gb_env" "$HOME/.local/bin/gbrain" apply-migrations --yes --no-autopilot-install >>"$JARVIS_HOME/logs/install-gbrain.log" 2>&1 \
+    || die "knowledge: migrações do GBrain falharam (veja $JARVIS_HOME/logs/install-gbrain.log)"
   # token do MCP (uma vez; só com o serve parado o CLI abre o banco). Nunca vai para o log.
   tok=$(sed -n "s/^GBRAIN_MCP_TOKEN='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$JARVIS_HOME/secrets.env")
   if [ -z "$tok" ] || ! env "$gb_env" "$HOME/.local/bin/gbrain" auth list 2>/dev/null | grep whitebeard-os | grep -qv REVOKED; then
@@ -1101,62 +1101,62 @@ apply_knowledge_render() {
   apply_mcp
   apply_hermes_config   # o .env do Hermes ganha GBRAIN_MCP_TOKEN (mescla sem sobrescrever)
   apply_hermes_tenant
-  apply_hermes_assistentes   # os assistentes do dono e da equipe também veem o cérebro
+  apply_hermes_assistants   # os assistentes do dono e da equipe também veem o cérebro
   HERMES_RESTART=1
 }
 
-# Cargos do Escritório: perfis do Hermes renderizados em render/hermes/cargos/<nome>/ (o Paperclip os executa
+# Cargos do Escritório: perfis do Hermes renderizados em render/hermes/positions/<name>/ (o Paperclip os executa
 # com `hermes chat`, perfil fixado por HERMES_PROFILE). Mesma mecânica dos assistentes: criar, aplicar, manter.
-apply_hermes_cargos() {
+apply_hermes_positions() {
   [ "$WITH_HERMES" = 1 ] || return 0
   skipped hermes && return 0
-  [ -d "$JARVIS_HOME/render/hermes/cargos" ] || return 0
+  [ -d "$JARVIS_HOME/render/hermes/positions" ] || return 0
   if [ "$DRY_RUN" = 1 ]; then log "hermes: criaria/atualizaria os perfis dos cargos do Escritório"; return 0; fi
   have hermes || return 0
-  for dir in "$JARVIS_HOME"/render/hermes/cargos/*/; do
+  for dir in "$JARVIS_HOME"/render/hermes/positions/*/; do
     [ -d "$dir" ] || continue
-    nome=$(basename "$dir")
-    pdir="$HERMES_HOME/profiles/$nome"
+    name=$(basename "$dir")
+    pdir="$HERMES_HOME/profiles/$name"
     if [ ! -d "$pdir" ]; then
       mkdir -p "$JARVIS_HOME/logs"
-      if hermes profile create "$nome" --no-alias --no-skills --description "cargo do Escritório (Whitebeard OS)" >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1; then
-        log "hermes: perfil do cargo $nome criado"
+      if hermes profile create "$name" --no-alias --no-skills --description "cargo do Escritório (Whitebeard OS)" >>"$JARVIS_HOME/logs/install-hermes.log" 2>&1; then
+        log "hermes: perfil do cargo $name criado"
       else
-        log "aviso: não consegui criar o perfil do cargo $nome (veja $JARVIS_HOME/logs/instalacao-hermes.log)"; continue
+        log "aviso: não consegui criar o perfil do cargo $name (veja $JARVIS_HOME/logs/install-hermes.log)"; continue
       fi
     fi
     # o cargo não atende canal nenhum: o gateway não precisa servi-lo
     [ -f "$pdir/gateway.parked" ] || : > "$pdir/gateway.parked"
-    if JARVIS_HOME="$JARVIS_HOME" uv run --quiet "$KERNEL_DIR/bin/jarvis_assistente.py" "$dir" "$pdir"; then
-      log "hermes: cargo $nome aplicado"
+    if JARVIS_HOME="$JARVIS_HOME" uv run --quiet "$KERNEL_DIR/bin/jarvis_assistant.py" "$dir" "$pdir"; then
+      log "hermes: cargo $name aplicado"
     else
       rc=$?
-      if [ "$rc" = 3 ]; then log "hermes: cargo $nome já em dia"; else log "aviso: não consegui aplicar o cargo $nome"; fi
+      if [ "$rc" = 3 ]; then log "hermes: cargo $name já em dia"; else log "aviso: não consegui aplicar o cargo $name"; fi
     fi
   done
   return 0
 }
 
-# O Escritório: com `escritorio.ligado`, os cargos do catálogo entram no Paperclip (executados pelo Hermes) e o
+# O Escritório: com `office.enabled`, os cargos do catálogo entram no Paperclip (executados pelo Hermes) e o
 # carteiro, a cada minuto, avisa no canal de origem e dispara as rotinas no horário. Desligado, os cargos são
 # pausados e o carteiro removido.
-install_escritorio() {
+install_office() {
   has_role core || return 0
   skipped services && return 0
-  [ "$DRY_RUN" = 1 ] && { [ -f "$JARVIS_HOME/render/escritorio.json" ] && log "escritório: criaria os cargos no Paperclip e o carteiro"; return 0; }
+  [ "$DRY_RUN" = 1 ] && { [ -f "$JARVIS_HOME/render/office.json" ] && log "escritório: criaria os cargos no Paperclip e o carteiro"; return 0; }
   [ "$NO_START" = 1 ] && return 0
-  if grep -qs '"ligado": true' "$JARVIS_HOME/render/escritorio.json"; then
-    python3 "$KERNEL_DIR/bin/jarvis_escritorio.py" --home "$JARVIS_HOME" || log "aviso: não consegui preparar os cargos do Escritório"
+  if grep -qs '"enabled": true' "$JARVIS_HOME/render/office.json"; then
+    python3 "$KERNEL_DIR/bin/jarvis_office.py" --home "$JARVIS_HOME" || log "aviso: não consegui preparar os cargos do Escritório"
     case "$OS" in
-      Darwin) launch_agent dev.whitebeard.carteiro "$JARVIS_HOME/logs/carteiro.log" --interval 60 /usr/bin/python3 "$KERNEL_DIR/bin/jarvis_carteiro.py" --home "$JARVIS_HOME" -- "PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" "HOME=$HOME" ;;
-      Linux) user_timer whitebeard-carteiro "Whitebeard OS: carteiro do Escritório" 60 "/usr/bin/python3 $KERNEL_DIR/bin/jarvis_carteiro.py --home $JARVIS_HOME" "$JARVIS_HOME/logs/carteiro.log" ;;
+      Darwin) launch_agent dev.whitebeard.courier "$JARVIS_HOME/logs/courier.log" --interval 60 /usr/bin/python3 "$KERNEL_DIR/bin/jarvis_courier.py" --home "$JARVIS_HOME" -- "PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" "HOME=$HOME" ;;
+      Linux) user_timer whitebeard-courier "Whitebeard OS: carteiro do Escritório" 60 "/usr/bin/python3 $KERNEL_DIR/bin/jarvis_courier.py --home $JARVIS_HOME" "$JARVIS_HOME/logs/courier.log" ;;
     esac
     log "escritório: ligado (cargos no Paperclip; carteiro a cada 60 s: avisos e rotinas)"
-  elif [ -f "$JARVIS_HOME/render/escritorio.json" ] && { [ -f "$JARVIS_HOME/escritorio/cargos.json" ] || [ -f "$JARVIS_HOME/escritorio/cargo.json" ]; }; then
-    python3 "$KERNEL_DIR/bin/jarvis_escritorio.py" --home "$JARVIS_HOME" --desligar || true
+  elif [ -f "$JARVIS_HOME/render/office.json" ] && { [ -f "$JARVIS_HOME/office/positions.json" ] || [ -f "$JARVIS_HOME/office/position.json" ]; }; then
+    python3 "$KERNEL_DIR/bin/jarvis_office.py" --home "$JARVIS_HOME" --disable || true
     case "$OS" in
-      Darwin) launchctl bootout "gui/$(id -u)/dev.whitebeard.carteiro" 2>/dev/null || true ;;
-      Linux) systemctl --user disable --now whitebeard-carteiro.timer >/dev/null 2>&1 || true ;;
+      Darwin) launchctl bootout "gui/$(id -u)/dev.whitebeard.courier" 2>/dev/null || true ;;
+      Linux) systemctl --user disable --now whitebeard-courier.timer >/dev/null 2>&1 || true ;;
     esac
   fi
   return 0
@@ -1174,7 +1174,7 @@ install_knowledge() {
   cp "$JARVIS_HOME/render/knowledge.env" "$dest/.env"
   chmod 600 "$dest/.env"
   files="-f $dest/compose.yml"
-  accel=$(sed -n 's/^ACELERACAO=//p' "$dest/.env")
+  accel=$(sed -n 's/^ACCELERATION=//p' "$dest/.env")
   if [ "$accel" = auto ] && [ "$OS" = Linux ] && have nvidia-smi; then accel=cuda; fi
   if [ "$accel" = cuda ]; then
     if docker info 2>/dev/null | grep -qi nvidia; then
@@ -1290,7 +1290,7 @@ EOF
 # a conexão Claude usa a conta desta máquina (no modo autenticado ela exige um login isolado que, no macOS,
 # o Paperclip não consegue ler: o Claude Code guarda o token no Keychain).
 paperclip_bind() {
-  others=$(nos_query others)
+  others=$(nodes_query others)
   if has_role desktop && [ "$others" = 0 ]; then echo loopback; else echo lan; fi
 }
 
@@ -1373,9 +1373,9 @@ install_services() {
   if [ ! -f "$pc_config" ]; then
     log "paperclip: primeira configuração ($( [ "$bind" = loopback ] && echo 'só esta máquina, sem login' || echo 'rede local, autenticado' )) e serviço de usuário"
     mkdir -p "$JARVIS_HOME/logs"
-    with_node "$onboard </dev/null >>'$JARVIS_HOME/logs/instalacao-paperclip.log' 2>&1" \
-      || log "aviso: a primeira configuração do Paperclip falhou (veja $JARVIS_HOME/logs/instalacao-paperclip.log)"
-    paperclip_conferir_servico || PAPERCLIP_FALHOU=1
+    with_node "$onboard </dev/null >>'$JARVIS_HOME/logs/install-paperclip.log' 2>&1" \
+      || log "aviso: a primeira configuração do Paperclip falhou (veja $JARVIS_HOME/logs/install-paperclip.log)"
+    paperclip_check_service || PAPERCLIP_FAILED=1
   else
     if [ "$bind" = loopback ] && [ "$PAPERCLIP_LOCAL" = 1 ] && paperclip_to_loopback "$pc_config"; then
       log "paperclip: instância migrada para só esta máquina, sem login (local_trusted)"
@@ -1383,7 +1383,7 @@ install_services() {
     else
       with_node "paperclipai service install --json >/dev/null 2>&1 || true; paperclipai service start >/dev/null 2>&1 || true"
     fi
-    paperclip_conferir_servico || PAPERCLIP_FALHOU=1
+    paperclip_check_service || PAPERCLIP_FAILED=1
   fi
   # preparo automático só no modo local (nele a máquina é o operador; autenticado, exigiria login)
   if python3 -c 'import json,sys; sys.exit(json.load(open(sys.argv[1]))["server"].get("deploymentMode") != "local_trusted")' "$pc_config" 2>/dev/null; then
@@ -1400,7 +1400,7 @@ ensure_hermes_gateway() {
   [ "$WITH_HERMES" = 1 ] || return 0
   have hermes || return 0
   if grep -q '^TELEGRAM_BOT_TOKEN=.' "$HERMES_HOME/.env" 2>/dev/null || grep -qsE '^(TELEGRAM|DISCORD)_BOT_TOKEN=.' "$HERMES_HOME"/profiles/*/.env 2>/dev/null \
-    || ls "$JARVIS_HOME"/assistentes/*/whatsapp/session/creds.json >/dev/null 2>&1; then
+    || ls "$JARVIS_HOME"/assistants/*/whatsapp/session/creds.json >/dev/null 2>&1; then
     mkdir -p "$JARVIS_HOME/logs"
     gw_present=0
     case "$OS" in
@@ -1408,7 +1408,7 @@ ensure_hermes_gateway() {
       Linux) systemctl --user is-enabled hermes-gateway.service >/dev/null 2>&1 && gw_present=1 ;;
     esac
     if [ "$gw_present" = 0 ]; then
-      hermes gateway install --start-on-login --start-now >>"$JARVIS_HOME/logs/instalacao-hermes.log" 2>&1 && log "hermes: gateway instalado como serviço"
+      hermes gateway install --start-on-login --start-now >>"$JARVIS_HOME/logs/install-hermes.log" 2>&1 && log "hermes: gateway instalado como serviço"
     elif [ "${TELEGRAM_CHANGED:-0}" = 1 ] || [ "$HERMES_RESTART" = 1 ]; then
       hermes gateway restart >/dev/null 2>&1 || hermes gateway start >/dev/null 2>&1 || true
       log "hermes: gateway reiniciado (configuração mudou)"
@@ -1430,23 +1430,23 @@ apply_only() {
   apply_claude_plugins
   apply_hermes_config
   apply_hermes_tenant
-  apply_hermes_assistentes
+  apply_hermes_assistants
   # cargos novos ou editados na página ESCRITÓRIO: o perfil do Hermes e o agente no Paperclip (sem isto, o
   # COLOCAR EM USO da página não punha cargo nenhum em uso)
-  apply_hermes_cargos
-  install_escritorio
+  apply_hermes_positions
+  install_office
   HERMES_RESTART=1
   ensure_hermes_gateway
   if has_role core && grep -q '^TELEGRAM_BOT_TOKEN=.' "$JARVIS_HOME/secrets.env" 2>/dev/null; then
     log "telegram: ligado"
   fi
-  marcar_aplicado
+  mark_applied
   log "configuração aplicada"
 }
 
 # Marca de "configuração em uso": o jarvis_setup.py compara com a data do secrets.env para a página PRIMEIROS
 # PASSOS saber que há algo gravado e ainda não aplicado (mesmo depois de recarregar a página)
-marcar_aplicado() { [ "$DRY_RUN" = 1 ] || touch "$JARVIS_HOME/setup.applied" 2>/dev/null || true; }
+mark_applied() { [ "$DRY_RUN" = 1 ] || touch "$JARVIS_HOME/setup.applied" 2>/dev/null || true; }
 
 # JARVIS Web: a interface do produto. Clona o app na ref do lockfile, instala só as dependências de
 # runtime (sem Electron), constrói a UI e registra um serviço de usuário que lê $JARVIS_HOME/profile.env.
@@ -1503,13 +1503,13 @@ ensure_web_tls() {
   TLS_GEN=3
   # o nome na rede (<host>.local, mDNS) é o endereço que vai no QR e no ícone do web app: no Mac o hostname
   # já é assim; no Linux entra à parte. Um certificado antigo sem esse nome é refeito uma vez.
-  nome_local=$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]').local
+  local_name=$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]').local
   if [ -s "$tls_dir/jarvis-web.crt" ] && [ -s "$tls_dir/jarvis-web.key" ] && [ "$(cat "$tls_dir/GEN" 2>/dev/null)" = "$TLS_GEN" ] \
-    && openssl x509 -in "$tls_dir/jarvis-web.crt" -noout -text 2>/dev/null | grep -qi "DNS:$nome_local"; then return 0; fi
+    && openssl x509 -in "$tls_dir/jarvis-web.crt" -noout -text 2>/dev/null | grep -qi "DNS:$local_name"; then return 0; fi
   have openssl || { log "web: openssl ausente; a interface fica em HTTP (sem microfone fora do localhost)"; return 1; }
   mkdir -p "$tls_dir"
   san="DNS:localhost,DNS:$(hostname),IP:127.0.0.1"
-  case ",$(hostname | tr '[:upper:]' '[:lower:]')," in *",$nome_local,"*) ;; *) san="$san,DNS:$nome_local" ;; esac
+  case ",$(hostname | tr '[:upper:]' '[:lower:]')," in *",$local_name,"*) ;; *) san="$san,DNS:$local_name" ;; esac
   # só IPs de rede local (RFC 1918): endereços de VPN ou túnel são transitórios e não entram no SAN
   for ip in $(hostname -I 2>/dev/null || ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" {print $2}'); do
     case "$ip" in 10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) san="$san,IP:$ip" ;; esac
@@ -1525,7 +1525,7 @@ ensure_web_tls() {
   san_real=$(openssl x509 -in "$tls_dir/jarvis-web.crt" -noout -ext subjectAltName 2>/dev/null | tail -n 1 | sed 's/^ *//')
   log "web: certificado TLS gerado em $tls_dir (${san_real:-SAN: $san}; válido 820 dias)"
   if [ "$OS" = Linux ] && ! have avahi-daemon && ! systemctl is-active --quiet avahi-daemon 2>/dev/null; then
-    log "aviso: sem avahi-daemon o nome $nome_local não abre nos outros aparelhos (o QR e o ícone usam o IP). Para o nome fixo: sudo apt-get install -y avahi-daemon"
+    log "aviso: sem avahi-daemon o nome $local_name não abre nos outros aparelhos (o QR e o ícone usam o IP). Para o nome fixo: sudo apt-get install -y avahi-daemon"
   fi
 }
 
@@ -1666,17 +1666,17 @@ doctor() {
     log "web: Whitebeard OS em http://localhost:$JARVIS_WEB_PORT (token em \$JARVIS_DATA/jarvis-web.json)$lan"
   fi
   if [ -f "$JARVIS_HOME/render/summary.txt" ]; then cat "$JARVIS_HOME/render/summary.txt"; fi
-  [ "$KNOWLEDGE_ADIADO" = 1 ] && log "knowledge: adiado (sem Docker). Instale Docker e rode o bootstrap de novo"
+  [ "$KNOWLEDGE_DEFERRED" = 1 ] && log "knowledge: adiado (sem Docker). Instale Docker e rode o bootstrap de novo"
   log "abra um terminal novo (ou: . \"$JARVIS_HOME/profile.sh\")"
-  if [ "$PAPERCLIP_FALHOU" = 1 ]; then
+  if [ "$PAPERCLIP_FAILED" = 1 ]; then
     die "o serviço do Paperclip não subiu (motivo e log acima). Corrija e rode o mesmo comando de novo"
   fi
-  finalizar
+  finish
 }
 
 # O que a pessoa precisa saber, em linguagem simples, e o JARVIS aberto no navegador.
-finalizar() {
-  marcar_aplicado
+finish() {
+  mark_applied
   [ "$DRY_RUN" = 1 ] || [ "$NO_START" = 1 ] && return 0
   has_role desktop || return 0
   data=$(sed -n 's/^JARVIS_DATA=//p' "$JARVIS_HOME/profile.env" 2>/dev/null)
@@ -1723,12 +1723,12 @@ apply_mcp
 apply_claude_plugins
 apply_hermes_config
 apply_hermes_tenant
-apply_hermes_assistentes
-apply_hermes_cargos
+apply_hermes_assistants
+apply_hermes_positions
 install_knowledge
 apply_knowledge_render
 install_web
 install_services
-install_escritorio
+install_office
 install_rc
 doctor

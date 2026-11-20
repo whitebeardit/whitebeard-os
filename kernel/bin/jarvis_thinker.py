@@ -20,6 +20,7 @@ import shutil
 import signal
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from jarvis_i18n import T
@@ -70,18 +71,25 @@ def store(home: Path) -> dict:
 
 
 CACHE_S = 60
+# limite de cada consulta ao Hermes no status: a página espera o status; um Hermes lento (primeira vez, máquina
+# carregada) não pode segurar a resposta. Os provedores são consultados em paralelo.
+CHECK_TIMEOUT_S = 8
 _HOME: Path | None = None
 
 
 def is_logged_in(provider: str, fresh: bool = False) -> bool:
-    """Com cache de um minuto em $JARVIS_HOME/thinker.cache.json (a página consulta o status a cada poucos segundos)."""
+    """Com cache de um minuto em $JARVIS_HOME/thinker.cache.json (a página consulta o status a cada poucos segundos).
+    Se o Hermes não responder a tempo, vale a última resposta conhecida (ou "desconectado"), e nada é gravado."""
     cache_p = (_HOME / "thinker.cache.json") if _HOME else None
-    if cache_p and not fresh:
-        c = load(cache_p, {})
-        v = c.get(provider)
-        if isinstance(v, dict) and time.time() - v.get("at", 0) < CACHE_S:
-            return bool(v.get("logged_in"))
-    r = _check_logged_in(provider)
+    cached = load(cache_p, {}).get(provider) if cache_p else None
+    if not isinstance(cached, dict):
+        cached = None
+    if cached and not fresh and time.time() - cached.get("at", 0) < CACHE_S:
+        return bool(cached.get("logged_in"))
+    # depois de um login (fresh) a resposta precisa ser certa: espera mais; no status, o limite curto
+    r = _check_logged_in(provider, timeout=20 if fresh else CHECK_TIMEOUT_S)
+    if r is None:
+        return bool(cached.get("logged_in")) if cached else False
     if cache_p:
         c = load(cache_p, {})
         c[provider] = {"logged_in": r, "at": time.time()}
@@ -95,11 +103,14 @@ def is_logged_in(provider: str, fresh: bool = False) -> bool:
 LABEL = "whitebeard-os"  # o rótulo das credenciais que este módulo põe no pool do Hermes
 
 
-def _keys(provider: str) -> list[str]:
-    """Rótulos das chaves de API deste provedor no pool do Hermes (`hermes auth list`; o `auth status` não as vê)."""
+def _keys(provider: str, timeout: float = 20) -> list[str] | None:
+    """Rótulos das chaves de API deste provedor no pool do Hermes (`hermes auth list`; o `auth status` não as vê).
+    None quando o Hermes não respondeu a tempo."""
     try:
-        r = subprocess.run([hermes_bin(), "auth", "list", PROVIDERS[provider]["hermes"]], capture_output=True, text=True, timeout=20,
-                           check=False, env={**os.environ, "NO_COLOR": "1", "TERM": "dumb"})
+        r = subprocess.run([hermes_bin(), "auth", "list", PROVIDERS[provider]["hermes"]], capture_output=True, text=True,
+                           timeout=timeout, check=False, env={**os.environ, "NO_COLOR": "1", "TERM": "dumb"})
+    except subprocess.TimeoutExpired:
+        return None
     except (OSError, subprocess.SubprocessError):
         return []
     # linhas como "  #1  whitebeard-os        api_key id=6f4782 priority=0 manual"
@@ -109,17 +120,22 @@ def _keys(provider: str) -> list[str]:
 def _remove_keys(provider: str) -> None:
     """Tira do pool só as chaves que este módulo pôs (rótulo whitebeard-os); as que a pessoa pôs à mão ficam."""
     for _ in range(10):
-        if LABEL not in _keys(provider):
+        if LABEL not in (_keys(provider) or []):
             return
         subprocess.run([hermes_bin(), "auth", "remove", PROVIDERS[provider]["hermes"], LABEL], capture_output=True, text=True, timeout=30, check=False)
 
 
-def _check_logged_in(provider: str) -> bool:
-    """O Hermes tem credencial para este provedor? (`hermes auth status`, sem ler o arquivo de credenciais)."""
+def _check_logged_in(provider: str, timeout: float = CHECK_TIMEOUT_S) -> bool | None:
+    """O Hermes tem credencial para este provedor? (`hermes auth status`, sem ler o arquivo de credenciais).
+    None quando o Hermes não respondeu a tempo."""
     if PROVIDERS[provider]["sign_in"] == "key":
-        return bool(_keys(provider))
+        keys = _keys(provider, timeout=timeout)
+        return None if keys is None else bool(keys)
     try:
-        r = subprocess.run([hermes_bin(), "auth", "status", PROVIDERS[provider]["hermes"]], capture_output=True, text=True, timeout=20, check=False)
+        r = subprocess.run([hermes_bin(), "auth", "status", PROVIDERS[provider]["hermes"]], capture_output=True, text=True,
+                           timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        return None
     except (OSError, subprocess.SubprocessError):
         return False
     # a primeira linha é "<provedor>: logged in" ou "<provedor>: logged out (…)"
@@ -156,7 +172,8 @@ def status(home: Path, kernel: Path, tenant_hermes: dict | None = None) -> dict:
     th = tenant_hermes or {}
     provider = saved.get("provider") or th.get("subscription") or ("chatgpt" if th.get("provider") == "openai-codex" else "claude")
     level = saved.get("level") or th.get("level") or "balanced"
-    logged_in = {p: is_logged_in(p) for p in PROVIDERS}
+    with ThreadPoolExecutor(max_workers=len(PROVIDERS)) as pool:  # em paralelo: o mais lento manda, não a soma
+        logged_in = dict(zip(PROVIDERS, pool.map(is_logged_in, PROVIDERS)))
     login = login_for_display(load(home / "thinker.login.json", {}))
     if login.get("state") in ("waiting", "preparing") and not alive(login.get("pid")):
         login = refresh_login(home)

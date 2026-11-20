@@ -164,7 +164,7 @@ jobs:
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" update-status | python3 -c '
           import json, sys
           d = json.load(sys.stdin)
-          assert d["ok"] and not d["running"] and d["code"] is None, d'
+          assert d["ok"] and not d["running"] and d["exit_code"] is None, d'
       - name: verificação do papel knowledge (compose sobe o banco e desce)
         if: contains(matrix.roles, 'knowledge')
         run: |

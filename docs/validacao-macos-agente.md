@@ -86,7 +86,7 @@ paperclipai service status
 ```
 
 Esperado: o link `~/.local/bin/hermes` aponta para `~/.hermes/hermes-agent/venv/bin/hermes`; "voz ok";
-MCPs `knowledge` e `exemplo_ferramentas` listados; gateway e Paperclip rodando.
+MCPs `knowledge` e `example_tools` listados; gateway e Paperclip rodando.
 
 Provedor do modelo: peça ao fundador para rodar `hermes model` no terminal dele, escolher "ChatGPT or Codex
 Subscription" (ou outro provedor que ele tenha) e concluir o login pelo código. Espere a confirmação. Depois:
@@ -114,7 +114,7 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8017/api/config
 ```
 
 Esperado: LaunchAgent ativo, `ui http=200`, `/api/paths` com caminhos dentro de `$HOME` e `/api/config` com
-`tenant: exemplo` e a lista de módulos genéricos. Depois abra a UI para o fundador:
+`tenant: example` e a lista de módulos genéricos. Depois abra a UI para o fundador:
 
 ```sh
 open "https://localhost:8017/?token=$TOKEN"

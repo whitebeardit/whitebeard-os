@@ -1,0 +1,123 @@
+# Tenant de exemplo, fictício. Valida o instalador sem dado real e serve de ponto de partida:
+# copie esta pasta para um repositório privado seu e troque os valores.
+tenant: example
+language: pt-BR
+acceleration: auto # GPU se houver (CUDA, Metal, Vulkan); CPU sempre funciona
+data: .example # pasta de dados do tenant, relativa a $HOME (vira $JARVIS_DATA; padrão: $JARVIS_HOME/data)
+interface:
+  modules: [systems, knowledge, files, communications, tools, diagnostics, camera, operations] # os genéricos; instagram, media, tracking, leads, analytics são integrações
+
+vault:
+  path: whitebeard-secondbrain # relativo a $HOME; sem repo:, o instalador cria um second brain local aqui
+  # repo: git@github.com:sua-org/second-brain.git   # opcional: um vault já existente, para clonar
+
+mcp:
+  # o cérebro local (GBrain do papel knowledge) entra sozinho como MCP `knowledge`; declare aqui só os extras
+  - name: example_tools
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-everything"]
+    env:
+      EXAMPLE_TOKEN: "${EXAMPLE_TOKEN}"
+    roles: [desktop]
+
+skills:
+  packs:
+    - skills # relativo a este arquivo
+
+# Plugins do Claude Code que o tenant usa (papel desktop). O bootstrap registra o marketplace e instala o
+# plugin se faltarem; o uninstall desinstala só o que ele instalou. O exemplo não precisa de nenhum.
+# claude:
+#   marketplaces: [whitebeardit/claude-plugins]
+#   plugins: [sherlock-holmes@whitebeard-plugins]   # usado pelo módulo tracking
+
+# Camada de decisão (rotear, classificar, guardrails). `rules` e `llm` não dependem de terceiros;
+# `jev` usa a API da TypeSafe AI e exige TYPESAFE_API_KEY em secrets.env.
+decisions:
+  provider: rules
+  confidence_threshold: 0.85
+  excluded_profiles: [example-client] # conteúdo desses perfis nunca sai para provedor externo
+
+secrets:
+  - name: EXAMPLE_TOKEN
+    title: Token de exemplo
+    description: Token fictício; mostra como um tenant declara os próprios segredos (title é o nome que a pessoa lê).
+    required: false
+    obtain: não existe; deixe vazio
+
+hermes:
+  # quem pensa, pela assinatura da pessoa: claude (login do Claude Code) ou chatgpt (login do ChatGPT), e o nível
+  # (fast | balanced | capable). Com eles, o modelo sai de kernel/models.yaml; a página PRIMEIROS PASSOS troca.
+  # `subscription` (e não `provider`): provider é o provedor do Hermes, logo abaixo.
+  subscription: claude
+  level: balanced
+  provider: anthropic # sem subscription/level: estes três valem, como antes
+  model: claude-sonnet-5-5
+  fallback: anthropic/claude-haiku-5-5
+
+telegram:
+  bot: "@example_bot"
+  home_chat: "${TELEGRAM_HOME_CHANNEL}"
+
+profiles:
+  - name: example-client
+    type: client-group
+    chat_id: "${EXAMPLE_CLIENT_CHAT_ID}"
+    skills: [example-hello]
+
+crons:
+  - name: daily
+    schedule: "30 23 * * *"
+    prompt: "Resuma o dia e registre no vault."
+
+monitored_services: []
+
+# Assistentes do Telegram: um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e
+# ferramentas próprias). Sem este campo, só o assistente do dono. O token de cada um entra em secrets.env
+# como TELEGRAM_BOT_TOKEN_<NOME>; pessoas e grupos, como TELEGRAM_ALLOWED_USERS_<NOME> e
+# TELEGRAM_GROUP_ALLOWED_CHATS_<NOME> (a página ASSISTENTES reconhece quem manda "oi").
+assistants:
+  - name: support
+    type: team # skills e MCPs do papel; escreve no second brain; sem computador (settings.computer liga, com aviso)
+    description: Ajuda a equipe com dúvidas sobre os projetos e anota decisões no second brain.
+    skills: [knowledge, knowledge-write, example-hello]
+  - name: example-client
+    type: client # só as skills do papel, sem ferramentas nem MCPs; responde só no grupo permitido, com menção
+    description: Responde ao grupo do cliente Exemplo sobre o andamento do projeto.
+    skills: [example-hello]
+  - name: discord-example
+    type: team
+    channel: discord # o mesmo isolamento, num bot do Discord (token em DISCORD_BOT_TOKEN_DISCORD_EXAMPLE)
+    description: Ajuda a equipe no servidor do Discord.
+    skills: [example-hello]
+  - name: whatsapp-example
+    type: client
+    channel: whatsapp # sem token: a sessão é pareada por QR na página ASSISTENTES (ponte Baileys do Hermes, não oficial)
+    whatsapp_mode: bot
+    description: Atende o grupo do cliente Exemplo no WhatsApp.
+    skills: [example-hello]
+
+# O Escritório: tarefas que demoram, delegadas pelo chat e executadas por cargos (perfis do Hermes com ferramentas
+# limitadas, pelo Paperclip por baixo), rotinas no horário e aprovações antes de enviar/pagar/publicar. Desligado
+# por padrão (aqui ligado para o exemplo). O cargo `work` e a rotina `weekly-summary` existem sempre que ligado;
+# a página ESCRITÓRIO cria outros sem mexer neste arquivo.
+office:
+  enabled: true
+  positions:
+    - name: writer
+      title: Redator
+      does: Escreve documentos, propostas e textos a partir do second brain, prontos para enviar.
+      level: capable # quem pensa: fast | balanced | capable (o modelo sai de kernel/models.yaml)
+  routines:
+    - name: daily-status
+      title: Status diário dos projetos
+      does: Resuma o que mudou nos projetos do second brain nas últimas 24 horas, em tópicos curtos.
+      when: "30 8 * * 1-5" # cron de 5 campos, no fuso deste computador
+      where: assistant:support # a entrega vai para o grupo do assistente `support` (ou `telegram`: a sua conversa com o JARVIS)
+      position: writer
+
+# Onde cada papel roda. Padrão do produto: tudo-em-um (os três papéis no mesmo host).
+# Para dividir, declare outros hosts, ex.: {host: servidor, roles: [core, knowledge]}.
+nodes:
+  - host: local
+    roles: [desktop, core, knowledge]

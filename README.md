@@ -198,7 +198,7 @@ Three layers:
 ## The package and where each part runs
 
 The full package has three roles, and **by default all three are installed on the same machine** (all-in-one).
-Splitting across machines is an option, declared in `nos:` in `jarvis.yaml`, not the default.
+Splitting across machines is an option, declared in `nodes:` in `jarvis.yaml`, not the default.
 
 | Role | Components | Needs |
 | --- | --- | --- |
@@ -206,21 +206,21 @@ Splitting across machines is an option, declared in `nos:` in `jarvis.yaml`, not
 | **core** | Hermes (Telegram gateway + crons), Paperclip (Node + embedded Postgres) | an always-on host |
 | **knowledge** | GBrain (MCP + vault ingestion), pgvector, Ollama (embeddings), in Docker Compose | Docker (Linux) or Docker Desktop/OrbStack (macOS) |
 
-Without `--role`, `bootstrap.sh` installs the roles of this machine's node in the tenant's `nos:`: `local`,
-`localhost` or the host name (short name, or the FQDN if the tenant writes it with a domain). Without `nos:`, all
-three: all-in-one; with `nos:` but no node that is this machine, it stops and asks for `--role`. A role on another
-machine is just another host in `nos:` with its roles; the tenant's MCPs and URLs point there. Missing required secrets
+Without `--role`, `bootstrap.sh` installs the roles of this machine's node in the tenant's `nodes:`: `local`,
+`localhost` or the host name (short name, or the FQDN if the tenant writes it with a domain). Without `nodes:`, all
+three: all-in-one; with `nodes:` but no node that is this machine, it stops and asks for `--role`. A role on another
+machine is just another host in `nodes:` with its roles; the tenant's MCPs and URLs point there. Missing required secrets
 are asked for in the terminal (`--no-prompt` turns this off). Without Docker, the knowledge role is postponed with a
 warning and the others continue.
 
 **Decision layer with a pluggable provider.** Routing messages, classifying intents and applying guardrails are closed
 questions, and the kernel handles them through its own abstraction: versioned typed questions, a confidence threshold
-and escalation to the LLM or to a human. The tenant picks the provider in `decisoes.provider`: `regras`
+and escalation to the LLM or to a human. The tenant picks the provider in `decisions.provider`: `rules`
 (deterministic, the default), `llm` (models already configured) or `jev` (TypeSafe AI's decision model, over an API,
-with `TYPESAFE_API_KEY`). No external provider is required, and `perfis_excluidos` keeps content from certain profiles
+with `TYPESAFE_API_KEY`). No external provider is required, and `excluded_profiles` keeps content from certain profiles
 from leaving the machine.
 
-**GPU is optional, never required.** `aceleracao: auto` in `jarvis.yaml` detects CUDA (Linux/NVIDIA), Metal (Apple
+**GPU is optional, never required.** `acceleration: auto` in `jarvis.yaml` detects CUDA (Linux/NVIDIA), Metal (Apple
 Silicon) or Vulkan at install time and falls back to CPU if there is none. Where the GPU comes in: transcription
 (Whisper), embeddings and local models (Ollama), camera video (FFmpeg hwaccel). On Linux, the knowledge role in compose
 uses the GPU through CDI/NVIDIA Container Toolkit; on macOS, containers cannot see the GPU, so Ollama and Whisper run
@@ -249,9 +249,9 @@ Version `0.2.0-dev`. All three roles install from the same bootstrap:
   Claude Code and Hermes, and the kernel's `knowledge`, `knowledge-write` and `project-documentation` skills teach both
   how to query it and document in it.
 
-`satelite` (Hermes profile + MCP on another machine) comes next; JARVIS Web is already part of the desktop role, with
-local TLS, from the app branch pinned in the lockfile. Tenants in the kernel: `pessoal` (the install default) and
-`exemplo` (fictional, with every field; used in CI).
+`satellite` (Hermes profile + MCP on another machine) comes next; JARVIS Web is already part of the desktop role, with
+local TLS, from the app branch pinned in the lockfile. Tenants in the kernel: `personal` (the install default) and
+`example` (fictional, with every field; used in CI).
 
 ## One-command install (clean host)
 
@@ -260,7 +260,7 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 ```
 
 `install.sh` makes sure git and curl are present (on macOS it installs the Command Line Tools), clones the kernel into
-`~/DEV/whitebeard-os` and runs `bootstrap.sh` with the `pessoal` tenant (one person, one computer, all-in-one). What the
+`~/DEV/whitebeard-os` and runs `bootstrap.sh` with the `personal` tenant (one person, one computer, all-in-one). What the
 person does:
 
 1. runs the command above in a terminal;
@@ -275,23 +275,23 @@ person does:
 
 No keys, invitations or files to edit. What is not ours (npm, the Hermes installer, Paperclip) does not show on screen:
 it goes to `~/.jarvis/logs/`. A company's tenant: `JARVIS_TENANT=<name, folder or /path/jarvis.yaml>` before the
-command (`tenants/exemplo` shows every field). To redo the installation, run the same command again: it is idempotent.
+command (`tenants/example` shows every field). To redo the installation, run the same command again: it is idempotent.
 
-**Assistants.** Besides the owner's bot, the tenant can declare `assistentes:`, one bot per audience, each an
+**Assistants.** Besides the owner's bot, the tenant can declare `assistants:`, one bot per audience, each an
 **isolated Hermes profile** (its own token, memory, skills, tools and sessions), served by the same gateway. Four
-types, with limits set by structure (what the type does not allow, the assistant does not have installed): `mim`
-(everything, like the owner's), `equipe` (skills and MCPs, writes to the second brain, no computer access), `cliente`
-(only the role's skills, no tools or MCPs, answers only in the allowed group and when mentioned) and `rotinas` (does
-not chat). The render writes one profile per assistant in `render/hermes/assistentes/<name>/`; the bootstrap creates
+types, with limits set by structure (what the type does not allow, the assistant does not have installed): `owner`
+(everything, like the owner's), `team` (skills and MCPs, writes to the second brain, no computer access), `client`
+(only the role's skills, no tools or MCPs, answers only in the allowed group and when mentioned) and `routines` (does
+not chat). The render writes one profile per assistant in `render/hermes/assistants/<name>/`; the bootstrap creates
 the profile (`hermes profile create`) and applies config, variables, persona (`SOUL.md`) and skills
-(`kernel/bin/jarvis_assistente.py`). The token goes into `secrets.env` as `TELEGRAM_BOT_TOKEN_<NAME>` (FIRST STEPS
+(`kernel/bin/jarvis_assistant.py`). The token goes into `secrets.env` as `TELEGRAM_BOT_TOKEN_<NAME>` (FIRST STEPS
 shows it with a title), people and groups as `TELEGRAM_ALLOWED_USERS_<NAME>` and `TELEGRAM_GROUP_ALLOWED_CHATS_<NAME>`.
-`canal: discord` puts the same assistant in a Discord bot (`DISCORD_BOT_TOKEN_<NAME>`, `DISCORD_ALLOWED_USERS_<NAME>`,
-`DISCORD_ALLOWED_CHANNELS_<NAME>`); `canal: whatsapp` uses the Hermes bridge (Baileys, unofficial): no token, the
+`channel: discord` puts the same assistant in a Discord bot (`DISCORD_BOT_TOKEN_<NAME>`, `DISCORD_ALLOWED_USERS_<NAME>`,
+`DISCORD_ALLOWED_CHANNELS_<NAME>`); `channel: whatsapp` uses the Hermes bridge (Baileys, unofficial): no token, the
 session is paired by QR code on the ASSISTANTS page and lives in
-`$JARVIS_HOME/assistentes/<name>/whatsapp/session` (`whatsapp_modo: bot` with a dedicated number, or `self-chat` with
-your own number); without `canal`, it is Telegram. An assistant that leaves the tenant is parked, never deleted.
-`tenants/exemplo` shows the two most common types and an assistant on Discord.
+`$JARVIS_HOME/assistants/<name>/whatsapp/session` (`whatsapp_mode: bot` with a dedicated number, or `self-chat` with
+your own number); without `channel`, it is Telegram. An assistant that leaves the tenant is parked, never deleted.
+`tenants/example` shows the two most common types and an assistant on Discord.
 
 **Updates** arrive through JARVIS Web itself: once a day it asks the kernel whether the GitHub origin has a new commit
 or a new JARVIS Web package (`jarvis_setup.py update-check`, answer stored in `~/.jarvis/update.json`) and, if so,
@@ -308,9 +308,9 @@ Step by step, without the installer:
 
 ```sh
 cd ~/DEV/whitebeard-os
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run                   # only validates and shows the plan
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml                             # desktop role
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # all-in-one
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --dry-run                   # only validates and shows the plan
+./bootstrap.sh --tenant tenants/example/jarvis.yaml                             # desktop role
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core,knowledge   # all-in-one
 ```
 
 Options in `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`, `--apply` to only
@@ -326,7 +326,7 @@ The bootstrap is idempotent and only writes inside `$HOME`:
 | --- | --- | --- |
 | `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (copy), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/` (ffmpeg; on macOS also bun, ollama and gbrain), `compose/knowledge/` (Linux) | all |
 | `~/whitebeard-secondbrain/` (`$VAULT_PATH`) | the second brain: a Markdown (Obsidian) vault with `tenants/<tenant>/{projects-doc,knowledge-domain,resources}`; local git with automatic commits | all |
-| `$JARVIS_DATA` (the tenant's `dados:`, default `~/.jarvis/data`) | tenant data: posts, metrics, contracts, records and the JARVIS Web token | all |
+| `$JARVIS_DATA` (the tenant's `data:`, default `~/.jarvis/data`) | tenant data: posts, metrics, contracts, records and the JARVIS Web token | all |
 | `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | all |
 | `~/.jarvis/app/jarvis-web/` | JARVIS Web from the package pinned in the lockfile (link to `jarvis-web-<version>/`); `jarvis-web` service (systemd user unit) or `dev.whitebeard.jarvis-web` LaunchAgent reading `web.env` | desktop |
 | `~/.jarvis/tls/` | JARVIS Web self-signed certificate (SAN: localhost, host, IPs); the service runs over HTTPS | desktop |
@@ -352,7 +352,7 @@ kernel/
   bin/privacy_lint.py        fails if there is tenant identity, a user path or a secret in the kernel
   compose/knowledge/         GBrain + pgvector + Ollama (compose, Dockerfile, entrypoint, GPU overlay)
   skills/                    kernel skills (pure mechanism)
-tenants/exemplo/             fictional tenant: used by CI and copied by whoever starts from scratch
+tenants/example/             fictional tenant: used by CI and copied by whoever starts from scratch
 docs/validacao-macos.md      validation script on a clean Mac
 docs/validacao-macos-agente.md  the same script, written for the Mac's own Claude Code to run
 test/docker-ubuntu.sh        the same validation on a throwaway Ubuntu 24.04
@@ -362,48 +362,48 @@ test/docker-ubuntu.sh        the same validation on a throwaway Ubuntu 24.04
 
 ```sh
 uv run kernel/bin/wb_export.py --dry-run                 # lists stores and sizes
-uv run kernel/bin/wb_export.py --sem financeiro          # .tar.gz bundle (mode 600) + .sha256, without the tenant's "financeiro" group
+uv run kernel/bin/wb_export.py --without financeiro      # .tar.gz bundle (mode 600) + .sha256, without the tenant's "financeiro" group
 # on the new machine, after the bootstrap with the same tenant:
 uv run kernel/bin/wb_import.py whitebeard-export-*.tar.gz
 ```
 
-Stores: `jarvis` (`$JARVIS_HOME` without what can be regenerated), `dados` (`$JARVIS_DATA`, without per-machine
+Stores: `jarvis` (`$JARVIS_HOME` without what can be regenerated), `data` (`$JARVIS_DATA`, without per-machine
 tokens), `hermes` (without code, caches and per-machine tokens), `paperclip` (config, files and the most recent database
 backup), `knowledge` (Postgres dump and GBrain home, if the compose is up), `claude` (settings) and `vault` (only a git
 reference, or the content with `--with-vault`). Secrets are left out by default (`--with-secrets` to include them); the
-import never overwrites an existing `secrets.env` or `.env`. The tenant declares in `exportacao.grupos` the globs that
+import never overwrites an existing `secrets.env` or `.env`. The tenant declares in `export.groups` the globs that
 may be left out (e.g. financeiro). CI exports and imports into an alternate HOME on every run.
 
 ## What goes into `jarvis.yaml`
 
-Tenant parameters: identifier, language, data folder (`dados`), JARVIS Web modules (`interface`), vault, MCP servers,
-skill packs, Hermes model, profiles, crons, monitored services, nodes, assistants (`assistentes`) and the Office
-(`escritorio`: on/off, roles, routines). Secrets **never** go into the yaml: they go in as `${NAME}` and are filled in
+Tenant parameters: identifier, language, data folder (`data`), JARVIS Web modules (`interface`), vault, MCP servers,
+skill packs, Hermes model, profiles, crons, monitored services, nodes, assistants (`assistants`) and the Office
+(`office`: on/off, positions, routines). Secrets **never** go into the yaml: they go in as `${NAME}` and are filled in
 `secrets.env` from the manifest. Full schema in `kernel/schema/jarvis.schema.json`; example in
-`tenants/exemplo/jarvis.yaml`.
+`tenants/example/jarvis.yaml`.
 
 ### Who thinks (Claude or ChatGPT through your subscription, or free models through OpenRouter)
 
-`hermes.provedor` (`claude`, `chatgpt` or `openrouter`) and `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) choose the model for
+`hermes.provider` (`claude`, `chatgpt` or `openrouter`) and `hermes.level` (`fast`, `balanced`, `capable`) choose the model for
 everyone: JARVIS, the assistants and the roles. The person never sees model ids: the provider × level table lives in
-`kernel/modelos.yaml` and changes per release. Claude uses the Claude Code login; ChatGPT signs in through the page
+`kernel/models.yaml` and changes per release. Claude uses the Claude Code login; ChatGPT signs in through the page
 (FIRST STEPS → WHO THINKS) with a Hermes device code (`openai-codex`). With both accounts, the other
 one becomes an automatic fallback at the same level. **OpenRouter** (`openrouter`) is the third option: it connects with an
-API key, pasted on the same page, and the three levels use free models (within OpenRouter's daily request limit). Assistants and roles accept their own `nivel`, and assistants their
-own subscription; an explicit `modelo` still works for technical users. The page's choice is stored in
-`$JARVIS_HOME/pensa.json` and takes effect after PUT INTO USE.
+API key, pasted on the same page, and the three levels use free models (within OpenRouter's daily request limit). Assistants and roles accept their own `level`, and assistants their
+own subscription; an explicit `model` still works for technical users. The page's choice is stored in
+`$JARVIS_HOME/thinker.json` and takes effect after PUT INTO USE.
 
 ### The Office (roles and routines)
 
-With `escritorio.ligado: true`, work that takes time leaves the chat: "JARVIS, put together the Acme proposal" becomes a
+With `office.enabled: true`, work that takes time leaves the chat: "JARVIS, put together the Acme proposal" becomes a
 task, a **role** carries it out (a Hermes profile with a team assistant's tools, no terminal, with Paperclip
-underneath), the result lands in `projects-doc/escritorio/entregas/` in the second brain and comes back to the original
-chat through the mail carrier (`kernel/bin/jarvis_carteiro.py`, every minute). Anything that would send, pay or publish
-stops and asks. The `trabalho` role (work assistant) always exists; other roles go in `escritorio.cargos` (or through
-the OFFICE page) and take effect after PUT INTO USE. **Routines** (`escritorio.rotinas` or through the page)
+underneath), the result lands in `projects-doc/office/deliveries/` in the second brain and comes back to the original
+chat through the mail carrier (`kernel/bin/jarvis_courier.py`, every minute). Anything that would send, pay or publish
+stops and asks. The `work` role (work assistant) always exists; other roles go in `office.positions` (or through
+the OFFICE page) and take effect after PUT INTO USE. **Routines** (`office.routines` or through the page)
 create the task by themselves on schedule (5-field cron, the computer's time zone) and post the result to your
-conversation with JARVIS (`onde: telegram`) or to an assistant's group (`onde: assistente:<name>`); they take effect
-immediately, without putting into use. The `resumo-da-semana` (weekly summary) routine (Monday, 8 am) comes by default.
+conversation with JARVIS (`where: telegram`) or to an assistant's group (`where: assistant:<name>`); they take effect
+immediately, without putting into use. The `weekly-summary` (weekly summary) routine (Monday, 8 am) comes by default.
 
 ## Add-ons: a specialization outside the tenant
 
@@ -411,17 +411,17 @@ An add-on adds MCP servers, skills and secrets to the tenant without touching it
 specialization that lives in another repository, a private one for example, on top of a public tenant.
 
 ```sh
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --addon tenants/exemplo/addon-exemplo/addon.yaml
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --addon tenants/example/addon-example/addon.yaml
 ./bootstrap.sh --apply                                # the add-on stays on: the installation remembers it
-./bootstrap.sh --apply --remove-addon exemplo-addon   # takes out its MCPs, skills and secrets
+./bootstrap.sh --apply --remove-addon example-addon   # takes out its MCPs, skills and secrets
 ```
 
 The `addon.yaml` has a name (`addon`, lowercase letters, digits and hyphens) and the same `mcp`, `skills.packs` and
-`segredos` fields as `jarvis.yaml`. Relative paths (packs, and `command`/`args` starting with `./` or `../`) are
+`secrets` fields as `jarvis.yaml`. Relative paths (packs, and `command`/`args` starting with `./` or `../`) are
 resolved from the add-on's folder. An add-on MCP server or skill can't reuse a name that already exists in the
 kernel, the tenant or another add-on: the render refuses and changes nothing. `--addon` can be repeated. The add-ons
 that are on are listed in `$JARVIS_HOME/addons.json`. An add-on's stdio MCP servers get `JARVIS_TENANT` and
-`JARVIS_DATA` from the kernel; the add-on can't override them. Example in `tenants/exemplo/addon-exemplo/`.
+`JARVIS_DATA` from the kernel; the add-on can't override them. Example in `tenants/example/addon-example/`.
 
 ## External components and licenses
 

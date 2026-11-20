@@ -12,18 +12,18 @@ docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c '
     set -e
     cp -r /src ~/whitebeard-os
     cd ~/whitebeard-os
-    ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core --dry-run
-    ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core --no-start
-    ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core --no-start
+    ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core --dry-run
+    ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core --no-start
+    ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core --no-start
     . ~/.jarvis/profile.sh
-    test \"\$JARVIS_TENANT\" = exemplo
+    test \"\$JARVIS_TENANT\" = example
     node -v | grep -q \"^v24.22.2\$\"
     ffmpeg -version | head -n 1
     paperclipai -V
     claude --version
-    test -L ~/.claude/skills/exemplo-ola
+    test -L ~/.claude/skills/example-hello
     test \"\$(stat -c %a ~/.jarvis/secrets.env)\" = 600
-    claude mcp get exemplo_ferramentas
+    claude mcp get example_tools
     grep -c \"# whitebeard-os\" ~/.bashrc | grep -qx 1
     echo OK-ubuntu-24.04
   "

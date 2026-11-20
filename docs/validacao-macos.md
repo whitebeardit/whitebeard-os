@@ -23,8 +23,8 @@ espere terminar e repita o comando. Quando o repositório for público, o mesmo 
 `curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh`.
 
 Esperado: nenhuma pergunta interativa além do diálogo das Command Line Tools; termina com o bloco
-`---- resumo ----` mostrando uv, node, claude, 1 skill instalada (`exemplo-ola`), 2 MCPs
-(`knowledge`, `exemplo_ferramentas`), 0 segredos obrigatórios faltando.
+`---- resumo ----` mostrando uv, node, claude, 1 skill instalada (`example-hello`), 2 MCPs
+(`knowledge`, `example_tools`), 0 segredos obrigatórios faltando.
 
 ## 3. Conferir
 
@@ -35,7 +35,7 @@ echo "$JARVIS_TENANT $JARVIS_ROLE $JARVIS_HOME"
 node -v
 uv --version
 claude --version
-ls -la ~/.claude/skills/exemplo-ola
+ls -la ~/.claude/skills/example-hello
 claude mcp get knowledge
 ls -l ~/.jarvis/secrets.env        # deve ser -rw------- (600)
 ```
@@ -64,7 +64,7 @@ depois abra o mesmo endereço com o IP do Mac. O microfone só funciona em HTTPS
 ## 4. Opcional: Hermes
 
 ```sh
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --with-hermes
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --with-hermes
 hermes --version
 ```
 
@@ -77,7 +77,7 @@ Só depois de o desktop estar verde. Instala Hermes upstream e Paperclip, cria a
 rede local e registra os dois como serviços de usuário (launchd):
 
 ```sh
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core
 paperclipai service status
 open http://localhost:3100
 ```

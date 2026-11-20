@@ -6,7 +6,7 @@
 
 Stores e destino:
   jarvis     → $JARVIS_HOME (mescla; nunca sobrescreve secrets.env existente)
-  dados      → $JARVIS_DATA (mescla; nunca sobrescreve tokens por máquina existentes)
+  data       → $JARVIS_DATA (mescla; nunca sobrescreve tokens por máquina existentes)
   hermes     → $HERMES_HOME (mescla; nunca sobrescreve .env existente)
   paperclip  → ~/.paperclip/instances/<id>: config.json e data/storage/; o backup de banco vai para
                data/backups/ e precisa ser restaurado com o Paperclip parado (instruções no fim)
@@ -14,7 +14,7 @@ Stores e destino:
   claude     → ~/.claude (só settings.json, CLAUDE.md, keybindings.json; não sobrescreve existentes)
   vault      → caminho do tenant, se o bundle trouxer conteúdo (senão, clone o remoto registrado no manifesto)
 Com --dry-run só lista. Com --only a,b restringe. Arquivos existentes são sobrescritos (exceto segredos), e
-uma cópia .antes-import fica ao lado quando o conteúdo difere.
+uma cópia .before-import fica ao lado quando o conteúdo difere.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-NEVER_OVERWRITE = {"jarvis/secrets.env", "hermes/.env", "dados/jarvis-web.json", "dados/paperclip-board-key", "dados/instagram.json"}
+NEVER_OVERWRITE = {"jarvis/secrets.env", "hermes/.env", "data/jarvis-web.json", "data/paperclip-board-key", "data/instagram.json"}
 CLAUDE_NO_OVERWRITE = {"claude/settings.json", "claude/CLAUDE.md", "claude/keybindings.json"}
 
 
@@ -67,7 +67,7 @@ def main() -> int:
     only = {s.strip() for s in a.only.split(",") if s.strip()}
     dest_root = {
         "jarvis": Path(a.jarvis_home),
-        "dados": Path(a.data_home) if a.data_home else Path(a.jarvis_home) / "data",
+        "data": Path(a.data_home) if a.data_home else Path(a.jarvis_home) / "data",
         "hermes": Path(a.hermes_home),
         "paperclip": Path(a.paperclip_home) / "instances" / a.instance,
         "claude": Path.home() / ".claude",
@@ -115,13 +115,13 @@ def main() -> int:
             continue
         dst.parent.mkdir(parents=True, exist_ok=True)
         if dst.exists() and sha(dst) != sha(src):
-            shutil.copy2(dst, dst.with_name(dst.name + ".antes-import"))
+            shutil.copy2(dst, dst.with_name(dst.name + ".before-import"))
             backed += 1
         shutil.copy2(src, dst)
         if key in ("jarvis/secrets.env", "hermes/.env"):
             os.chmod(dst, 0o600)
         copied += 1
-    log(f"arquivos: {copied} copiados, {skipped} preservados (segredos/configs existentes), {backed} com cópia .antes-import" + (" (dry-run)" if a.dry_run else ""))
+    log(f"arquivos: {copied} copiados, {skipped} preservados (segredos/configs existentes), {backed} com cópia .before-import" + (" (dry-run)" if a.dry_run else ""))
 
     if knowledge_files and (not only or "knowledge" in only):
         kdir = Path(a.jarvis_home) / "compose" / "knowledge"

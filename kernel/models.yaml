@@ -2,35 +2,36 @@
 # A pessoa nunca vê estes ids; a página mostra "Claude"/"ChatGPT" e "Rápido"/"Equilibrado"/"Mais capaz".
 # Atualizado por release do kernel quando sair modelo novo. Ids do ChatGPT conferidos na lista do Hermes
 # (hermes_cli/codex_models.py, DEFAULT_CODEX_MODELS); a disponibilidade varia com o plano do ChatGPT.
-provedores:
+# O jarvis_thinker.py lê este arquivo por regex: mantenha a indentação (2 espaços no provedor, 6 nos níveis).
+providers:
   claude:
     hermes: anthropic           # credencial: login do Claude Code (pool do Hermes)
-    nome: Claude
-    niveis:
-      rapido: claude-haiku-5-5
-      equilibrado: claude-sonnet-5-5
-      capaz: claude-opus-5-5
+    name: Claude
+    levels:
+      fast: claude-haiku-5-5
+      balanced: claude-sonnet-5-5
+      capable: claude-opus-5-5
   chatgpt:
     hermes: openai-codex        # credencial: login da assinatura do ChatGPT (hermes auth add openai-codex)
-    nome: ChatGPT
-    niveis:
-      rapido: gpt-5.4-mini
-      equilibrado: gpt-5.5
-      capaz: gpt-5.6-sol
+    name: ChatGPT
+    levels:
+      fast: gpt-5.4-mini
+      balanced: gpt-5.5
+      capable: gpt-5.6-sol
   openrouter:
     hermes: openrouter          # credencial: chave de API do OpenRouter (hermes auth add openrouter --type api-key)
-    nome: OpenRouter
+    name: OpenRouter
     # só modelos gratuitos com suporte a ferramentas. `openrouter/free` é o roteador do próprio OpenRouter: escolhe
     # um modelo gratuito disponível e desvia dos que estão limitados. Testado num Raspberry Pi em 13/11/2026, com
     # conversa e uso de ferramenta: openrouter/free e nemotron-3-ultra passaram. Um modelo gratuito fixo pode ser
     # limitado pelo fornecedor (erro 429); aí o Hermes põe a chave inteira em espera por 1 hora e o trabalho segue
-    # na reserva. Foi o que houve com google/gemma-4-31b-it:free, por isso o nível equilibrado usa o roteador.
-    niveis:
-      rapido: openrouter/free
-      equilibrado: openrouter/free
-      capaz: nvidia/nemotron-3-ultra-550b-a55b:free
-niveis:
-  rapido: {nome: Rápido, frase: "respostas curtas, gasta pouco"}
-  equilibrado: {nome: Equilibrado, frase: "o padrão para quase tudo"}
-  capaz: {nome: Mais capaz, frase: "tarefas longas e difíceis, gasta mais"}
-padrao: {provedor: claude, nivel: equilibrado}
+    # na reserva. Foi o que houve com google/gemma-4-31b-it:free, por isso o nível balanced usa o roteador.
+    levels:
+      fast: openrouter/free
+      balanced: openrouter/free
+      capable: nvidia/nemotron-3-ultra-550b-a55b:free
+levels:
+  fast: {name: Rápido, phrase: "respostas curtas, gasta pouco"}
+  balanced: {name: Equilibrado, phrase: "o padrão para quase tudo"}
+  capable: {name: Mais capaz, phrase: "tarefas longas e difíceis, gasta mais"}
+default: {provider: claude, level: balanced}

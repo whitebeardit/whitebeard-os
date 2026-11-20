@@ -1,31 +1,25 @@
 # Tenant padrão de quem instala o Whitebeard OS sem ter um tenant próprio: uma pessoa, um computador.
 # Só o essencial: os módulos genéricos do JARVIS Web, o second brain em ~/whitebeard-secondbrain e os três
-# papéis no mesmo computador. Nada de demonstração (para isso existe tenants/exemplo). Para uma empresa,
+# papéis no mesmo computador. Nada de demonstração (para isso existe tenants/example). Para uma empresa,
 # copie esta pasta para um repositório privado, troque o nome e acrescente MCPs, skills e integrações.
-tenant: pessoal
-idioma: pt-BR
-aceleracao: auto # GPU se houver (Metal, CUDA, Vulkan); CPU sempre funciona
-dados: .whitebeard # pasta de dados, relativa a $HOME (vira $JARVIS_DATA)
+tenant: personal
+language: pt-BR
+acceleration: auto # GPU se houver (Metal, CUDA, Vulkan); CPU sempre funciona
+data: .whitebeard # pasta de dados, relativa a $HOME (vira $JARVIS_DATA)
 
 interface:
   # camera volta quando houver o app empacotado para Mac (fase 3): pelo serviço em segundo plano o macOS
   # não dá permissão de câmera, e o painel ficaria em "conectando" para sempre. No Linux funciona; acrescente.
-  modulos: [sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos]
+  modules: [systems, knowledge, files, communications, tools, diagnostics]
 
 vault:
   path: whitebeard-secondbrain # relativo a $HOME; o instalador cria se não existir (abre no Obsidian)
-
-# Skills opcionais deste tenant: são instaladas, mas só entram num assistente quando marcadas na página
-# ASSISTENTES (ou listadas em `skills:` do assistente). Quem não usa, não vê diferença.
-skills:
-  packs:
-    - skills # relativo a este arquivo; acompanhamento-alunos: evolução de alunos de um curso ou mentoria
 
 hermes:
   provider: anthropic # usa o login do Claude Code; `hermes model` troca, se quiser
   model: claude-sonnet-5-5
   fallback: anthropic/claude-haiku-5-5
 
-nos:
+nodes:
   - host: local
-    papeis: [desktop, core, knowledge]
+    roles: [desktop, core, knowledge]

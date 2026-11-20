@@ -26,10 +26,10 @@ especializadas. É a metade de escrita de `knowledge` (que é só leitura).
 ## Como gravar
 
 - **Com acesso a arquivos** (Claude Code, terminal): edite os arquivos em `$VAULT_PATH` diretamente.
-- **Sem acesso a arquivos** (assistentes do Telegram, Discord, WhatsApp): use o MCP `cerebro`:
-  - `ler_nota(caminho)` devolve o conteúdo e a `versao` (ou `existe: false`);
-  - `escrever_nota(caminho, conteudo)` cria uma nota; para substituir uma que já existe, mande a `versao` lida;
-  - `editar_nota(caminho, trocar, por)` troca um trecho exato (acrescentar uma linha numa tabela, atualizar um
+- **Sem acesso a arquivos** (assistentes do Telegram, Discord, WhatsApp): use o MCP `vault`:
+  - `read_note(path)` devolve o conteúdo e a `version` (ou `exists: false`);
+  - `write_note(path, content)` cria uma nota; para substituir uma que já existe, mande a `version` lida;
+  - `edit_note(path, old_text, new_text)` troca um trecho exato (acrescentar uma linha numa tabela, atualizar um
     parágrafo).
 
   O caminho é relativo ao vault e a gravação só vale dentro de `tenants/$JARVIS_TENANT/`. Se a resposta for

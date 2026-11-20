@@ -193,7 +193,7 @@ Três camadas:
 ## O pacote e onde cada parte roda
 
 O pacote completo tem três papéis, e **por padrão os três são instalados na mesma máquina** (tudo-em-um).
-Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o padrão.
+Dividir em máquinas é opção, declarada em `nodes:` no `jarvis.yaml`, não o padrão.
 
 | Papel | Componentes | Precisa de |
 | --- | --- | --- |
@@ -201,20 +201,20 @@ Dividir em máquinas é opção, declarada em `nos:` no `jarvis.yaml`, não o pa
 | **core** | Hermes (gateway Telegram + crons), Paperclip (Node + Postgres embutido) | host sempre ligado |
 | **knowledge** | GBrain (MCP + ingestão do vault), pgvector, Ollama (embeddings), em Docker Compose | Docker (Linux) ou Docker Desktop/OrbStack (macOS) |
 
-Sem `--role`, o `bootstrap.sh` instala os papéis do nó desta máquina em `nos:` do tenant: `local`, `localhost`
-ou o nome do host (nome curto, ou o FQDN se o tenant o escrever com domínio). Sem `nos:`, os três: tudo-em-um; com
-`nos:` mas sem nó que seja esta máquina, ele para e pede `--role`. Um papel em outra máquina é só outro host em `nos:` com os papéis dele; os MCPs e URLs do
+Sem `--role`, o `bootstrap.sh` instala os papéis do nó desta máquina em `nodes:` do tenant: `local`, `localhost`
+ou o nome do host (nome curto, ou o FQDN se o tenant o escrever com domínio). Sem `nodes:`, os três: tudo-em-um; com
+`nodes:` mas sem nó que seja esta máquina, ele para e pede `--role`. Um papel em outra máquina é só outro host em `nodes:` com os papéis dele; os MCPs e URLs do
 tenant apontam para lá. Segredos obrigatórios que faltam são pedidos no terminal (`--no-prompt` desliga).
 Sem Docker, o papel knowledge é adiado com aviso e os outros seguem.
 
 **Camada de decisão com provedor plugável.** Rotear mensagens, classificar intents e aplicar guardrails são
 perguntas fechadas, e o kernel as trata por uma abstração própria: perguntas tipadas versionadas, limiar de
-confiança e escalada para o LLM ou para o humano. O tenant escolhe o provedor em `decisoes.provider`:
-`regras` (determinístico, padrão), `llm` (modelos já configurados) ou `jev` (modelo de decisão da TypeSafe
-AI, por API, com `TYPESAFE_API_KEY`). Nenhum provedor externo é obrigatório, e `perfis_excluidos` impede
+confiança e escalada para o LLM ou para o humano. O tenant escolhe o provedor em `decisions.provider`:
+`rules` (determinístico, padrão), `llm` (modelos já configurados) ou `jev` (modelo de decisão da TypeSafe
+AI, por API, com `TYPESAFE_API_KEY`). Nenhum provedor externo é obrigatório, e `excluded_profiles` impede
 que conteúdo de certos perfis saia da máquina.
 
-**GPU é opcional, nunca obrigatória.** `aceleracao: auto` no `jarvis.yaml` detecta CUDA (Linux/NVIDIA),
+**GPU é opcional, nunca obrigatória.** `acceleration: auto` no `jarvis.yaml` detecta CUDA (Linux/NVIDIA),
 Metal (Apple Silicon) ou Vulkan na instalação e cai para CPU se não houver. Onde a GPU entra: transcrição
 (Whisper), embeddings e modelos locais (Ollama), vídeo das câmeras (hwaccel do FFmpeg). No Linux, o papel
 knowledge em compose usa a GPU por CDI/NVIDIA Container Toolkit; no macOS, containers não veem a GPU, então
@@ -243,9 +243,9 @@ Versão `0.2.0-dev`. Os três papéis instalam a partir do mesmo bootstrap:
   Claude Code e no Hermes, e as skills `knowledge`, `knowledge-write` e `project-documentation` do kernel
   ensinam os dois a consultar e a documentar nele.
 
-`satelite` (Hermes perfil + MCP em outra máquina) vem a seguir; o JARVIS Web já entra no papel desktop,
-com TLS local, a partir do branch do app fixado no lockfile. Tenants no kernel: `pessoal`
-(padrão de instalação) e `exemplo` (fictício, com todos os campos; usado no CI).
+`satellite` (Hermes perfil + MCP em outra máquina) vem a seguir; o JARVIS Web já entra no papel desktop,
+com TLS local, a partir do branch do app fixado no lockfile. Tenants no kernel: `personal`
+(padrão de instalação) e `example` (fictício, com todos os campos; usado no CI).
 
 ## Instalação em um comando (host zerado)
 
@@ -254,7 +254,7 @@ curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/ins
 ```
 
 O `install.sh` garante git e curl (no macOS instala as Command Line Tools), clona o kernel em
-`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant `pessoal` (uma pessoa, um computador, tudo-em-um).
+`~/DEV/whitebeard-os` e roda o `bootstrap.sh` com o tenant `personal` (uma pessoa, um computador, tudo-em-um).
 O que a pessoa faz:
 
 1. roda o comando acima num terminal;
@@ -268,23 +268,23 @@ O que a pessoa faz:
 
 Nada de chaves, convites ou arquivos para editar. O que não é nosso (npm, instalador do Hermes, Paperclip)
 não aparece na tela: fica em `~/.jarvis/logs/`. Tenant de uma empresa: `JARVIS_TENANT=<nome, pasta ou
-/caminho/jarvis.yaml>` antes do comando (`tenants/exemplo` mostra todos os campos). Para refazer a
+/caminho/jarvis.yaml>` antes do comando (`tenants/example` mostra todos os campos). Para refazer a
 instalação, rode o mesmo comando de novo: é idempotente.
 
-**Assistentes.** Além do bot do dono, o tenant pode declarar `assistentes:` — um bot por público,
+**Assistentes.** Além do bot do dono, o tenant pode declarar `assistants:` — um bot por público,
 cada um um **perfil isolado do Hermes** (token, memória, skills, ferramentas e sessões próprias), servidos pelo
 mesmo gateway. Quatro tipos, com o limite posto por estrutura (o que o tipo não permite, o assistente não tem
-instalado): `mim` (tudo, como o do dono), `equipe` (skills e MCPs, escreve no second brain, sem computador),
-`cliente` (só as skills do papel, sem ferramentas nem MCPs, responde só no grupo permitido e com menção) e
-`rotinas` (não conversa). O render escreve um perfil por assistente em `render/hermes/assistentes/<nome>/`, o
+instalado): `owner` (tudo, como o do dono), `team` (skills e MCPs, escreve no second brain, sem computador),
+`client` (só as skills do papel, sem ferramentas nem MCPs, responde só no grupo permitido e com menção) e
+`routines` (não conversa). O render escreve um perfil por assistente em `render/hermes/assistants/<nome>/`, o
 bootstrap cria o perfil (`hermes profile create`) e aplica config, variáveis, persona (`SOUL.md`) e skills
-(`kernel/bin/jarvis_assistente.py`); o token entra em `secrets.env` como `TELEGRAM_BOT_TOKEN_<NOME>` (PRIMEIROS
+(`kernel/bin/jarvis_assistant.py`); o token entra em `secrets.env` como `TELEGRAM_BOT_TOKEN_<NOME>` (PRIMEIROS
 PASSOS mostra com título), pessoas e grupos como `TELEGRAM_ALLOWED_USERS_<NOME>` e `TELEGRAM_GROUP_ALLOWED_CHATS_<NOME>`.
-`canal: discord` põe o mesmo assistente num bot do Discord (`DISCORD_BOT_TOKEN_<NOME>`, `DISCORD_ALLOWED_USERS_<NOME>`,
-`DISCORD_ALLOWED_CHANNELS_<NOME>`); `canal: whatsapp` usa a ponte do Hermes (Baileys, não oficial): sem token, a sessão é
-pareada por QR na página ASSISTENTES e fica em `$JARVIS_HOME/assistentes/<nome>/whatsapp/session`
-(`whatsapp_modo: bot` com número dedicado, ou `self-chat` com o próprio número); sem `canal`, é Telegram. Assistente que sai do tenant é estacionado, nunca apagado.
-`tenants/exemplo` mostra os dois tipos mais comuns e um assistente no Discord.
+`channel: discord` põe o mesmo assistente num bot do Discord (`DISCORD_BOT_TOKEN_<NOME>`, `DISCORD_ALLOWED_USERS_<NOME>`,
+`DISCORD_ALLOWED_CHANNELS_<NOME>`); `channel: whatsapp` usa a ponte do Hermes (Baileys, não oficial): sem token, a sessão é
+pareada por QR na página ASSISTENTES e fica em `$JARVIS_HOME/assistants/<nome>/whatsapp/session`
+(`whatsapp_mode: bot` com número dedicado, ou `self-chat` com o próprio número); sem `channel`, é Telegram. Assistente que sai do tenant é estacionado, nunca apagado.
+`tenants/example` mostra os dois tipos mais comuns e um assistente no Discord.
 
 **Atualizações** chegam pelo próprio JARVIS Web: uma vez por dia ele pergunta ao kernel se a origem no GitHub
 tem commit novo ou pacote novo do JARVIS Web (`jarvis_setup.py update-check`, resposta guardada em
@@ -302,9 +302,9 @@ Passo a passo, sem o instalador:
 
 ```sh
 cd ~/DEV/whitebeard-os
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --dry-run                   # só valida e mostra o plano
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml                             # papel desktop
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge   # tudo-em-um
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --dry-run                   # só valida e mostra o plano
+./bootstrap.sh --tenant tenants/example/jarvis.yaml                             # papel desktop
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core,knowledge   # tudo-em-um
 ```
 
 Opções em `./bootstrap.sh --help` (`--role`, `--no-start`, `--with-hermes`, `--skip`, `--home`, `--apply` para
@@ -320,7 +320,7 @@ O bootstrap é idempotente e só escreve dentro de `$HOME`:
 | --- | --- | --- |
 | `~/.jarvis/` (`$JARVIS_HOME`) | `jarvis.yaml` (cópia), `secrets.env` (600), `profile.sh`, `render/`, `skills/`, `tools/` (ffmpeg; no macOS também bun, ollama e gbrain), `compose/knowledge/` (Linux) | todos |
 | `~/whitebeard-secondbrain/` (`$VAULT_PATH`) | o second brain: vault Markdown (Obsidian) com `tenants/<tenant>/{projects-doc,knowledge-domain,resources}`; git local com commits automáticos | todos |
-| `$JARVIS_DATA` (`dados:` do tenant, padrão `~/.jarvis/data`) | dados do tenant: posts, métricas, contratos, registros e token do JARVIS Web | todos |
+| `$JARVIS_DATA` (`data:` do tenant, padrão `~/.jarvis/data`) | dados do tenant: posts, métricas, contratos, registros e token do JARVIS Web | todos |
 | `~/.local/bin/` | `uv`, `claude`, `ffmpeg`, `ffprobe` | todos |
 | `~/.jarvis/app/jarvis-web/` | JARVIS Web do pacote fixado no lockfile (link para `jarvis-web-<versão>/`); serviço `jarvis-web` (systemd de usuário) ou LaunchAgent `dev.whitebeard.jarvis-web` lendo `web.env` | desktop |
 | `~/.jarvis/tls/` | certificado autoassinado do JARVIS Web (SAN: localhost, host, IPs); o serviço sobe em HTTPS | desktop |
@@ -346,7 +346,7 @@ kernel/
   bin/privacy_lint.py        falha se houver identidade de tenant, caminho de usuário ou segredo no kernel
   compose/knowledge/         GBrain + pgvector + Ollama (compose, Dockerfile, entrypoint, sobreposição GPU)
   skills/                    skills do kernel (mecanismo puro)
-tenants/exemplo/             tenant fictício: usado pelo CI e copiado por quem começa do zero
+tenants/example/             tenant fictício: usado pelo CI e copiado por quem começa do zero
 docs/validacao-macos.md      roteiro de validação no Mac zerado
 docs/validacao-macos-agente.md  o mesmo roteiro, escrito para o Claude Code do próprio Mac executar
 test/docker-ubuntu.sh        mesma validação numa Ubuntu 24.04 descartável
@@ -356,48 +356,48 @@ test/docker-ubuntu.sh        mesma validação numa Ubuntu 24.04 descartável
 
 ```sh
 uv run kernel/bin/wb_export.py --dry-run                 # lista stores e tamanhos
-uv run kernel/bin/wb_export.py --sem financeiro          # bundle .tar.gz (modo 600) + .sha256, sem o grupo "financeiro" do tenant
+uv run kernel/bin/wb_export.py --without financeiro      # bundle .tar.gz (modo 600) + .sha256, sem o grupo "financeiro" do tenant
 # na máquina nova, depois do bootstrap com o mesmo tenant:
 uv run kernel/bin/wb_import.py whitebeard-export-*.tar.gz
 ```
 
-Stores: `jarvis` (`$JARVIS_HOME` sem o que é regenerável), `dados` (`$JARVIS_DATA`, sem os tokens por máquina), `hermes` (sem código, caches e tokens por máquina),
+Stores: `jarvis` (`$JARVIS_HOME` sem o que é regenerável), `data` (`$JARVIS_DATA`, sem os tokens por máquina), `hermes` (sem código, caches e tokens por máquina),
 `paperclip` (config, arquivos e o backup de banco mais recente), `knowledge` (dump do Postgres e home do GBrain,
 se o compose estiver no ar), `claude` (configurações) e `vault` (só referência ao git, ou conteúdo com
 `--with-vault`). Segredos ficam de fora por padrão (`--with-secrets` para incluir); o import nunca sobrescreve
-`secrets.env` nem `.env` existentes. O tenant declara em `exportacao.grupos` os globs que podem ficar de fora
+`secrets.env` nem `.env` existentes. O tenant declara em `export.groups` os globs que podem ficar de fora
 (ex.: financeiro). O CI exporta e importa num HOME alternativo a cada execução.
 
 ## O que entra no `jarvis.yaml`
 
-Parâmetros do tenant: identificador, idioma, pasta de dados (`dados`), módulos do JARVIS Web (`interface`),
+Parâmetros do tenant: identificador, idioma, pasta de dados (`data`), módulos do JARVIS Web (`interface`),
 vault, servidores MCP, pacotes de skills, modelo do Hermes, perfis, crons, serviços monitorados, nós, assistentes
-(`assistentes`) e o Escritório (`escritorio`: ligado, cargos, rotinas). Segredos **nunca** entram no yaml: entram como `${NOME}` e são
+(`assistants`) e o Escritório (`office`: ligado, cargos, rotinas). Segredos **nunca** entram no yaml: entram como `${NOME}` e são
 preenchidos em `secrets.env` a partir do manifesto. Esquema completo em `kernel/schema/jarvis.schema.json`;
-exemplo em `tenants/exemplo/jarvis.yaml`.
+exemplo em `tenants/example/jarvis.yaml`.
 
 ### Quem pensa (Claude ou ChatGPT pela sua assinatura, ou modelos gratuitos pelo OpenRouter)
 
-`hermes.provedor` (`claude`, `chatgpt` ou `openrouter`) e `hermes.nivel` (`rapido`, `equilibrado`, `capaz`) escolhem o modelo de
+`hermes.provider` (`claude`, `chatgpt` ou `openrouter`) e `hermes.level` (`fast`, `balanced`, `capable`) escolhem o modelo de
 todos: o JARVIS, os assistentes e os cargos. A pessoa nunca vê ids de modelo: a tabela provedor × nível fica em
-`kernel/modelos.yaml` e muda por release. O Claude usa o login do Claude Code; o ChatGPT entra pela página
+`kernel/models.yaml` e muda por release. O Claude usa o login do Claude Code; o ChatGPT entra pela página
 (PRIMEIROS PASSOS → QUEM PENSA) com um código de dispositivo do Hermes (`openai-codex`). Com as duas contas, a outra
 vira reserva automática no mesmo nível. O **OpenRouter** (`openrouter`) é a terceira opção: entra por chave de API, colada
-na mesma página, e os três níveis usam modelos gratuitos (com o limite diário de pedidos do OpenRouter). Assistentes e cargos aceitam `nivel` próprio, e assistentes também a própria
-assinatura; `modelo` explícito continua
-valendo para quem é técnico. A escolha da página fica em `$JARVIS_HOME/pensa.json` e vale depois de colocar em uso.
+na mesma página, e os três níveis usam modelos gratuitos (com o limite diário de pedidos do OpenRouter). Assistentes e cargos aceitam `level` próprio, e assistentes também a própria
+assinatura; `model` explícito continua
+valendo para quem é técnico. A escolha da página fica em `$JARVIS_HOME/thinker.json` e vale depois de colocar em uso.
 
 ### O Escritório (cargos e rotinas)
 
-Com `escritorio.ligado: true`, o trabalho que demora sai do chat: "JARVIS, monte a proposta da Acme" vira uma
+Com `office.enabled: true`, o trabalho que demora sai do chat: "JARVIS, monte a proposta da Acme" vira uma
 tarefa, um **cargo** executa (um perfil do Hermes com as ferramentas de um assistente de equipe, sem terminal, pelo
-Paperclip por baixo), a entrega fica em `projects-doc/escritorio/entregas/` no second brain e volta no chat de origem
-pelo carteiro (`kernel/bin/jarvis_carteiro.py`, a cada minuto). O que exigir enviar, pagar ou publicar para e pergunta.
-O cargo `trabalho` (Assistente de trabalho) existe sempre; outros cargos entram em `escritorio.cargos` (ou pela página
-ESCRITÓRIO) e passam a valer depois de "colocar em uso". **Rotinas** (`escritorio.rotinas` ou pela página) criam a
+Paperclip por baixo), a entrega fica em `projects-doc/office/deliveries/` no second brain e volta no chat de origem
+pelo carteiro (`kernel/bin/jarvis_courier.py`, a cada minuto). O que exigir enviar, pagar ou publicar para e pergunta.
+O cargo `work` (Assistente de trabalho) existe sempre; outros cargos entram em `office.positions` (ou pela página
+ESCRITÓRIO) e passam a valer depois de "colocar em uso". **Rotinas** (`office.routines` ou pela página) criam a
 tarefa sozinhas no horário (cron de 5 campos, fuso do computador) e publicam a entrega na sua conversa com o JARVIS
-(`onde: telegram`) ou no grupo de um assistente (`onde: assistente:<nome>`); valem na hora, sem colocar em uso. A rotina
-`resumo-da-semana` (segunda, 8h) vem por padrão.
+(`where: telegram`) ou no grupo de um assistente (`where: assistant:<nome>`); valem na hora, sem colocar em uso. A rotina
+`weekly-summary` (segunda, 8h) vem por padrão.
 
 ## Add-ons: uma especialização fora do tenant
 
@@ -405,17 +405,17 @@ Um add-on soma MCPs, skills e segredos ao tenant sem mexer no `jarvis.yaml` dele
 que mora em outro repositório, privado por exemplo, por cima de um tenant público.
 
 ```sh
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --addon tenants/exemplo/addon-exemplo/addon.yaml
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --addon tenants/example/addon-example/addon.yaml
 ./bootstrap.sh --apply                                # o add-on continua ligado: a instalação lembra
-./bootstrap.sh --apply --remove-addon exemplo-addon   # tira os MCPs, as skills e os segredos dele
+./bootstrap.sh --apply --remove-addon example-addon   # tira os MCPs, as skills e os segredos dele
 ```
 
 O `addon.yaml` tem um nome (`addon`, com minúsculas, números e hífen) e os mesmos campos `mcp`, `skills.packs` e
-`segredos` do `jarvis.yaml`. Caminhos relativos (packs, e `command`/`args` que começam com `./` ou `../`) valem a
+`secrets` do `jarvis.yaml`. Caminhos relativos (packs, e `command`/`args` que começam com `./` ou `../`) valem a
 partir da pasta do add-on. Um MCP ou uma skill do add-on não pode repetir um nome que já existe no kernel, no tenant
 ou em outro add-on: o render recusa e não altera nada. `--addon` pode ser repetido. Os add-ons ligados ficam em
 `$JARVIS_HOME/addons.json`. Os MCPs stdio de um add-on recebem `JARVIS_TENANT` e `JARVIS_DATA` do kernel; o add-on não
-os troca. Exemplo em `tenants/exemplo/addon-exemplo/`.
+os troca. Exemplo em `tenants/example/addon-example/`.
 
 ## Componentes externos e licenças
 

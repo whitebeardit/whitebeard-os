@@ -3,9 +3,9 @@
 # requires-python = ">=3.10"
 # dependencies = ["pyyaml>=6,<7"]
 # ///
-"""jarvis_assistente.py — aplica num perfil do Hermes o que o render escreveu para um assistente.
+"""jarvis_assistant.py — aplica num perfil do Hermes o que o render escreveu para um assistente.
 
-Uso: jarvis_assistente.py <render/hermes/assistentes/<nome>/> <~/.hermes/profiles/<nome>/>
+Uso: jarvis_assistant.py <render/hermes/assistants/<nome>/> <~/.hermes/profiles/<nome>/>
 Lê JARVIS_HOME do ambiente (as skills instaladas pelo kernel ficam em $JARVIS_HOME/skills).
 
 Sai com 0 quando mudou algo, 3 quando já estava em dia, 1 em erro. Nunca imprime valor de segredo.
@@ -25,11 +25,11 @@ import yaml
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print("uso: jarvis_assistente.py <render-dir> <profile-dir>", file=sys.stderr)
+        print("uso: jarvis_assistant.py <render-dir> <profile-dir>", file=sys.stderr)
         return 1
     src, pdir = Path(sys.argv[1]), Path(sys.argv[2])
     jarvis_skills = Path(os.environ.get("JARVIS_HOME", str(Path.home() / ".jarvis"))) / "skills"
-    nome = pdir.name
+    name = pdir.name
     changed = False
 
     # ---- config.yaml: as chaves do kernel por cima; o resto do que o Hermes escreveu fica
@@ -67,17 +67,17 @@ def main() -> int:
 
     # ---- SOUL.md: do kernel, a menos que a pessoa tenha editado (a última versão do kernel fica guardada)
     soul_src = (src / "SOUL.md").read_text(encoding="utf-8")
-    soul_path, marca = pdir / "SOUL.md", pdir / ".whitebeard-soul"
-    atual = soul_path.read_text(encoding="utf-8") if soul_path.exists() else None
-    ultimo = marca.read_text(encoding="utf-8") if marca.exists() else None
-    if atual is None or ultimo is None or atual == ultimo:
-        if atual != soul_src:
+    soul_path, marker = pdir / "SOUL.md", pdir / ".whitebeard-soul"
+    current = soul_path.read_text(encoding="utf-8") if soul_path.exists() else None
+    last = marker.read_text(encoding="utf-8") if marker.exists() else None
+    if current is None or last is None or current == last:
+        if current != soul_src:
             soul_path.write_text(soul_src, encoding="utf-8")
             changed = True
-        if ultimo != soul_src:
-            marca.write_text(soul_src, encoding="utf-8")
+        if last != soul_src:
+            marker.write_text(soul_src, encoding="utf-8")
     else:
-        print(f"[whitebeard-os] hermes: SOUL.md de {nome} foi editado à mão; mantido")
+        print(f"[whitebeard-os] hermes: SOUL.md de {name} foi editado à mão; mantido")
 
     # ---- skills: só as do assistente, como links para as instaladas pelo kernel
     skills_dir = pdir / "skills"
@@ -89,15 +89,15 @@ def main() -> int:
             changed = True
     for sk in wanted_skills:
         p = skills_dir / sk
-        alvo = jarvis_skills / sk
-        if p.is_symlink() and os.readlink(p) == str(alvo):
+        target = jarvis_skills / sk
+        if p.is_symlink() and os.readlink(p) == str(target):
             continue
         if p.is_symlink():
             p.unlink()
         elif p.exists():
-            print(f"[whitebeard-os] hermes: skill {sk} já existe no perfil de {nome} (não é link); mantida")
+            print(f"[whitebeard-os] hermes: skill {sk} já existe no perfil de {name} (não é link); mantida")
             continue
-        p.symlink_to(alvo)
+        p.symlink_to(target)
         changed = True
 
     return 0 if changed else 3

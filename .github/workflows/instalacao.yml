@@ -64,7 +64,7 @@ jobs:
         run: |
           . "$HOME/.jarvis/profile.sh"
           test "$JARVIS_TENANT" = example
-          test "$JARVIS_DATA" = "$HOME/.example"
+          test "$JARVIS_DATA" = "$HOME/.exemplo"
           test -d "$JARVIS_DATA"
           node -v | grep -q '^v24.22.2$'
           uv --version

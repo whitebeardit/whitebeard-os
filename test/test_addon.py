@@ -114,6 +114,24 @@ class AddonTest(unittest.TestCase):
         self.assertTrue((self.user / ".hermes" / "skills" / "exemplo-addon-ola").is_symlink())
         self.assertIn("exemplo-addon", (self.home / "render" / "summary.txt").read_text(encoding="utf-8"))
 
+    def test_a1_mcp_do_addon_recebe_tenant_e_dados(self) -> None:
+        """ADR-009 do Mastery: o tenant chega ao MCP pelo ambiente, nunca como parâmetro de ferramenta."""
+        a = self.addon("amb", """\
+            mcp:
+              - name: mcp_amb
+                transport: stdio
+                command: python3
+                args: ["x.py"]
+                env:
+                  JARVIS_TENANT: "outro"
+            """)
+        self.ok("--addon", str(a))
+        env = self.hermes_mcp()["mcp_amb"]["env"]
+        self.assertEqual(env["JARVIS_TENANT"], "exemplo")  # o add-on não escolhe o tenant
+        self.assertEqual(env["JARVIS_DATA"], str(self.user / ".exemplo"))
+        # MCP do tenant não muda
+        self.assertNotIn("JARVIS_TENANT", self.hermes_mcp().get("exemplo_ferramentas", {}).get("env", {}))
+
     # ------------------------------------------------------------ A2
     def test_a2_idempotente(self) -> None:
         self.ok("--addon", str(ADDON_EXEMPLO))

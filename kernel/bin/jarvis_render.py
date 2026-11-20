@@ -324,7 +324,7 @@ def ler_addon(path: Path, schema: dict) -> dict:
             raise AddonErro(f"add-on {d['addon']}: pack de skills não encontrado: {pack}")
     mcp = []
     for m in d.get("mcp", []) or []:
-        m = dict(m)
+        m = dict(m, _addon=d["addon"])
         if m.get("command"):
             m["command"] = _rel_addon(base, m["command"])
         if m.get("args"):
@@ -947,6 +947,9 @@ def main() -> int:
             for k in ("headers", "env"):
                 if m.get(k):
                     entry[k] = dict(m[k])
+            # MCP de add-on: o tenant e a pasta de dados chegam pelo ambiente e não podem ser trocados pelo add-on
+            if m.get("_addon") and m["transport"] == "stdio":
+                entry["env"] = {**entry.get("env", {}), "JARVIS_TENANT": tenant, "JARVIS_DATA": data_dir}
             hermes_mcp[m["name"]] = entry
         # o Escritório ligado: o MCP `escritorio` (criar tarefa, aprovar, recusar) entra no Hermes do dono e nos
         # assistentes da equipe, como qualquer MCP do tenant; o Paperclip é local e sem chave no modo local

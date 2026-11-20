@@ -39,6 +39,8 @@ jobs:
         run: PATH="$HOME/.local/bin:$PATH" python3 test/test_addon.py
       - name: testes da migração para a 0.4.0 (nomes em inglês)
         run: PATH="$HOME/.local/bin:$PATH" python3 test/test_migrate_0_4.py
+      - name: quem pensa (status rápido com o Hermes lento)
+        run: python3 test/test_thinker.py
 
   install:
     needs: lint

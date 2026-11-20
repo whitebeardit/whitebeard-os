@@ -278,6 +278,142 @@ def installed_skills_hint(kernel: Path, tenant_dir: Path, data: dict) -> set[str
     return names
 
 
+# ---------------------------------------------------------------- add-ons
+# Um add-on soma MCPs, skills e segredos ao tenant sem mexer no jarvis.yaml dele (uma especialização que mora
+# em outro repositório, privado por exemplo). Ligado com `bootstrap.sh --addon <addon.yaml>`, fica lembrado em
+# $JARVIS_HOME/addons.json, como o tenant fica em tenant.path; sai com `--remove-addon <nome>`.
+ADDON_ESTADO = "addons.json"
+ADDON_NOME = r"^[a-z0-9][a-z0-9-]*$"
+MCP_DO_KERNEL = ("knowledge", "cerebro", "github", "escritorio")
+
+
+class AddonErro(Exception):
+    pass
+
+
+def addon_schema(schema: dict) -> dict:
+    """Esquema do addon.yaml: as mesmas regras do jarvis.yaml para mcp, skills e segredos."""
+    p = schema["properties"]
+    return {"type": "object", "required": ["addon"], "additionalProperties": False, "$defs": schema.get("$defs", {}),
+            "properties": {"addon": {"type": "string", "pattern": ADDON_NOME}, "descricao": {"type": "string"},
+                           "mcp": p["mcp"], "skills": p["skills"], "segredos": p["segredos"]}}
+
+
+def _rel_addon(base: Path, valor: str) -> str:
+    """command e args que começam com ./ ou ../ valem a partir da pasta do addon.yaml."""
+    return str((base / valor).resolve()) if valor.startswith(("./", "../")) else valor
+
+
+def ler_addon(path: Path, schema: dict) -> dict:
+    if not path.is_file():
+        raise AddonErro(f"add-on: arquivo não encontrado: {path}")
+    try:
+        d = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        raise AddonErro(f"add-on {path}: YAML inválido: {e}") from None
+    if not isinstance(d, dict):
+        raise AddonErro(f"add-on {path}: o arquivo precisa ser um mapa com `addon: <nome>`")
+    erros = sorted(Draft202012Validator(addon_schema(schema)).iter_errors(d), key=lambda e: list(e.absolute_path))
+    if erros:
+        onde = "/".join(str(x) for x in erros[0].absolute_path) or "(raiz)"
+        raise AddonErro(f"add-on {path}: inválido em {onde}: {erros[0].message}")
+    base = path.parent
+    packs = [(base / p).resolve() for p in (d.get("skills") or {}).get("packs", []) or []]
+    for pack in packs:
+        if not pack.is_dir():
+            raise AddonErro(f"add-on {d['addon']}: pack de skills não encontrado: {pack}")
+    mcp = []
+    for m in d.get("mcp", []) or []:
+        m = dict(m)
+        if m.get("command"):
+            m["command"] = _rel_addon(base, m["command"])
+        if m.get("args"):
+            m["args"] = [_rel_addon(base, a) for a in m["args"]]
+        mcp.append(m)
+    skills = sorted(s.name for pack in packs for s in pack.iterdir() if (s / "SKILL.md").is_file())
+    return {"addon": d["addon"], "path": str(path), "packs": [str(p) for p in packs], "mcp": mcp,
+            "segredos": list(d.get("segredos", []) or []), "skills": skills}
+
+
+def carregar_addons(home: Path, kernel: Path, tenant_dir: Path, data: dict, schema: dict,
+                    novos: list[str], remover: list[str]) -> tuple[list[dict], list[dict]]:
+    """Os add-ons ligados (lembrados + novos − removidos), já somados a `data`, e os que acabaram de sair.
+
+    Lança AddonErro antes de qualquer escrita: arquivo ausente ou inválido, ou nome repetido de MCP ou skill.
+    """
+    estado_path = home / ADDON_ESTADO
+    estado: list[dict] = []
+    if estado_path.is_file():
+        try:
+            estado = json.loads(estado_path.read_text(encoding="utf-8"))
+        except ValueError:
+            raise AddonErro(f"add-on: {estado_path} ilegível; apague o arquivo e ligue os add-ons de novo") from None
+    lembrados = {e["addon"]: e for e in estado}
+    removidos = [lembrados[n] for n in remover if n in lembrados]
+    for n in remover:
+        if n not in lembrados:
+            log(f"aviso: --remove-addon {n}: esse add-on não está ligado")
+    ordem = [e["addon"] for e in estado if e["addon"] not in remover]
+    caminhos = {n: Path(lembrados[n]["path"]) for n in ordem}
+    ligados: dict[str, dict] = {}
+    for novo in novos:
+        a = ler_addon(Path(novo).expanduser().resolve(), schema)
+        if a["addon"] in ligados and ligados[a["addon"]]["path"] != a["path"]:
+            raise AddonErro(f"add-on {a['addon']}: dois arquivos com o mesmo nome ({ligados[a['addon']]['path']} e {a['path']})")
+        ligados[a["addon"]] = a
+        if a["addon"] not in ordem:
+            ordem.append(a["addon"])
+    for n in ordem:
+        if n not in ligados:
+            if not caminhos[n].is_file():
+                raise AddonErro(f"add-on {n}: o arquivo lembrado não existe mais ({caminhos[n]}). Aponte o novo lugar com "
+                                f"--addon <addon.yaml> ou desligue com ./bootstrap.sh --apply --remove-addon {n}")
+            ligados[n] = ler_addon(caminhos[n], schema)
+    resultado = [ligados[n] for n in ordem]
+    # nomes que não podem repetir: um MCP ou uma skill do add-on substituiria em silêncio a do tenant ou do kernel
+    mcp_usados = {m["name"]: "o tenant" for m in data.get("mcp", []) or []}
+    mcp_usados.update({n: "o kernel" for n in MCP_DO_KERNEL})
+    skills_usadas = {n: "o kernel ou o tenant" for n in installed_skills_hint(kernel, tenant_dir, data)}
+    segredos = {s["name"] for s in data.get("segredos", []) or []}
+    data["mcp"] = list(data.get("mcp", []) or [])
+    data["skills"] = dict(data.get("skills") or {})
+    data["skills"]["packs"] = list(data["skills"].get("packs", []) or [])
+    data["segredos"] = list(data.get("segredos", []) or [])
+    for a in resultado:
+        for m in a["mcp"]:
+            if m["name"] in mcp_usados:
+                raise AddonErro(f"add-on {a['addon']}: o MCP `{m['name']}` já existe em {mcp_usados[m['name']]}; "
+                                "dê outro nome a ele no addon.yaml. Nada foi alterado.")
+            mcp_usados[m["name"]] = f"o add-on {a['addon']}"
+            data["mcp"].append(m)
+        for s in a["skills"]:
+            if s in skills_usadas:
+                raise AddonErro(f"add-on {a['addon']}: a skill `{s}` já existe em {skills_usadas[s]}; "
+                                "dê outro nome a ela. Nada foi alterado.")
+            skills_usadas[s] = f"o add-on {a['addon']}"
+        data["skills"]["packs"] += a["packs"]
+        for s in a["segredos"]:
+            if s["name"] not in segredos:  # o mesmo segredo declarado no tenant vale uma vez só
+                segredos.add(s["name"])
+                data["segredos"].append(s)
+        log(f"add-on {a['addon']}: {a['path']}")
+    return resultado, removidos
+
+
+def tirar_skills_de_addon(home: Path, user_home: Path, nomes: list[str], instaladas: list[str]) -> None:
+    """Remove as cópias e os links das skills de um add-on que saiu (as que nenhum outro pack trouxe)."""
+    for nome in nomes:
+        if nome in instaladas:
+            continue
+        dest = home / "skills" / nome
+        for link in (user_home / ".claude" / "skills" / nome, user_home / ".hermes" / "skills" / nome):
+            if link.is_symlink() and Path(os.readlink(link)) == dest:
+                link.unlink()
+        if dest.is_dir() and not dest.is_symlink():
+            shutil.rmtree(dest)
+        log(f"skill {nome} removida (o add-on saiu)")
+
+
 def soul_assistente(a: dict, tenant: str) -> str:
     tipo = a["tipo"]
     linhas = [f"Você é {a['nome']}, um assistente do JARVIS ({TIPO_NOME[tipo]}) do tenant {tenant}.", ""]
@@ -480,6 +616,8 @@ def main() -> int:
     ap.add_argument("--role", default="desktop", help="papéis separados por vírgula: desktop,core,knowledge")
     ap.add_argument("--home", required=True, help="$JARVIS_HOME")
     ap.add_argument("--kernel", required=True, help="pasta kernel/ do repositório")
+    ap.add_argument("--addon", action="append", default=[], help="addon.yaml a ligar (repetível); fica lembrado em $JARVIS_HOME/addons.json")
+    ap.add_argument("--remove-addon", action="append", default=[], metavar="NOME", help="desliga um add-on lembrado (repetível)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--allow-fewer-roles", action="store_true", help="permite renderizar menos papéis do que os instalados (o bootstrap usa ao adiar o knowledge ou quando a pessoa passa --role)")
     args = ap.parse_args()
@@ -508,6 +646,11 @@ def main() -> int:
         for err in errors:
             where = "/".join(str(p) for p in err.absolute_path) or "(raiz)"
             print(f"[render] jarvis.yaml inválido em {where}: {err.message}", file=sys.stderr)
+        return 2
+    try:
+        addons, addons_removidos = carregar_addons(home, kernel, tenant_dir, data, schema, args.addon, args.remove_addon)
+    except AddonErro as e:
+        print(f"[render] {e}", file=sys.stderr)
         return 2
     tenant = data["tenant"]
     role_label = ",".join(roles)
@@ -994,6 +1137,17 @@ def main() -> int:
                     hl.symlink_to(dest)
             installed.append(d.name)
 
+    # ---- add-ons: tira as skills dos que saíram e lembra os ligados para o próximo render (--apply)
+    estado_addons = home / ADDON_ESTADO
+    if not args.dry_run:
+        for a in addons_removidos:
+            tirar_skills_de_addon(home, user_home, list(a.get("skills") or []), installed)
+        if addons:
+            w.write(estado_addons, json.dumps([{k: a[k] for k in ("addon", "path", "skills")} for a in addons],
+                                              ensure_ascii=False, indent=2) + "\n")
+        elif estado_addons.exists():
+            estado_addons.unlink()
+
     # ---- resumo
     summary = [
         f"[whitebeard-os] tenant: {tenant} | papéis: {role_label} | fonte: {tenant_path}",
@@ -1005,6 +1159,8 @@ def main() -> int:
         + (f", {len(generated)} gerados ({', '.join(generated)})" if generated else "")
         + (f"; OBRIGATÓRIOS faltando: {', '.join(missing)}" if missing else ""),
     ]
+    if addons:
+        summary.append(f"[whitebeard-os] add-ons ({len(addons)}): {', '.join(a['addon'] for a in addons)}")
     if vault_path:
         summary.append(f"[whitebeard-os] vault: {vault_path}" + ("" if Path(vault_path).exists() else " (o bootstrap cria)"))
     summary.append(f"[whitebeard-os] dados: {data_dir}")

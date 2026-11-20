@@ -405,6 +405,23 @@ create the task by themselves on schedule (5-field cron, the computer's time zon
 conversation with JARVIS (`onde: telegram`) or to an assistant's group (`onde: assistente:<name>`); they take effect
 immediately, without putting into use. The `resumo-da-semana` (weekly summary) routine (Monday, 8 am) comes by default.
 
+## Add-ons: a specialization outside the tenant
+
+An add-on adds MCP servers, skills and secrets to the tenant without touching its `jarvis.yaml`. It fits a
+specialization that lives in another repository, a private one for example, on top of a public tenant.
+
+```sh
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --addon tenants/exemplo/addon-exemplo/addon.yaml
+./bootstrap.sh --apply                                # the add-on stays on: the installation remembers it
+./bootstrap.sh --apply --remove-addon exemplo-addon   # takes out its MCPs, skills and secrets
+```
+
+The `addon.yaml` has a name (`addon`, lowercase letters, digits and hyphens) and the same `mcp`, `skills.packs` and
+`segredos` fields as `jarvis.yaml`. Relative paths (packs, and `command`/`args` starting with `./` or `../`) are
+resolved from the add-on's folder. An add-on MCP server or skill can't reuse a name that already exists in the
+kernel, the tenant or another add-on: the render refuses and changes nothing. `--addon` can be repeated. The add-ons
+that are on are listed in `$JARVIS_HOME/addons.json`. Example in `tenants/exemplo/addon-exemplo/`.
+
 ## External components and licenses
 
 | Component | License | How it comes in |

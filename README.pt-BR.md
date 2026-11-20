@@ -399,6 +399,23 @@ tarefa sozinhas no horário (cron de 5 campos, fuso do computador) e publicam a 
 (`onde: telegram`) ou no grupo de um assistente (`onde: assistente:<nome>`); valem na hora, sem colocar em uso. A rotina
 `resumo-da-semana` (segunda, 8h) vem por padrão.
 
+## Add-ons: uma especialização fora do tenant
+
+Um add-on soma MCPs, skills e segredos ao tenant sem mexer no `jarvis.yaml` dele. Serve para uma especialização
+que mora em outro repositório, privado por exemplo, por cima de um tenant público.
+
+```sh
+./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --addon tenants/exemplo/addon-exemplo/addon.yaml
+./bootstrap.sh --apply                                # o add-on continua ligado: a instalação lembra
+./bootstrap.sh --apply --remove-addon exemplo-addon   # tira os MCPs, as skills e os segredos dele
+```
+
+O `addon.yaml` tem um nome (`addon`, com minúsculas, números e hífen) e os mesmos campos `mcp`, `skills.packs` e
+`segredos` do `jarvis.yaml`. Caminhos relativos (packs, e `command`/`args` que começam com `./` ou `../`) valem a
+partir da pasta do add-on. Um MCP ou uma skill do add-on não pode repetir um nome que já existe no kernel, no tenant
+ou em outro add-on: o render recusa e não altera nada. `--addon` pode ser repetido. Os add-ons ligados ficam em
+`$JARVIS_HOME/addons.json`. Exemplo em `tenants/exemplo/addon-exemplo/`.
+
 ## Componentes externos e licenças
 
 | Componente | Licença | Como entra |

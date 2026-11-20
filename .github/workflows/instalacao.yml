@@ -32,11 +32,13 @@ jobs:
         run: |
           "$HOME/.local/bin/uv" run --quiet kernel/bin/i18n_lint.py
       - name: esquema e tenant de exemplo (dry-run, três papéis)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge --dry-run
+        run: ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core,knowledge --dry-run
       - name: add-on de exemplo (dry-run)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge --dry-run --addon tenants/exemplo/addon-exemplo/addon.yaml
+        run: ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core,knowledge --dry-run --addon tenants/example/addon-example/addon.yaml
       - name: testes do mecanismo de add-on (A1 a A9)
         run: PATH="$HOME/.local/bin:$PATH" python3 test/test_addon.py
+      - name: testes da migração para a 0.4.0 (nomes em inglês)
+        run: PATH="$HOME/.local/bin:$PATH" python3 test/test_migrate_0_4.py
 
   instala:
     needs: lint
@@ -51,18 +53,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       # as conferências abaixo comparam textos em português; o padrão do kernel (sem a variável) é inglês
-      JARVIS_IDIOMA: pt-BR
+      JARVIS_LANGUAGE: pt-BR
     steps:
       - uses: actions/checkout@v4
       - name: instalação zerada (${{ matrix.roles }}, sem subir serviços)
         env:
           GH_TOKEN: ${{ github.token }} # permite ao bootstrap baixar o FFmpeg com whisper da release privada
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --no-prompt ${{ inputs.with_hermes && '--with-hermes --skip web' || '--skip hermes,web' }}
+        run: ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role ${{ matrix.roles }} --no-start --no-prompt ${{ inputs.with_hermes && '--with-hermes --skip web' || '--skip hermes,web' }}
       - name: verificação comum
         run: |
           . "$HOME/.jarvis/profile.sh"
-          test "$JARVIS_TENANT" = exemplo
-          test "$JARVIS_DATA" = "$HOME/.exemplo"
+          test "$JARVIS_TENANT" = example
+          test "$JARVIS_DATA" = "$HOME/.example"
           test -d "$JARVIS_DATA"
           node -v | grep -q '^v24.22.2$'
           uv --version
@@ -84,69 +86,69 @@ jobs:
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
           import json, sys
           d = json.load(sys.stdin)
-          assert d["ok"] and d["tenant"] == "exemplo" and d["telegram"]["disponivel"] and not d["concluido"], d
-          nomes = {s["nome"] for s in d["segredos"]}
-          assert "EXEMPLO_TOKEN" in nomes and "TELEGRAM_BOT_TOKEN" not in nomes and "POSTGRES_PASSWORD" not in nomes, nomes'
+          assert d["ok"] and d["tenant"] == "example" and d["telegram"]["available"] and not d["done"], d
+          names = {s["name"] for s in d["secrets"]}
+          assert "EXEMPLO_TOKEN" in names and "TELEGRAM_BOT_TOKEN" not in names and "POSTGRES_PASSWORD" not in names, names'
           # assistentes do tenant de exemplo: catálogo, perfil renderizado por tipo e segredos com título
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
           import json, sys
           d = json.load(sys.stdin)
-          a = {x["nome"]: x for x in d["assistentes"]}
-          assert set(a) == {"suporte", "cliente-exemplo", "discord-exemplo", "zap-exemplo"} and a["cliente-exemplo"]["tipo"] == "cliente" and not a["suporte"]["token"], a
-          assert a["zap-exemplo"]["canal"] == "whatsapp" and a["zap-exemplo"]["segredos"]["token"] is None and a["zap-exemplo"]["whatsapp"]["pareado"] is False, a
-          assert a["suporte"]["canal"] == "telegram" and a["discord-exemplo"]["canal"] == "discord", a
-          assert a["discord-exemplo"]["segredos"]["token"] == "DISCORD_BOT_TOKEN_DISCORD_EXEMPLO", a
-          titulos = {s["nome"]: s["titulo"] for s in d["segredos"]}
-          assert titulos.get("TELEGRAM_BOT_TOKEN_SUPORTE", "").startswith("Token do bot do assistente"), titulos
-          assert "DISCORD_BOT_TOKEN_DISCORD_EXEMPLO" in titulos and "TELEGRAM_BOT_TOKEN_DISCORD_EXEMPLO" not in titulos, titulos'
+          a = {x["name"]: x for x in d["assistants"]}
+          assert set(a) == {"suporte", "cliente-exemplo", "discord-exemplo", "zap-exemplo"} and a["cliente-exemplo"]["type"] == "client" and not a["suporte"]["token"], a
+          assert a["zap-exemplo"]["channel"] == "whatsapp" and a["zap-exemplo"]["secrets"]["token"] is None and a["zap-exemplo"]["whatsapp"]["paired"] is False, a
+          assert a["suporte"]["channel"] == "telegram" and a["discord-exemplo"]["channel"] == "discord", a
+          assert a["discord-exemplo"]["secrets"]["token"] == "DISCORD_BOT_TOKEN_DISCORD_EXEMPLO", a
+          titles = {s["name"]: s["title"] for s in d["secrets"]}
+          assert titles.get("TELEGRAM_BOT_TOKEN_SUPORTE", "").startswith("Token do bot do assistente"), titles
+          assert "DISCORD_BOT_TOKEN_DISCORD_EXEMPLO" in titles and "TELEGRAM_BOT_TOKEN_DISCORD_EXEMPLO" not in titles, titles'
           # o assistente do Discord rende as variáveis do Discord e nenhuma do Telegram
-          grep -q "^DISCORD_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/env"
-          grep -q "^DISCORD_REQUIRE_MENTION=true" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/env"
-          ! grep -q "TELEGRAM" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/env"
-          grep -q "discord:" "$HOME/.jarvis/render/hermes/assistentes/discord-exemplo/config.yaml"
-          grep -q "^TELEGRAM_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistentes/suporte/env"
+          grep -q "^DISCORD_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistants/discord-exemplo/env"
+          grep -q "^DISCORD_REQUIRE_MENTION=true" "$HOME/.jarvis/render/hermes/assistants/discord-exemplo/env"
+          ! grep -q "TELEGRAM" "$HOME/.jarvis/render/hermes/assistants/discord-exemplo/env"
+          grep -q "discord:" "$HOME/.jarvis/render/hermes/assistants/discord-exemplo/config.yaml"
+          grep -q "^TELEGRAM_BOT_TOKEN=" "$HOME/.jarvis/render/hermes/assistants/suporte/env"
           # o assistente do WhatsApp: sem token, ponte desligada até parear, sessão e porta próprias
-          grep -q "^WHATSAPP_ENABLED=false" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/env"
-          grep -q "^WHATSAPP_MODE=bot" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/env"
-          grep -q "session_path:.*assistentes/zap-exemplo/whatsapp/session" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/config.yaml"
-          ! grep -q "TELEGRAM\|DISCORD" "$HOME/.jarvis/render/hermes/assistentes/zap-exemplo/env"
-          test -f "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/SOUL.md"
-          grep -q "dm_policy: allowlist" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml" && grep -q "unauthorized_dm_behavior: decline" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
-          ! grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/cliente-exemplo/config.yaml"
+          grep -q "^WHATSAPP_ENABLED=false" "$HOME/.jarvis/render/hermes/assistants/zap-exemplo/env"
+          grep -q "^WHATSAPP_MODE=bot" "$HOME/.jarvis/render/hermes/assistants/zap-exemplo/env"
+          grep -q "session_path:.*assistants/zap-exemplo/whatsapp/session" "$HOME/.jarvis/render/hermes/assistants/zap-exemplo/config.yaml"
+          ! grep -q "TELEGRAM\|DISCORD" "$HOME/.jarvis/render/hermes/assistants/zap-exemplo/env"
+          test -f "$HOME/.jarvis/render/hermes/assistants/cliente-exemplo/SOUL.md"
+          grep -q "dm_policy: allowlist" "$HOME/.jarvis/render/hermes/assistants/cliente-exemplo/config.yaml" && grep -q "unauthorized_dm_behavior: decline" "$HOME/.jarvis/render/hermes/assistants/cliente-exemplo/config.yaml"
+          ! grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistants/cliente-exemplo/config.yaml"
           # o Escritório do tenant de exemplo: cargo padrão + redator renderizados, rotina padrão + status-diario no catálogo
           python3 -c '
           import json
-          d = json.load(open("'"$HOME"'/.jarvis/render/escritorio.json"))
-          assert d["ligado"] and [c["nome"] for c in d["cargos"]] == ["trabalho", "redator"] and d["cargos"][1]["faz"], d
-          assert [r["nome"] for r in d["rotinas"]] == ["resumo-da-semana", "status-diario"] and d["rotinas"][1]["onde"] == "assistente:suporte", d'
-          grep -q "cargo Redator" "$HOME/.jarvis/render/hermes/cargos/redator/SOUL.md"
-          # quem pensa: claude · equilibrado no dono e nos cargos; o redator (nivel: capaz) no modelo mais capaz
-          grep -q "default: claude-sonnet-5-5" "$HOME/.jarvis/render/hermes/modelo.yaml"
-          grep -q "default: claude-sonnet-5-5" "$HOME/.jarvis/render/hermes/cargos/trabalho/config.yaml"
-          grep -q "default: claude-opus-5-5" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
+          d = json.load(open("'"$HOME"'/.jarvis/render/office.json"))
+          assert d["enabled"] and [c["name"] for c in d["positions"]] == ["work", "redator"] and d["positions"][1]["does"], d
+          assert [r["name"] for r in d["routines"]] == ["resumo-da-semana", "status-diario"] and d["routines"][1]["where"] == "assistant:suporte", d'
+          grep -q "cargo Redator" "$HOME/.jarvis/render/hermes/positions/redator/SOUL.md"
+          # quem pensa: claude · balanced no dono e nos cargos; o redator (level: capable) no modelo mais capaz
+          grep -q "default: claude-sonnet-5-5" "$HOME/.jarvis/render/hermes/model.yaml"
+          grep -q "default: claude-sonnet-5-5" "$HOME/.jarvis/render/hermes/positions/work/config.yaml"
+          grep -q "default: claude-opus-5-5" "$HOME/.jarvis/render/hermes/positions/redator/config.yaml"
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
           import json, sys
-          p = json.load(sys.stdin)["pensa"]
-          assert p["provedor"] == "claude" and p["nivel"] == "equilibrado" and p["modelo"] == "claude-sonnet-5-5" and p["escolhido"], p'
-          echo "{\"nivel\":\"turbo\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" pensa-set | grep -q "\"ok\": false"
-          grep -q "escritorio:" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
-          ! grep -q "terminal" "$HOME/.jarvis/render/hermes/cargos/redator/config.yaml"
+          p = json.load(sys.stdin)["thinker"]
+          assert p["provider"] == "claude" and p["level"] == "balanced" and p["model"] == "claude-sonnet-5-5" and p["chosen"], p'
+          echo "{\"level\":\"turbo\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" thinker-set | grep -q "\"ok\": false"
+          grep -q "office:" "$HOME/.jarvis/render/hermes/positions/redator/config.yaml"
+          ! grep -q "terminal" "$HOME/.jarvis/render/hermes/positions/redator/config.yaml"
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
           import json, sys
-          e = json.load(sys.stdin)["escritorio"]
-          assert e["ligado"] and [c["nome"] for c in e["cargos"]] == ["trabalho", "redator"], e
-          r = {x["nome"]: x for x in e["rotinas"]}
-          assert r["status-diario"]["quando_texto"] == "de segunda a sexta às 08:30" and r["resumo-da-semana"]["padrao"], r'
+          e = json.load(sys.stdin)["office"]
+          assert e["enabled"] and [c["name"] for c in e["positions"]] == ["work", "redator"], e
+          r = {x["name"]: x for x in e["routines"]}
+          assert r["status-diario"]["when_text"] == "de segunda a sexta às 08:30" and r["resumo-da-semana"]["default"], r'
           # o kernel responde no idioma da interface: este job roda em pt-BR (env do job); sem a variável, inglês
-          env -u JARVIS_IDIOMA python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
+          env -u JARVIS_LANGUAGE python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" status | python3 -c '
           import json, sys
-          r = {x["nome"]: x for x in json.load(sys.stdin)["escritorio"]["rotinas"]}
-          assert r["status-diario"]["quando_texto"] == "Monday to Friday at 08:30", r'
+          r = {x["name"]: x for x in json.load(sys.stdin)["office"]["routines"]}
+          assert r["status-diario"]["when_text"] == "Monday to Friday at 08:30", r'
           # rotina criada pela página: vale sem colocar em uso; agenda inválida é recusada
-          echo "{\"nome\":\"ping\",\"titulo\":\"Ping\",\"faz\":\"Diga oi.\",\"quando\":\"*/5 * * * *\",\"cargo\":\"redator\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": true"
-          echo "{\"nome\":\"ruim\",\"titulo\":\"Ruim\",\"faz\":\"x\",\"quando\":\"99 * * * *\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" escritorio-rotina-add | grep -q "\"ok\": false"
-          python3 kernel/bin/jarvis_carteiro.py --home "$HOME/.jarvis" --dry-run | grep -q "rotina ping dispararia"
-          grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistentes/suporte/config.yaml"
+          echo "{\"name\":\"ping\",\"title\":\"Ping\",\"does\":\"Diga oi.\",\"when\":\"*/5 * * * *\",\"position\":\"redator\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" office-routine-add | grep -q "\"ok\": true"
+          echo "{\"name\":\"ruim\",\"title\":\"Ruim\",\"does\":\"x\",\"when\":\"99 * * * *\"}" | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" office-routine-add | grep -q "\"ok\": false"
+          python3 kernel/bin/jarvis_courier.py --home "$HOME/.jarvis" --dry-run | grep -q "rotina ping dispararia"
+          grep -q "mcp_servers" "$HOME/.jarvis/render/hermes/assistants/suporte/config.yaml"
           printf 'valor-de-teste\n' | python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" set-secret EXEMPLO_TOKEN
           test "$(grep -c "^EXEMPLO_TOKEN='valor-de-teste'$" "$HOME/.jarvis/secrets.env")" = 1
           # só reaplica: nada instalado, serviço do JARVIS Web intocado; o segredo gravado sobrevive ao render
@@ -158,11 +160,11 @@ jobs:
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" update-check --force | python3 -c '
           import json, sys
           d = json.load(sys.stdin)
-          assert d["ok"] and d["erro"] is None and d["remoto"]["kernel"] and d["local"]["kernel"], d'
+          assert d["ok"] and d["error"] is None and d["remote"]["kernel"] and d["local"]["kernel"], d'
           python3 kernel/bin/jarvis_setup.py --home "$HOME/.jarvis" update-status | python3 -c '
           import json, sys
           d = json.load(sys.stdin)
-          assert d["ok"] and not d["rodando"] and d["codigo"] is None, d'
+          assert d["ok"] and not d["running"] and d["code"] is None, d'
       - name: verificação do papel knowledge (compose sobe o banco e desce)
         if: contains(matrix.roles, 'knowledge')
         run: |
@@ -179,21 +181,21 @@ jobs:
           done
           test "$s" = healthy
           docker compose --project-directory "$d" down -v
-      - name: exportar e importar (stores jarvis, paperclip, claude; HOME alternativo)
+      - name: exportar e importar (stores jarvis, data, paperclip, claude; HOME alternativo)
         run: |
           . "$HOME/.jarvis/profile.sh"
-          echo "dado de exemplo" > "$JARVIS_DATA/leia-me.txt"
+          echo "dado de exemplo" > "$JARVIS_DATA/readme.txt"
           uv run --quiet kernel/bin/wb_export.py --dry-run
-          uv run --quiet kernel/bin/wb_export.py --out "$RUNNER_TEMP/bundle.tar.gz" --only jarvis,dados,paperclip,claude
+          uv run --quiet kernel/bin/wb_export.py --out "$RUNNER_TEMP/bundle.tar.gz" --only jarvis,data,paperclip,claude
           test -f "$RUNNER_TEMP/bundle.tar.gz.sha256"
           uv run --quiet kernel/bin/wb_import.py "$RUNNER_TEMP/bundle.tar.gz" --dry-run
-          uv run --quiet kernel/bin/wb_import.py "$RUNNER_TEMP/bundle.tar.gz" --jarvis-home "$RUNNER_TEMP/jarvis2" --paperclip-home "$RUNNER_TEMP/pc2" --data-home "$RUNNER_TEMP/dados2" --only jarvis,dados,paperclip
+          uv run --quiet kernel/bin/wb_import.py "$RUNNER_TEMP/bundle.tar.gz" --jarvis-home "$RUNNER_TEMP/jarvis2" --paperclip-home "$RUNNER_TEMP/pc2" --data-home "$RUNNER_TEMP/data2" --only jarvis,data,paperclip
           test -f "$RUNNER_TEMP/jarvis2/jarvis.yaml"
           test -f "$RUNNER_TEMP/jarvis2/skills/exemplo-ola/SKILL.md"
           test ! -f "$RUNNER_TEMP/jarvis2/secrets.env"
-          test -f "$RUNNER_TEMP/dados2/leia-me.txt"
+          test -f "$RUNNER_TEMP/data2/readme.txt"
       - name: idempotência (segunda execução)
-        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role ${{ matrix.roles }} --no-start --no-prompt --skip hermes,web
+        run: ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role ${{ matrix.roles }} --no-start --no-prompt --skip hermes,web
       - name: "instalador de uma linha (modo curl | sh, clona e roda o bootstrap)"
         env:
           WHITEBEARD_OS_DIR: ${{ runner.temp }}/whitebeard-os-oneline
@@ -203,4 +205,4 @@ jobs:
         run: |
           cat install.sh | sh -s -- --no-start --no-prompt --skip hermes,web
           test -f "$WHITEBEARD_OS_DIR/bootstrap.sh"
-          test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/pessoal/jarvis.yaml"  # tenant padrão do install.sh
+          test "$(cat "$HOME/.jarvis/tenant.path")" = "$WHITEBEARD_OS_DIR/tenants/personal/jarvis.yaml"  # tenant padrão do install.sh

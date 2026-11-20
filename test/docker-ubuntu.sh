@@ -12,11 +12,11 @@ docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c '
     set -e
     cp -r /src ~/whitebeard-os
     cd ~/whitebeard-os
-    ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core --dry-run
-    ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core --no-start
-    ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core --no-start
+    ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core --dry-run
+    ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core --no-start
+    ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core --no-start
     . ~/.jarvis/profile.sh
-    test \"\$JARVIS_TENANT\" = exemplo
+    test \"\$JARVIS_TENANT\" = example
     node -v | grep -q \"^v24.22.2\$\"
     ffmpeg -version | head -n 1
     paperclipai -V

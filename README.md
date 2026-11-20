@@ -420,7 +420,8 @@ The `addon.yaml` has a name (`addon`, lowercase letters, digits and hyphens) and
 `segredos` fields as `jarvis.yaml`. Relative paths (packs, and `command`/`args` starting with `./` or `../`) are
 resolved from the add-on's folder. An add-on MCP server or skill can't reuse a name that already exists in the
 kernel, the tenant or another add-on: the render refuses and changes nothing. `--addon` can be repeated. The add-ons
-that are on are listed in `$JARVIS_HOME/addons.json`. Example in `tenants/exemplo/addon-exemplo/`.
+that are on are listed in `$JARVIS_HOME/addons.json`. An add-on's stdio MCP servers get `JARVIS_TENANT` and
+`JARVIS_DATA` from the kernel; the add-on can't override them. Example in `tenants/exemplo/addon-exemplo/`.
 
 ## External components and licenses
 

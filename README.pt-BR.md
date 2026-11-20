@@ -414,7 +414,8 @@ O `addon.yaml` tem um nome (`addon`, com minúsculas, números e hífen) e os me
 `segredos` do `jarvis.yaml`. Caminhos relativos (packs, e `command`/`args` que começam com `./` ou `../`) valem a
 partir da pasta do add-on. Um MCP ou uma skill do add-on não pode repetir um nome que já existe no kernel, no tenant
 ou em outro add-on: o render recusa e não altera nada. `--addon` pode ser repetido. Os add-ons ligados ficam em
-`$JARVIS_HOME/addons.json`. Exemplo em `tenants/exemplo/addon-exemplo/`.
+`$JARVIS_HOME/addons.json`. Os MCPs stdio de um add-on recebem `JARVIS_TENANT` e `JARVIS_DATA` do kernel; o add-on não
+os troca. Exemplo em `tenants/exemplo/addon-exemplo/`.
 
 ## Componentes externos e licenças
 

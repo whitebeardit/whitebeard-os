@@ -1,7 +1,7 @@
 # Tenants
 
 Aqui fica só o tenant **de exemplo**, fictício. Ele valida o instalador no CI e é o ponto de partida de quem
-começa do zero: copie `exemplo/` para um repositório privado seu, troque os valores e aponte o bootstrap para
+começa do zero: copie `example/` para um repositório privado seu, troque os valores e aponte o bootstrap para
 o seu `jarvis.yaml`.
 
 Tenants reais nunca entram neste repositório. Um pacote de tenant real contém:

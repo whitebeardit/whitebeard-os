@@ -23,8 +23,8 @@ espere terminar e repita o comando. Quando o repositório for público, o mesmo 
 `curl -fsSL https://raw.githubusercontent.com/whitebeardit/whitebeard-os/main/install.sh | sh`.
 
 Esperado: nenhuma pergunta interativa além do diálogo das Command Line Tools; termina com o bloco
-`---- resumo ----` mostrando uv, node, claude, 1 skill instalada (`exemplo-ola`), 2 MCPs
-(`knowledge`, `exemplo_ferramentas`), 0 segredos obrigatórios faltando.
+`---- resumo ----` mostrando uv, node, claude, 1 skill instalada (`example-hello`), 2 MCPs
+(`knowledge`, `example_tools`), 0 segredos obrigatórios faltando.
 
 ## 3. Conferir
 
@@ -35,7 +35,7 @@ echo "$JARVIS_TENANT $JARVIS_ROLE $JARVIS_HOME"
 node -v
 uv --version
 claude --version
-ls -la ~/.claude/skills/exemplo-ola
+ls -la ~/.claude/skills/example-hello
 claude mcp get knowledge
 ls -l ~/.jarvis/secrets.env        # deve ser -rw------- (600)
 ```

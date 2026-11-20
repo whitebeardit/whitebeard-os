@@ -21,9 +21,9 @@ docker run --rm -v "$PWD:/src:ro" ubuntu:24.04 bash -c '
     ffmpeg -version | head -n 1
     paperclipai -V
     claude --version
-    test -L ~/.claude/skills/exemplo-ola
+    test -L ~/.claude/skills/example-hello
     test \"\$(stat -c %a ~/.jarvis/secrets.env)\" = 600
-    claude mcp get exemplo_ferramentas
+    claude mcp get example_tools
     grep -c \"# whitebeard-os\" ~/.bashrc | grep -qx 1
     echo OK-ubuntu-24.04
   "

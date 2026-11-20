@@ -164,6 +164,33 @@ Os segredos de cada assistente (`DISCORD_BOT_TOKEN_<NOME>` e afins) e os demais 
 | `whitebeard-carteiro.service` / `.timer` (Linux) | `whitebeard-courier.service` / `.timer` |
 | `dev.whitebeard.carteiro` (macOS) | `dev.whitebeard.courier` |
 
+## Nomes definidos na implementação
+
+- `hermes.provedor` → `hermes.subscription` (o bloco `hermes:` já tinha `provider`, o provedor do Hermes);
+  `hermes.nivel` → `hermes.level`. Nos assistentes e no `thinker.json`, `provedor` → `provider`.
+- `ajustes` do assistente → `settings` (`computador` → `computer`, `anotar` → `write_notes`).
+- Pastas de estado: `$JARVIS_HOME/escritorio/` → `office/` (`positions.json`, `position.json`, `routines.json`,
+  `courier.json`), `$JARVIS_HOME/assistentes/` → `assistants/` (sessões do WhatsApp),
+  `render/hermes/assistentes/` → `render/hermes/assistants/`; logs `carteiro.log` → `courier.log`,
+  `pensa-login.log` → `thinker-login.log`, `instalacao-*.log` → `install-*.log`.
+- Vault: `projects-doc/escritorio/entregas/` → `projects-doc/office/deliveries/`.
+- `render/knowledge.env`: `ACELERACAO` → `ACCELERATION`.
+- Subcomandos a mais: `assistant-whatsapp-pair`/`-status`/`-unpair`, `office-approve`/`office-reject`,
+  `office-position-update`/`-remove`, `office-routine-update`/`-remove`/`-run`, `thinker-login`/`-logout`/`-key`.
+- Valores: estado do WhatsApp `preparing`, `waiting`, `qr`, `connected`, `error`, `expired`, `cancelled`, `none`;
+  alertas de tokens `costly-routine`, `costly-task`, `position-doubled`, `stuck-task`, `position-failing`;
+  entrada do provedor `claude-code`, `code`, `key`; `where: assistant:<nome>`.
+- Marcadores do Paperclip: `ENTREGA:`, `PENDÊNCIA:`, `RECUSADO`, `APROVADO` → `DELIVERY:`, `PENDING:`, `REJECTED`,
+  `APPROVED`; rodapés `[origem:]`, `[rotina:]` → `[origin:]`, `[routine:]`. Tarefas antigas ficam com os antigos.
+- `wb_export.py --sem` → `--without`; no pacote exportado, `dados` → `data`.
+- Tenant de exemplo: `example_tools`, `EXAMPLE_TOKEN`, add-on `example-addon` (`hello_mcp.py`, skill
+  `example-addon-hello`), skill `example-hello`, assistentes `support`, `example-client`, `discord-example`,
+  `whatsapp-example`, cargo `writer`, rotinas `daily-status` e `weekly-summary` (padrão), dados em `.example`.
+- CI: workflow `install.yml` (`clean-install`), job `install`.
+
+O conjunto completo das chaves de saída do `jarvis_setup.py` está no próprio código; quem consome (o JARVIS Web)
+foi ajustado junto.
+
 ## Como migrar
 
 1. Atualize o kernel (`git pull` na pasta do whitebeard-os).

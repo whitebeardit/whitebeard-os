@@ -397,7 +397,7 @@ O cargo `work` (Assistente de trabalho) existe sempre; outros cargos entram em `
 ESCRITÓRIO) e passam a valer depois de "colocar em uso". **Rotinas** (`office.routines` ou pela página) criam a
 tarefa sozinhas no horário (cron de 5 campos, fuso do computador) e publicam a entrega na sua conversa com o JARVIS
 (`where: telegram`) ou no grupo de um assistente (`where: assistant:<nome>`); valem na hora, sem colocar em uso. A rotina
-`resumo-da-semana` (segunda, 8h) vem por padrão.
+`weekly-summary` (segunda, 8h) vem por padrão.
 
 ## Add-ons: uma especialização fora do tenant
 
@@ -407,7 +407,7 @@ que mora em outro repositório, privado por exemplo, por cima de um tenant públ
 ```sh
 ./bootstrap.sh --tenant tenants/example/jarvis.yaml --addon tenants/example/addon-example/addon.yaml
 ./bootstrap.sh --apply                                # o add-on continua ligado: a instalação lembra
-./bootstrap.sh --apply --remove-addon exemplo-addon   # tira os MCPs, as skills e os segredos dele
+./bootstrap.sh --apply --remove-addon example-addon   # tira os MCPs, as skills e os segredos dele
 ```
 
 O `addon.yaml` tem um nome (`addon`, com minúsculas, números e hífen) e os mesmos campos `mcp`, `skills.packs` e

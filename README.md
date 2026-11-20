@@ -403,7 +403,7 @@ stops and asks. The `work` role (work assistant) always exists; other roles go i
 the OFFICE page) and take effect after PUT INTO USE. **Routines** (`office.routines` or through the page)
 create the task by themselves on schedule (5-field cron, the computer's time zone) and post the result to your
 conversation with JARVIS (`where: telegram`) or to an assistant's group (`where: assistant:<name>`); they take effect
-immediately, without putting into use. The `resumo-da-semana` (weekly summary) routine (Monday, 8 am) comes by default.
+immediately, without putting into use. The `weekly-summary` (weekly summary) routine (Monday, 8 am) comes by default.
 
 ## Add-ons: a specialization outside the tenant
 
@@ -413,7 +413,7 @@ specialization that lives in another repository, a private one for example, on t
 ```sh
 ./bootstrap.sh --tenant tenants/example/jarvis.yaml --addon tenants/example/addon-example/addon.yaml
 ./bootstrap.sh --apply                                # the add-on stays on: the installation remembers it
-./bootstrap.sh --apply --remove-addon exemplo-addon   # takes out its MCPs, skills and secrets
+./bootstrap.sh --apply --remove-addon example-addon   # takes out its MCPs, skills and secrets
 ```
 
 The `addon.yaml` has a name (`addon`, lowercase letters, digits and hyphens) and the same `mcp`, `skills.packs` and

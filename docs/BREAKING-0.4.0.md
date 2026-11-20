@@ -199,5 +199,5 @@ foi ajustado junto.
    Tenant próprio em outro repositório: o mesmo comando, apontando para o `jarvis.yaml` dele.
 3. Se o seu tenant era `pessoal` ou `exemplo`, aponte para `tenants/personal/jarvis.yaml` ou
    `tenants/example/jarvis.yaml` e mova a pasta do tenant no vault (`tenants/pessoal/` → `tenants/personal/`).
-4. `./bootstrap.sh --apply` e `/reset` nas conversas dos assistentes.
+4. `./bootstrap.sh --apply` (as conversas abertas dos assistentes são encerradas sozinhas quando as skills ou os MCPs mudam).
 5. Skills próprias que citam ferramentas do kernel (`ler_nota`, `listar_repositorio`…) precisam dos nomes novos.

@@ -585,7 +585,7 @@ def main() -> int:
     print(f"[migrate] {'nada a fazer: tudo já está com os nomes da 0.4.0' if not run.changes else f'{run.changes} mudança(s) ({verb})'}"
           + (f"; {run.warnings} aviso(s)" if run.warnings else ""))
     if run.changes and not a.dry_run:
-        print("[migrate] agora: ./bootstrap.sh --apply e /reset nas conversas dos assistentes")
+        print("[migrate] agora: ./bootstrap.sh --apply (as conversas abertas dos assistentes são encerradas sozinhas)")
     return 1 if run.warnings else 0
 
 

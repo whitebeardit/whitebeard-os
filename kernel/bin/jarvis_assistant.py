@@ -9,18 +9,65 @@ Uso: jarvis_assistant.py <render/hermes/assistants/<nome>/> <~/.hermes/profiles/
 Lê JARVIS_HOME do ambiente (as skills instaladas pelo kernel ficam em $JARVIS_HOME/skills).
 
 Sai com 0 quando mudou algo, 3 quando já estava em dia, 1 em erro. Nunca imprime valor de segredo.
+
+Quando mudam as skills do assistente (a lista ou o conteúdo), os MCPs ou o SOUL, as conversas abertas nos
+canais são encerradas (como um /reset em cada canal): o gateway, ao reiniciar, descarta essas rotas e a próxima
+mensagem abre uma conversa nova, que já carrega o perfil novo. Sessões que não são de canal (terminal, Paperclip)
+ficam. Na primeira aplicação, nada é encerrado.
 O que o kernel gerencia é sobrescrito (chaves do config.yaml, variáveis do .env, SOUL.md do kernel,
 links de skills do kernel); o que a pessoa fez à mão fica (SOUL.md editado, outras chaves do .env,
 skills que não são links do kernel). Só stdlib + PyYAML (o bootstrap roda pelo uv, que traz o PyYAML).
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
+import sqlite3
 import sys
+import time
 from pathlib import Path
 
 import yaml
+
+
+CHANNEL_SOURCES = ("discord", "telegram", "whatsapp", "slack", "signal")
+FINGERPRINT = ".whitebeard-fingerprint"
+
+
+def fingerprint(mcp: object, skills: list[str], jarvis_skills: Path, soul: str) -> str:
+    """O que a conversa carrega no começo: MCPs, skills (nome e conteúdo do SKILL.md) e SOUL."""
+    h = hashlib.sha256(json.dumps(mcp, sort_keys=True, default=str).encode("utf-8"))
+    for sk in sorted(skills):
+        f = jarvis_skills / sk / "SKILL.md"
+        h.update(f"\0{sk}\0".encode("utf-8"))
+        h.update(f.read_bytes() if f.is_file() else b"")
+    h.update(b"\0soul\0" + soul.encode("utf-8"))
+    return h.hexdigest()
+
+
+def end_channel_conversations(db_path: Path) -> int:
+    """Encerra (end_reason=session_reset) as sessões abertas dos canais no state.db do perfil."""
+    if not db_path.is_file():
+        return 0
+    try:
+        con = sqlite3.connect(db_path, timeout=10)
+        try:
+            cols = {r[1] for r in con.execute("pragma table_info(sessions)")}
+            if not {"source", "ended_at", "end_reason"} <= cols:
+                return 0
+            marks = ",".join("?" * len(CHANNEL_SOURCES))
+            with con:
+                cur = con.execute(f"update sessions set ended_at = ?, end_reason = 'session_reset' "
+                                  f"where ended_at is null and end_reason is null and source in ({marks})",
+                                  (time.time(), *CHANNEL_SOURCES))
+            return cur.rowcount
+        finally:
+            con.close()
+    except sqlite3.Error as e:
+        print(f"[whitebeard-os] aviso: não consegui encerrar as conversas abertas ({e}); dê /reset nos canais")
+        return 0
 
 
 def main() -> int:
@@ -99,6 +146,18 @@ def main() -> int:
             continue
         p.symlink_to(target)
         changed = True
+
+    # ---- conversas abertas: encerradas quando muda o que elas carregam no começo
+    fp = fingerprint(wanted.get("mcp_servers"), wanted_skills, jarvis_skills, soul_src)
+    fp_path = pdir / FINGERPRINT
+    old_fp = fp_path.read_text(encoding="utf-8").strip() if fp_path.exists() else None
+    if old_fp != fp:
+        fp_path.write_text(fp + "\n", encoding="utf-8")
+        if old_fp is not None:
+            n = end_channel_conversations(pdir / "state.db")
+            print(f"[whitebeard-os] hermes: {name}: skills, MCPs ou SOUL mudaram; {n} conversa(s) aberta(s) "
+                  "encerrada(s) (a próxima mensagem em cada canal abre uma nova)")
+            changed = True
 
     return 0 if changed else 3
 

@@ -41,6 +41,8 @@ jobs:
         run: PATH="$HOME/.local/bin:$PATH" python3 test/test_migrate_0_4.py
       - name: quem pensa (status rápido com o Hermes lento)
         run: python3 test/test_thinker.py
+      - name: assistente (conversas encerradas quando skills ou MCPs mudam)
+        run: PATH="$HOME/.local/bin:$PATH" python3 test/test_assistant_sessions.py
 
   install:
     needs: lint

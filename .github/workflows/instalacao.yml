@@ -33,6 +33,10 @@ jobs:
           "$HOME/.local/bin/uv" run --quiet kernel/bin/i18n_lint.py
       - name: esquema e tenant de exemplo (dry-run, três papéis)
         run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge --dry-run
+      - name: add-on de exemplo (dry-run)
+        run: ./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core,knowledge --dry-run --addon tenants/exemplo/addon-exemplo/addon.yaml
+      - name: testes do mecanismo de add-on (A1 a A9)
+        run: PATH="$HOME/.local/bin:$PATH" python3 test/test_addon.py
 
   instala:
     needs: lint

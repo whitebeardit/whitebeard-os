@@ -20,6 +20,8 @@ NO_PROMPT=0
 WITH_TELEGRAM=0
 APPLY=0
 PAPERCLIP_LOCAL=0
+ADDONS=""        # --addon: um addon.yaml por linha
+REMOVE_ADDONS="" # --remove-addon: um nome por linha
 # o knowledge gerou um segredo novo (token do MCP): render e MCPs precisam ser reaplicados
 RERENDER=0
 HERMES_RESTART=0
@@ -50,6 +52,9 @@ uso: $0 --tenant <jarvis.yaml> [opções]
   --telegram           liga o Telegram: pede o token do bot e reconhece o seu chat pela primeira mensagem
   --apply              só reaplica a configuração de uma instalação feita (segredos novos, Telegram): render, MCPs
                        e Hermes; não instala nada nem mexe no JARVIS Web. Tenant e papéis vêm da instalação
+  --addon <arquivo>    liga um add-on (addon.yaml: MCPs, skills e segredos somados ao tenant); repetível. Fica
+                       lembrado na instalação: o --apply seguinte o mantém sem repetir a opção
+  --remove-addon <nome> desliga um add-on ligado (tira os MCPs, as skills e os segredos dele); repetível
   --paperclip-local    migra um Paperclip já instalado (autenticado, na rede) para só esta máquina, sem login
   -h, --help           esta ajuda
 EOF
@@ -68,6 +73,10 @@ while [ $# -gt 0 ]; do
     --no-prompt)      NO_PROMPT=1; shift ;;
     --telegram)       WITH_TELEGRAM=1; shift ;;
     --apply)          APPLY=1; shift ;;
+    --addon)          ADDONS="$ADDONS$2
+"; shift 2 ;;
+    --remove-addon)   REMOVE_ADDONS="$REMOVE_ADDONS$2
+"; shift 2 ;;
     --paperclip-local) PAPERCLIP_LOCAL=1; shift ;;
     -h|--help)        usage; exit 0 ;;
     *) printf 'argumento desconhecido: %s\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -451,6 +460,17 @@ print("instalado" if d.get("installed") else "não instalado", "·", "ativo" if 
   return 1
 }
 
+# Chama o render com os argumentos fixos, os add-ons (--addon/--remove-addon) e o que vier em "$@"
+run_render() {
+  _ifs=$IFS; IFS='
+'
+  set -f
+  for _a in $ADDONS; do set -- "$@" --addon "$_a"; done
+  for _a in $REMOVE_ADDONS; do set -- "$@" --remove-addon "$_a"; done
+  set +f; IFS=$_ifs
+  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles "$@"
+}
+
 render_tenant() {
   skipped render && { log "render: pulado"; return 0; }
   if ! have uv; then
@@ -458,17 +478,19 @@ render_tenant() {
     die "uv é necessário para renderizar o tenant (etapa uv pulada?)"
   fi
   if [ "$DRY_RUN" = 1 ]; then
-    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles --dry-run
+    run_render --dry-run
     return 0
   fi
   mkdir -p "$JARVIS_HOME"
   # onde está este kernel: o JARVIS Web chama daqui o jarvis_setup.py e o `bootstrap.sh --apply`
   printf '%s\n' "$SCRIPT_DIR" >"$JARVIS_HOME/kernel.path"
-  uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles
+  run_render
+  # o render lembra os add-ons em addons.json; os renders seguintes não repetem --remove-addon (só avisaria)
+  REMOVE_ADDONS=""
   asked=1; ask_secrets || asked=0
   telegram_setup && asked=1 && TELEGRAM_CHANGED=1
   if [ "$asked" = 1 ]; then
-    uv run --quiet "$KERNEL_DIR/bin/jarvis_render.py" --tenant "$TENANT" --role "$ROLES" --home "$JARVIS_HOME" --kernel "$KERNEL_DIR" --allow-fewer-roles >/dev/null
+    run_render >/dev/null
   fi
   return 0
 }

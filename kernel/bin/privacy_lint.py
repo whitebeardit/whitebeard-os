@@ -24,17 +24,17 @@ SKIP_DIRS = {".git", "node_modules", ".venv", "__pycache__"}
 DEFAULT_PATHS = ["kernel", "bootstrap.sh", "README.md", "docs", "tenants", ".github", "test"]
 
 RULES: list[tuple[str, re.Pattern[str]]] = [
-    ("caminho-home-absoluto", re.compile(r"(?<![\w/])/(?:home|Users)/[A-Za-z0-9._-]+")),
+    ("absolute-home-path", re.compile(r"(?<![\w/])/(?:home|Users)/[A-Za-z0-9._-]+")),
     ("telegram-chat-id", re.compile(r"(?<![\w.])-100\d{9,}\b|(?<![\w.-])-\d{9,13}\b")),
     ("aws-account-id", re.compile(r"(?<![\d.-])\d{12}(?![\d.-])")),
     ("email", re.compile(r"\b(?!git@)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}\b")),
-    ("ipv4-rede-privada", re.compile(r"\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b")),
+    ("ipv4-private-network", re.compile(r"\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b")),
     ("token-telegram", re.compile(r"\b\d{8,10}:[A-Za-z0-9_-]{35}\b")),
     ("token-anthropic", re.compile(r"sk-ant-[A-Za-z0-9_-]{10,}")),
     ("token-openai", re.compile(r"\bsk-[A-Za-z0-9]{20,}")),
     ("token-github", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b")),
     ("aws-access-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
-    ("chave-privada", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
 ]
 
 
@@ -92,7 +92,7 @@ def main() -> int:
             low = line.lower()
             for term in deny:
                 if term in low:
-                    findings.append(f"{f}:{n}: termo-proibido: {mask(term)}")
+                    findings.append(f"{f}:{n}: forbidden-term: {mask(term)}")
 
     if findings:
         print("[privacy-lint] FALHOU:")

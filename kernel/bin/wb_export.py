@@ -7,14 +7,14 @@
 
 Stores (o que importa para "levar tudo"):
   jarvis     $JARVIS_HOME sem tools/, compose/ e render/ (regeneráveis); secrets.env só com --with-secrets
-  dados      $JARVIS_DATA (posts, métricas, contratos, registros); tokens por máquina só com --with-secrets
+  data       $JARVIS_DATA (posts, métricas, contratos, registros); tokens por máquina só com --with-secrets
   hermes     $HERMES_HOME sem código, caches, tokens por máquina e sandboxes
   paperclip  ~/.paperclip/instances/<id>: config.json, data/storage/ e o backup de banco mais recente
   knowledge  dump do Postgres (pg_dump via compose) e a home do GBrain, se o compose estiver no ar
   claude     ~/.claude: settings.json, CLAUDE.md, keybindings.json (nunca ~/.claude.json: tem tokens)
   vault      só referência (remoto e commit); com --with-vault, o conteúdo
 Derivados (venvs, caches, node_modules, modelos baixados) ficam de fora: reinstalam.
-O tenant pode declarar em jarvis.yaml `exportacao.grupos: {financeiro: [globs]}`; `--sem financeiro` exclui o grupo.
+O tenant pode declarar em jarvis.yaml `export.groups: {financeiro: [globs]}`; `--without financeiro` exclui o grupo.
 """
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ HERMES_EXCLUDE = [
 ]
 JARVIS_EXCLUDE = ["tools", "tools/**", "compose", "compose/**", "render", "render/**", "vault-index", "vault-index/**"]
 # dados do tenant ($JARVIS_DATA): caches e tokens por máquina ficam de fora
-DADOS_EXCLUDE = ["**/node_modules", "**/node_modules/**", "**/__pycache__", "**/__pycache__/**", "*.log", "*.pid", "*.sock", "*.db-shm", "*.db-wal", "thumbs", "thumbs/**"]
-DADOS_SECRETS = ["jarvis-web.json", "paperclip-board-key", "instagram.json"]
+DATA_EXCLUDE = ["**/node_modules", "**/node_modules/**", "**/__pycache__", "**/__pycache__/**", "*.log", "*.pid", "*.sock", "*.db-shm", "*.db-wal", "thumbs", "thumbs/**"]
+DATA_SECRETS = ["jarvis-web.json", "paperclip-board-key", "instagram.json"]
 CLAUDE_INCLUDE = ["settings.json", "CLAUDE.md", "keybindings.json"]
 
 
@@ -90,11 +90,11 @@ def main() -> int:
     ap.add_argument("--out", help="arquivo .tar.gz de saída (padrão: ./whitebeard-export-<tenant>-<data>.tar.gz)")
     ap.add_argument("--jarvis-home", default=os.environ.get("JARVIS_HOME", str(Path.home() / ".jarvis")))
     ap.add_argument("--hermes-home", default=os.environ.get("HERMES_HOME", str(Path.home() / ".hermes")))
-    ap.add_argument("--data-home", default=os.environ.get("JARVIS_DATA"), help="pasta de dados do tenant (padrão: `dados` do jarvis.yaml ou $JARVIS_HOME/data)")
+    ap.add_argument("--data-home", default=os.environ.get("JARVIS_DATA"), help="pasta de dados do tenant (padrão: `data` do jarvis.yaml ou $JARVIS_HOME/data)")
     ap.add_argument("--paperclip-home", default=os.environ.get("PAPERCLIP_HOME", str(Path.home() / ".paperclip")))
     ap.add_argument("--instance", default="default")
     ap.add_argument("--only", default="", help="stores separados por vírgula (padrão: todos)")
-    ap.add_argument("--sem", default="", help="grupos do tenant a excluir (exportacao.grupos), ex.: financeiro")
+    ap.add_argument("--without", default="", help="grupos do tenant a excluir (export.groups), ex.: financeiro")
     ap.add_argument("--with-secrets", action="store_true", help="inclui secrets.env e .env do Hermes (cuidado)")
     ap.add_argument("--with-vault", action="store_true", help="inclui o conteúdo do vault (normalmente é git)")
     ap.add_argument("--dry-run", action="store_true", help="só lista o que seria exportado, com tamanhos")
@@ -103,24 +103,24 @@ def main() -> int:
     jh, hh = Path(a.jarvis_home), Path(a.hermes_home)
     ph = Path(a.paperclip_home) / "instances" / a.instance
     only = {s.strip() for s in a.only.split(",") if s.strip()}
-    sem = {s.strip() for s in a.sem.split(",") if s.strip()}
+    without = {s.strip() for s in a.without.split(",") if s.strip()}
 
-    tenant = "desconhecido"
+    tenant = "unknown"
     tenant_exclude: list[str] = []
     vault_path = None
     ty = jh / "jarvis.yaml"
     if ty.exists():
         data = yaml.safe_load(ty.read_text(encoding="utf-8")) or {}
         tenant = data.get("tenant", tenant)
-        grupos = (data.get("exportacao") or {}).get("grupos") or {}
-        for g in sem:
-            if g not in grupos:
-                log(f"aviso: grupo '{g}' não existe em exportacao.grupos do tenant")
-            tenant_exclude += list(grupos.get(g, []))
+        groups = (data.get("export") or {}).get("groups") or {}
+        for g in without:
+            if g not in groups:
+                log(f"aviso: grupo '{g}' não existe em export.groups do tenant")
+            tenant_exclude += list(groups.get(g, []))
         if (data.get("vault") or {}).get("path"):
             vault_path = Path.home() / data["vault"]["path"]
-        if not a.data_home and data.get("dados"):
-            a.data_home = str(Path.home() / data["dados"])
+        if not a.data_home and data.get("data"):
+            a.data_home = str(Path.home() / data["data"])
     dh = Path(a.data_home) if a.data_home else jh / "data"
 
     stores: dict[str, dict] = {}
@@ -132,15 +132,15 @@ def main() -> int:
 
     jx = JARVIS_EXCLUDE + ([] if a.with_secrets else ["secrets.env"]) + tenant_exclude
     try:
-        dentro = dh.resolve().is_relative_to(jh.resolve())
+        inside = dh.resolve().is_relative_to(jh.resolve())
     except (OSError, ValueError):
-        dentro = False
-    if dentro:
+        inside = False
+    if inside:
         rel = str(dh.resolve().relative_to(jh.resolve()))
         jx += [rel, rel + "/**"]  # os dados vão no store próprio, não duas vezes
     add_store("jarvis", jh, walk(jh, jx))
-    dx = DADOS_EXCLUDE + ([] if a.with_secrets else DADOS_SECRETS) + tenant_exclude
-    add_store("dados", dh, walk(dh, dx), "" if a.with_secrets else "sem tokens por máquina (jarvis-web.json, paperclip-board-key, instagram.json)")
+    dx = DATA_EXCLUDE + ([] if a.with_secrets else DATA_SECRETS) + tenant_exclude
+    add_store("data", dh, walk(dh, dx), "" if a.with_secrets else "sem tokens por máquina (jarvis-web.json, paperclip-board-key, instagram.json)")
     hx = [p for p in HERMES_EXCLUDE if a.with_secrets is False or p not in (".env", ".env.*")] + tenant_exclude
     add_store("hermes", hh, walk(hh, hx))
     pfiles: list[Path] = []
@@ -201,7 +201,7 @@ def main() -> int:
     out = Path(a.out) if a.out else Path.cwd() / f"whitebeard-export-{tenant}-{datetime.now().strftime('%Y%m%d-%H%M')}.tar.gz"
     manifest = {
         "schema": 1, "tenant": tenant, "created": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "with_secrets": a.with_secrets, "excluded_groups": sorted(sem), "vault": vault_info,
+        "with_secrets": a.with_secrets, "excluded_groups": sorted(without), "vault": vault_info,
         "stores": {n: {"root": s["root"], "files": len(s["files"]), "bytes": s["bytes"]} for n, s in stores.items()},
     }
     with tarfile.open(out, "w:gz") as tar:

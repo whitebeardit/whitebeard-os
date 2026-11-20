@@ -2,30 +2,30 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://whitebeard-os.invalid/schema/jarvis.schema.json",
   "title": "jarvis.yaml — declaração de tenant do Whitebeard OS",
-  "description": "Tudo que é identidade do tenant entra aqui. Segredos nunca entram como valor: use ${NOME} e declare em `segredos`.",
+  "description": "Tudo que é identidade do tenant entra aqui. Segredos nunca entram como valor: use ${NOME} e declare em `secrets`.",
   "type": "object",
   "required": [
     "tenant",
-    "idioma"
+    "language"
   ],
   "additionalProperties": false,
   "$defs": {
-    "papel": {
+    "role": {
       "enum": [
         "desktop",
         "core",
-        "satelite",
+        "satellite",
         "knowledge"
       ]
     },
-    "papeis": {
+    "roles": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/papel"
+        "$ref": "#/$defs/role"
       },
       "uniqueItems": true
     },
-    "segredo": {
+    "secret": {
       "type": "object",
       "required": [
         "name"
@@ -51,7 +51,7 @@
           "type": "string"
         },
         "roles": {
-          "$ref": "#/$defs/papeis"
+          "$ref": "#/$defs/roles"
         }
       }
     }
@@ -62,11 +62,11 @@
       "pattern": "^[a-z][a-z0-9-]{1,30}$",
       "description": "identificador curto, minúsculo; vira $JARVIS_TENANT"
     },
-    "idioma": {
+    "language": {
       "type": "string",
       "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
     },
-    "aceleracao": {
+    "acceleration": {
       "enum": [
         "auto",
         "cpu",
@@ -77,31 +77,31 @@
       "default": "auto",
       "description": "GPU é opcional e nunca obrigatória. `auto` detecta na instalação (CUDA em Linux/NVIDIA, Metal em Apple Silicon, Vulkan genérico) e cai para CPU se não houver"
     },
-    "dados": {
+    "data": {
       "type": "string",
       "description": "pasta de dados do tenant (posts, métricas, contratos, registros do JARVIS Web), relativa a $HOME; vira $JARVIS_DATA. Padrão: $JARVIS_HOME/data"
     },
     "interface": {
       "type": "object",
       "additionalProperties": false,
-      "description": "JARVIS Web: quais módulos aparecem. Padrão do produto: os genéricos (sistemas, conhecimento, arquivos, comunicacoes, ferramentas, diagnosticos, camera, operacao). operacao = painéis de máquina e serviços na visão geral (uma empresa liga; o tenant pessoal não, para a visão geral ser a casa do JARVIS). instagram, midias, rastreamento, leads e analytics são integrações de tenant",
+      "description": "JARVIS Web: quais módulos aparecem. Padrão do produto: os genéricos (systems, knowledge, files, communications, tools, diagnostics, camera, operations). operations = painéis de máquina e serviços na visão geral (uma empresa liga; o tenant personal não, para a visão geral ser a casa do JARVIS). instagram, media, tracking, leads e analytics são integrações de tenant",
       "properties": {
-        "modulos": {
+        "modules": {
           "type": "array",
           "uniqueItems": true,
           "items": {
             "enum": [
-              "sistemas",
-              "conhecimento",
-              "arquivos",
-              "comunicacoes",
-              "ferramentas",
-              "diagnosticos",
+              "systems",
+              "knowledge",
+              "files",
+              "communications",
+              "tools",
+              "diagnostics",
               "camera",
-              "operacao",
+              "operations",
               "instagram",
-              "midias",
-              "rastreamento",
+              "media",
+              "tracking",
               "leads",
               "analytics"
             ]
@@ -169,7 +169,7 @@
             }
           },
           "roles": {
-            "$ref": "#/$defs/papeis"
+            "$ref": "#/$defs/roles"
           }
         },
         "allOf": [
@@ -207,12 +207,12 @@
         ]
       }
     },
-    "exportacao": {
+    "export": {
       "type": "object",
       "additionalProperties": false,
-      "description": "grupos de arquivos que podem ficar fora de um export (wb_export.py --sem grupo); globs relativos a cada store",
+      "description": "grupos de arquivos que podem ficar fora de um export (wb_export.py --without grupo); globs relativos a cada store",
       "properties": {
-        "grupos": {
+        "groups": {
           "type": "object",
           "additionalProperties": {
             "type": "array",
@@ -223,27 +223,27 @@
         }
       }
     },
-    "decisoes": {
+    "decisions": {
       "type": "object",
       "additionalProperties": false,
-      "description": "camada de decisão do kernel (rotear, classificar, guardrails). O provedor é escolha do tenant; `regras` e `llm` funcionam sem terceiros",
+      "description": "camada de decisão do kernel (rotear, classificar, guardrails). O provedor é escolha do tenant; `rules` e `llm` funcionam sem terceiros",
       "properties": {
         "provider": {
           "enum": [
-            "regras",
+            "rules",
             "llm",
             "jev"
           ],
-          "default": "regras"
+          "default": "rules"
         },
-        "limiar_confianca": {
+        "confidence_threshold": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "default": 0.85,
           "description": "abaixo disso a decisão escala para o LLM ou para o humano"
         },
-        "perfis_excluidos": {
+        "excluded_profiles": {
           "type": "array",
           "items": {
             "type": "string"
@@ -265,10 +265,10 @@
         }
       }
     },
-    "segredos": {
+    "secrets": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/segredo"
+        "$ref": "#/$defs/secret"
       }
     },
     "hermes": {
@@ -285,23 +285,23 @@
           "type": "string",
           "description": "modelo reserva como provedor/modelo (ex.: anthropic/claude-haiku-5-5); sem provedor, usa o principal"
         },
-        "provedor": {
+        "subscription": {
           "type": "string",
           "enum": [
             "claude",
             "chatgpt",
             "openrouter"
           ],
-          "description": "quem pensa, pela assinatura da pessoa: claude (login do Claude Code), chatgpt (login do ChatGPT, provedor openai-codex do Hermes) ou openrouter (chave de API do OpenRouter; os níveis usam modelos gratuitos). Com provedor ou nivel, o modelo sai de kernel/modelos.yaml e provider/model ficam só para quem não escolheu; a página PRIMEIROS PASSOS grava a escolha em $JARVIS_HOME/pensa.json"
+          "description": "quem pensa, pela assinatura da pessoa: claude (login do Claude Code), chatgpt (login do ChatGPT, provedor openai-codex do Hermes) ou openrouter (chave de API do OpenRouter; os níveis usam modelos gratuitos). Com subscription ou level, o modelo sai de kernel/models.yaml e provider/model ficam só para quem não escolheu; a página PRIMEIROS PASSOS grava a escolha em $JARVIS_HOME/thinker.json. Chama-se subscription (e não provider) porque hermes.provider já é o provedor do Hermes"
         },
-        "nivel": {
+        "level": {
           "type": "string",
           "enum": [
-            "rapido",
-            "equilibrado",
-            "capaz"
+            "fast",
+            "balanced",
+            "capable"
           ],
-          "description": "nível de quem pensa: rapido (gasta pouco), equilibrado (padrão), capaz (tarefas longas); o modelo sai de kernel/modelos.yaml"
+          "description": "nível de quem pensa: fast (gasta pouco), balanced (padrão), capable (tarefas longas); o modelo sai de kernel/models.yaml"
         }
       }
     },
@@ -320,26 +320,26 @@
         }
       }
     },
-    "perfis": {
+    "profiles": {
       "type": "array",
       "items": {
         "type": "object",
         "required": [
-          "nome",
-          "tipo"
+          "name",
+          "type"
         ],
         "additionalProperties": false,
         "properties": {
-          "nome": {
+          "name": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
           },
-          "tipo": {
+          "type": {
             "enum": [
-              "pessoal",
-              "grupo-cliente",
-              "grupo-interno",
-              "servico"
+              "personal",
+              "client-group",
+              "internal-group",
+              "service"
             ]
           },
           "chat_id": {
@@ -361,54 +361,54 @@
       "items": {
         "type": "object",
         "required": [
-          "nome",
-          "agenda"
+          "name",
+          "schedule"
         ],
         "additionalProperties": false,
         "properties": {
-          "nome": {
+          "name": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]*$"
           },
-          "agenda": {
+          "schedule": {
             "type": "string",
             "description": "expressão cron de 5 campos"
           },
           "prompt": {
             "type": "string"
           },
-          "perfil": {
+          "profile": {
             "type": "string"
           }
         }
       }
     },
-    "assistentes": {
+    "assistants": {
       "type": "array",
       "description": "Assistentes (bots do Telegram, do Discord ou do WhatsApp): um bot por público, cada um um perfil isolado do Hermes (token, memória, skills e ferramentas próprias). Sem este campo, só o assistente do dono (o bot de `telegram`). O token entra em secrets.env como TELEGRAM_BOT_TOKEN_<NOME>.",
       "items": {
         "type": "object",
         "required": [
-          "nome",
-          "tipo"
+          "name",
+          "type"
         ],
         "additionalProperties": false,
         "properties": {
-          "nome": {
+          "name": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]{1,30}$",
             "description": "identificador (vira o perfil do Hermes e o sufixo dos segredos)"
           },
-          "tipo": {
+          "type": {
             "enum": [
-              "mim",
-              "equipe",
-              "cliente",
-              "rotinas"
+              "owner",
+              "team",
+              "client",
+              "routines"
             ],
-            "description": "mim: tudo, como o do dono; equipe: skills e MCPs, escreve no second brain, sem computador; cliente: só as skills do papel, sem ferramentas, só no grupo permitido; rotinas: não conversa, só rotinas"
+            "description": "owner: tudo, como o do dono; team: skills e MCPs, escreve no second brain, sem computador; client: só as skills do papel, sem ferramentas, só no grupo permitido; routines: não conversa, só rotinas"
           },
-          "canal": {
+          "channel": {
             "enum": [
               "telegram",
               "discord",
@@ -417,15 +417,15 @@
             "default": "telegram",
             "description": "onde ele fala: telegram (padrão; TELEGRAM_BOT_TOKEN_<NOME>), discord (DISCORD_BOT_TOKEN_<NOME>; DISCORD_ALLOWED_USERS/CHANNELS_<NOME>) ou whatsapp (sem token: sessão pareada por QR na página ASSISTENTES; WHATSAPP_ALLOWED_USERS_<NOME>, WHATSAPP_GROUP_ALLOWED_USERS_<NOME>)"
           },
-          "whatsapp_modo": {
+          "whatsapp_mode": {
             "enum": [
               "bot",
               "self-chat"
             ],
             "default": "bot",
-            "description": "só com canal whatsapp: bot = número dedicado ao assistente (recomendado); self-chat = o seu próprio número, você fala consigo mesmo (para testar)"
+            "description": "só com channel whatsapp: bot = número dedicado ao assistente (recomendado); self-chat = o seu próprio número, você fala consigo mesmo (para testar)"
           },
-          "descricao": {
+          "description": {
             "type": "string",
             "maxLength": 400,
             "description": "o que ele faz, em uma ou duas frases: vai para o Telegram, para o prompt e para a interface"
@@ -438,123 +438,123 @@
             "uniqueItems": true,
             "description": "skills instaladas (kernel ou packs) que este assistente tem; vazio = nenhuma além do que o tipo traz"
           },
-          "modelo": {
+          "model": {
             "type": "string",
             "description": "modelo deste assistente (padrão: hermes.model)"
           },
-          "ajustes": {
+          "settings": {
             "type": "object",
             "additionalProperties": false,
-            "description": "o que vem desligado por padrão e pode ser ligado com aviso; proibido para cliente e rotinas",
+            "description": "o que vem desligado por padrão e pode ser ligado com aviso; proibido para client e routines",
             "properties": {
-              "computador": {
+              "computer": {
                 "type": "boolean",
                 "description": "pode ler arquivos e rodar comandos neste computador em nome de quem fala com ele"
               },
-              "anotar": {
+              "write_notes": {
                 "type": "boolean",
                 "description": "pode escrever no second brain e criar tarefas no Paperclip"
               }
             }
           },
-          "nivel": {
+          "level": {
             "type": "string",
             "enum": [
-              "rapido",
-              "equilibrado",
-              "capaz"
+              "fast",
+              "balanced",
+              "capable"
             ],
-            "description": "nível de quem pensa: rapido (gasta pouco), equilibrado (padrão), capaz (tarefas longas); o modelo sai de kernel/modelos.yaml"
+            "description": "nível de quem pensa: fast (gasta pouco), balanced (padrão), capable (tarefas longas); o modelo sai de kernel/models.yaml"
           }
         }
       }
     },
-    "escritorio": {
+    "office": {
       "type": "object",
       "additionalProperties": false,
-      "description": "O Escritório: tarefas delegadas, rotinas e aprovações com o Paperclip como motor e o Hermes como executor (cargo = perfil do Hermes com ferramentas limitadas). Desligado por padrão. O cargo `trabalho` (Assistente de trabalho) e a rotina `resumo-da-semana` existem sempre que o Escritório está ligado; a página ESCRITÓRIO cria outros em $JARVIS_HOME/escritorio.json e escritorio/rotinas.json (valem por cima destes).",
+      "description": "O Escritório: tarefas delegadas, rotinas e aprovações com o Paperclip como motor e o Hermes como executor (cargo = perfil do Hermes com ferramentas limitadas). Desligado por padrão. O cargo `work` (Assistente de trabalho) e a rotina `weekly-summary` existem sempre que o Escritório está ligado; a página ESCRITÓRIO cria outros em $JARVIS_HOME/office.json e office/routines.json (valem por cima destes).",
       "properties": {
-        "ligado": {
+        "enabled": {
           "type": "boolean",
           "default": false,
-          "description": "liga o Escritório: cargo 'Assistente de trabalho', ferramentas criar_tarefa/aprovar nos assistentes do dono e da equipe, carteiro avisando no canal de origem"
+          "description": "liga o Escritório: cargo 'Assistente de trabalho', ferramentas create_task/approve nos assistentes do dono e da equipe, carteiro avisando no canal de origem"
         },
-        "cargos": {
+        "positions": {
           "type": "array",
-          "description": "Cargos além do `trabalho`: cada um é um perfil do Hermes (mesmas ferramentas de um assistente de equipe, sem terminal) e um agente no Paperclip. O que muda entre cargos é o que ele faz (vai para a cabeça dele).",
+          "description": "Cargos além do `work`: cada um é um perfil do Hermes (mesmas ferramentas de um assistente de equipe, sem terminal) e um agente no Paperclip. O que muda entre cargos é o que ele faz (vai para a cabeça dele).",
           "items": {
             "type": "object",
             "required": [
-              "nome",
-              "titulo"
+              "name",
+              "title"
             ],
             "additionalProperties": false,
             "properties": {
-              "nome": {
+              "name": {
                 "type": "string",
                 "pattern": "^[a-z][a-z0-9-]*$",
                 "description": "identificador curto (vira o nome do perfil do Hermes)"
               },
-              "titulo": {
+              "title": {
                 "type": "string",
                 "description": "como aparece na página e no Paperclip (ex.: Redator)"
               },
-              "faz": {
+              "does": {
                 "type": "string",
                 "description": "uma ou duas frases: o que este cargo faz e como entrega"
               },
-              "nivel": {
+              "level": {
                 "type": "string",
                 "enum": [
-                  "rapido",
-                  "equilibrado",
-                  "capaz"
+                  "fast",
+                  "balanced",
+                  "capable"
                 ],
-                "description": "nível de quem pensa: rapido (gasta pouco), equilibrado (padrão), capaz (tarefas longas); o modelo sai de kernel/modelos.yaml"
+                "description": "nível de quem pensa: fast (gasta pouco), balanced (padrão), capable (tarefas longas); o modelo sai de kernel/models.yaml"
               }
             }
           }
         },
-        "rotinas": {
+        "routines": {
           "type": "array",
           "description": "Rotinas: uma tarefa criada sozinha num horário, executada por um cargo, com a entrega publicada onde a rotina diz. O carteiro agenda (a cada minuto); não precisa de 'colocar em uso'.",
           "items": {
             "type": "object",
             "required": [
-              "nome",
-              "titulo",
-              "faz",
-              "quando"
+              "name",
+              "title",
+              "does",
+              "when"
             ],
             "additionalProperties": false,
             "properties": {
-              "nome": {
+              "name": {
                 "type": "string",
                 "pattern": "^[a-z][a-z0-9-]*$"
               },
-              "titulo": {
+              "title": {
                 "type": "string",
                 "description": "título da tarefa criada a cada vez (ex.: Resumo da semana)"
               },
-              "faz": {
+              "does": {
                 "type": "string",
                 "description": "o pedido, como você diria ao JARVIS"
               },
-              "quando": {
+              "when": {
                 "type": "string",
                 "description": "expressão cron de 5 campos (minuto hora dia mês dia-da-semana), no fuso deste computador; ex.: '0 8 * * 1' = toda segunda às 8h"
               },
-              "onde": {
+              "where": {
                 "type": "string",
                 "default": "telegram",
-                "description": "onde a entrega é publicada: 'telegram' (sua conversa com o JARVIS) ou 'assistente:<nome>' (o grupo de um assistente do Telegram ou do Discord)"
+                "description": "onde a entrega é publicada: 'telegram' (sua conversa com o JARVIS) ou 'assistant:<name>' (o grupo de um assistente do Telegram ou do Discord)"
               },
-              "cargo": {
+              "position": {
                 "type": "string",
-                "default": "trabalho",
+                "default": "work",
                 "description": "nome do cargo que executa"
               },
-              "ligada": {
+              "enabled": {
                 "type": "boolean",
                 "default": true
               }
@@ -563,7 +563,7 @@
         }
       }
     },
-    "servicos_monitorados": {
+    "monitored_services": {
       "type": "array",
       "items": {
         "type": "object",
@@ -584,21 +584,21 @@
         }
       }
     },
-    "nos": {
+    "nodes": {
       "type": "array",
-      "description": "onde cada papel roda. Sem `nos`, ou com um único host `local` com todos os papéis, a instalação é tudo-em-um",
+      "description": "onde cada papel roda. Sem `nodes`, ou com um único host `local` com todos os papéis, a instalação é tudo-em-um",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "anyOf": [
           {
             "required": [
-              "papel"
+              "role"
             ]
           },
           {
             "required": [
-              "papeis"
+              "roles"
             ]
           }
         ],
@@ -607,11 +607,11 @@
             "type": "string",
             "description": "`local` (padrão) ou nome/endereço de outra máquina"
           },
-          "papel": {
-            "$ref": "#/$defs/papel"
+          "role": {
+            "$ref": "#/$defs/role"
           },
-          "papeis": {
-            "$ref": "#/$defs/papeis"
+          "roles": {
+            "$ref": "#/$defs/roles"
           }
         }
       }

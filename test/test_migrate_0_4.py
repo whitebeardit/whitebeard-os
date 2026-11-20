@@ -395,11 +395,11 @@ class MigrateTest(unittest.TestCase):
     # ------------------------------------------------------------ $JARVIS_DATA
     def test_data_preferences(self) -> None:
         data = self.tmp / ".whitebeard"
-        write(data / "preferencias.json", {"idioma": "en", "tema": "escuro"})
+        write(data / "preferencias.json", {"idioma": "en", "tema": "atlas", "escalaTexto": 1.15})
         r = run("--data", str(data))
         self.assertEqual(r.returncode, 0, r.stdout)
         self.assertFalse((data / "preferencias.json").exists())
-        self.assertEqual(read(data / "preferences.json"), {"language": "en", "tema": "escuro"})
+        self.assertEqual(read(data / "preferences.json"), {"language": "en", "theme": "atlas", "text_scale": 1.15})
 
     def test_needs_something_to_do(self) -> None:
         r = run()

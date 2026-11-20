@@ -232,12 +232,13 @@ def conv_web(d):
     return d
 
 
+PREFERENCE_KEYS = {"idioma": "language", "tema": "theme", "escalaTexto": "text_scale"}
+
+
 def conv_preferences(d):
-    """preferences.json ($JARVIS_DATA) é do JARVIS Web: só as chaves que estão na tabela do jarvis.yaml."""
+    """preferences.json ($JARVIS_DATA) é do JARVIS Web: idioma, tema e tamanho do texto."""
     if isinstance(d, dict):
-        return {YAML_KEYS.get(k, k): conv_preferences(v) for k, v in d.items()}
-    if isinstance(d, list):
-        return [conv_preferences(x) for x in d]
+        return {PREFERENCE_KEYS.get(k, k): v for k, v in d.items()}
     return d
 
 

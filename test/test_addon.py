@@ -19,8 +19,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 KERNEL = REPO / "kernel"
-TENANT = REPO / "tenants" / "exemplo" / "jarvis.yaml"
-ADDON_EXEMPLO = REPO / "tenants" / "exemplo" / "addon-exemplo" / "addon.yaml"
+TENANT = REPO / "tenants" / "example" / "jarvis.yaml"
+EXAMPLE_ADDON = REPO / "tenants" / "example" / "addon-example" / "addon.yaml"
 ROLES = "desktop,core"
 # o cache do uv fica no lugar de sempre, mesmo com a $HOME trocada (senão cada teste baixa as dependências)
 UV_CACHE = os.environ.get("UV_CACHE_DIR") or str(Path.home() / ".cache" / "uv")
@@ -60,7 +60,7 @@ class AddonTest(unittest.TestCase):
     # ------------------------------------------------------------ apoio
     def render(self, *extra: str, home: Path | None = None, user: Path | None = None) -> subprocess.CompletedProcess:
         user = user or self.user
-        env = dict(os.environ, HOME=str(user), UV_CACHE_DIR=UV_CACHE, JARVIS_IDIOMA="pt-BR")
+        env = dict(os.environ, HOME=str(user), UV_CACHE_DIR=UV_CACHE, JARVIS_LANGUAGE="pt-BR")
         return subprocess.run(
             ["uv", "run", "--quiet", str(KERNEL / "bin" / "jarvis_render.py"), "--tenant", str(TENANT),
              "--role", ROLES, "--home", str(home or self.home), "--kernel", str(KERNEL), "--allow-fewer-roles", *extra],
@@ -74,152 +74,152 @@ class AddonTest(unittest.TestCase):
     def hermes_mcp(self) -> dict:
         return json.loads((self.home / "render" / "hermes" / "mcp.json").read_text(encoding="utf-8"))
 
-    def addon(self, nome: str, body: str = "", *, mcp: str | None = None, skill: str | None = None) -> Path:
+    def addon(self, name: str, body: str = "", *, mcp: str | None = None, skill: str | None = None) -> Path:
         """Cria um add-on mínimo em tmp/<nome>/addon.yaml (com uma skill e um MCP, se pedidos)."""
-        base = self.tmp / nome
-        text = f"addon: {nome}\ndescricao: add-on de teste\n"
+        base = self.tmp / name
+        text = f"addon: {name}\ndescription: add-on de teste\n"
         if mcp:
             text += textwrap.dedent(f"""\
                 mcp:
                   - name: {mcp}
                     transport: stdio
                     command: python3
-                    args: ["./servidor.py", "--flag", "../fora.txt"]
+                    args: ["./server.py", "--flag", "../outside.txt"]
                 """)
-            write(base / "servidor.py", "print('ok')\n")
+            write(base / "server.py", "print('ok')\n")
         if skill:
             text += "skills:\n  packs: [skills]\n"
             write(base / "skills" / skill / "SKILL.md", f"---\nname: {skill}\ndescription: teste\n---\n# {skill}\n")
         return write(base / "addon.yaml", text + textwrap.dedent(body))
 
     # ------------------------------------------------------------ A1
-    def test_a1_addon_exemplo_soma_mcp_e_skill(self) -> None:
-        self.assertTrue(ADDON_EXEMPLO.is_file(), "falta o add-on de exemplo em tenants/exemplo/addon-exemplo/")
-        self.ok("--addon", str(ADDON_EXEMPLO))
+    def test_a1_example_addon_adds_mcp_and_skill(self) -> None:
+        self.assertTrue(EXAMPLE_ADDON.is_file(), "falta o add-on de exemplo em tenants/example/addon-example/")
+        self.ok("--addon", str(EXAMPLE_ADDON))
         mcp = self.hermes_mcp()
-        self.assertIn("exemplo_addon", mcp)
+        self.assertIn("example_addon", mcp)
         # os MCPs do kernel e do tenant continuam
-        self.assertIn("cerebro", mcp)
+        self.assertIn("vault", mcp)
         self.assertIn("github", mcp)
         # assistente da equipe recebe o MCP do add-on; o de cliente, não
-        suporte = (self.home / "render" / "hermes" / "assistentes" / "suporte" / "config.yaml").read_text(encoding="utf-8")
-        self.assertIn("exemplo_addon", suporte)
-        cliente = (self.home / "render" / "hermes" / "assistentes" / "cliente-exemplo" / "config.yaml").read_text(encoding="utf-8")
-        self.assertNotIn("exemplo_addon", cliente)
+        support = (self.home / "render" / "hermes" / "assistants" / "support" / "config.yaml").read_text(encoding="utf-8")
+        self.assertIn("example_addon", support)
+        client = (self.home / "render" / "hermes" / "assistants" / "example-client" / "config.yaml").read_text(encoding="utf-8")
+        self.assertNotIn("example_addon", client)
         # Claude Code (papel desktop)
-        self.assertIn("exemplo_addon", (self.home / "render" / "claude-mcp.sh").read_text(encoding="utf-8"))
+        self.assertIn("example_addon", (self.home / "render" / "claude-mcp.sh").read_text(encoding="utf-8"))
         # a skill do add-on é instalada e linkada
-        self.assertTrue((self.home / "skills" / "exemplo-addon-ola" / "SKILL.md").is_file())
-        self.assertTrue((self.user / ".claude" / "skills" / "exemplo-addon-ola").is_symlink())
-        self.assertTrue((self.user / ".hermes" / "skills" / "exemplo-addon-ola").is_symlink())
-        self.assertIn("exemplo-addon", (self.home / "render" / "summary.txt").read_text(encoding="utf-8"))
+        self.assertTrue((self.home / "skills" / "example-addon-hello" / "SKILL.md").is_file())
+        self.assertTrue((self.user / ".claude" / "skills" / "example-addon-hello").is_symlink())
+        self.assertTrue((self.user / ".hermes" / "skills" / "example-addon-hello").is_symlink())
+        self.assertIn("example-addon", (self.home / "render" / "summary.txt").read_text(encoding="utf-8"))
 
-    def test_a1_mcp_do_addon_recebe_tenant_e_dados(self) -> None:
+    def test_a1_addon_mcp_gets_tenant_and_data(self) -> None:
         """ADR-009 do Mastery: o tenant chega ao MCP pelo ambiente, nunca como parâmetro de ferramenta."""
-        a = self.addon("amb", """\
+        a = self.addon("env", """\
             mcp:
-              - name: mcp_amb
+              - name: mcp_env
                 transport: stdio
                 command: python3
                 args: ["x.py"]
                 env:
-                  JARVIS_TENANT: "outro"
+                  JARVIS_TENANT: "other"
             """)
         self.ok("--addon", str(a))
-        env = self.hermes_mcp()["mcp_amb"]["env"]
-        self.assertEqual(env["JARVIS_TENANT"], "exemplo")  # o add-on não escolhe o tenant
-        self.assertEqual(env["JARVIS_DATA"], str(self.user / ".exemplo"))
+        env = self.hermes_mcp()["mcp_env"]["env"]
+        self.assertEqual(env["JARVIS_TENANT"], "example")  # o add-on não escolhe o tenant
+        self.assertEqual(env["JARVIS_DATA"], str(self.user / ".example"))
         # MCP do tenant não muda
-        self.assertNotIn("JARVIS_TENANT", self.hermes_mcp().get("exemplo_ferramentas", {}).get("env", {}))
+        self.assertNotIn("JARVIS_TENANT", self.hermes_mcp().get("example_tools", {}).get("env", {}))
 
     # ------------------------------------------------------------ A2
-    def test_a2_idempotente(self) -> None:
-        self.ok("--addon", str(ADDON_EXEMPLO))
+    def test_a2_idempotent(self) -> None:
+        self.ok("--addon", str(EXAMPLE_ADDON))
         first = snapshot(self.user)
-        self.ok("--addon", str(ADDON_EXEMPLO))
+        self.ok("--addon", str(EXAMPLE_ADDON))
         self.assertEqual(first, snapshot(self.user))
 
     # ------------------------------------------------------------ A3
-    def test_a3_lembra_sem_repetir_addon(self) -> None:
-        self.ok("--addon", str(ADDON_EXEMPLO))
-        com = snapshot(self.user)
+    def test_a3_remembers_without_repeating_addon(self) -> None:
+        self.ok("--addon", str(EXAMPLE_ADDON))
+        with_addon = snapshot(self.user)
         self.ok()  # como o --apply: sem --addon
-        self.assertIn("exemplo_addon", self.hermes_mcp())
-        self.assertEqual(com, snapshot(self.user))
-        estado = json.loads((self.home / "addons.json").read_text(encoding="utf-8"))
-        self.assertEqual([a["addon"] for a in estado], ["exemplo-addon"])
-        self.assertEqual(estado[0]["path"], str(ADDON_EXEMPLO))
+        self.assertIn("example_addon", self.hermes_mcp())
+        self.assertEqual(with_addon, snapshot(self.user))
+        state = json.loads((self.home / "addons.json").read_text(encoding="utf-8"))
+        self.assertEqual([a["addon"] for a in state], ["example-addon"])
+        self.assertEqual(state[0]["path"], str(EXAMPLE_ADDON))
 
     # ------------------------------------------------------------ A4
     def test_a4_remove_addon(self) -> None:
-        self.ok("--addon", str(ADDON_EXEMPLO))
-        self.ok("--remove-addon", "exemplo-addon")
+        self.ok("--addon", str(EXAMPLE_ADDON))
+        self.ok("--remove-addon", "example-addon")
         mcp = self.hermes_mcp()
-        self.assertNotIn("exemplo_addon", mcp)
-        self.assertIn("cerebro", mcp)
-        self.assertNotIn("exemplo_addon", (self.home / "render" / "claude-mcp.sh").read_text(encoding="utf-8"))
-        self.assertFalse((self.home / "skills" / "exemplo-addon-ola").exists())
-        self.assertFalse((self.user / ".claude" / "skills" / "exemplo-addon-ola").is_symlink())
-        self.assertFalse((self.user / ".hermes" / "skills" / "exemplo-addon-ola").is_symlink())
+        self.assertNotIn("example_addon", mcp)
+        self.assertIn("vault", mcp)
+        self.assertNotIn("example_addon", (self.home / "render" / "claude-mcp.sh").read_text(encoding="utf-8"))
+        self.assertFalse((self.home / "skills" / "example-addon-hello").exists())
+        self.assertFalse((self.user / ".claude" / "skills" / "example-addon-hello").is_symlink())
+        self.assertFalse((self.user / ".hermes" / "skills" / "example-addon-hello").is_symlink())
         # o resto do tenant fica
-        self.assertTrue((self.home / "skills" / "exemplo-ola" / "SKILL.md").is_file())
+        self.assertTrue((self.home / "skills" / "example-hello" / "SKILL.md").is_file())
         self.assertFalse((self.home / "addons.json").exists())
         # e o render seguinte não traz o add-on de volta
         self.ok()
-        self.assertNotIn("exemplo_addon", self.hermes_mcp())
+        self.assertNotIn("example_addon", self.hermes_mcp())
 
-    def test_a4_remove_um_de_dois(self) -> None:
-        a = self.addon("um", mcp="mcp_um", skill="skill-um")
-        b = self.addon("dois", mcp="mcp_dois", skill="skill-dois")
+    def test_a4_remove_one_of_two(self) -> None:
+        a = self.addon("one", mcp="mcp_one", skill="skill-one")
+        b = self.addon("two", mcp="mcp_two", skill="skill-two")
         self.ok("--addon", str(a), "--addon", str(b))
-        self.ok("--remove-addon", "um")
+        self.ok("--remove-addon", "one")
         mcp = self.hermes_mcp()
-        self.assertNotIn("mcp_um", mcp)
-        self.assertIn("mcp_dois", mcp)
-        self.assertFalse((self.home / "skills" / "skill-um").exists())
-        self.assertTrue((self.home / "skills" / "skill-dois").is_dir())
+        self.assertNotIn("mcp_one", mcp)
+        self.assertIn("mcp_two", mcp)
+        self.assertFalse((self.home / "skills" / "skill-one").exists())
+        self.assertTrue((self.home / "skills" / "skill-two").is_dir())
 
-    def test_a4_remove_addon_desconhecido_avisa(self) -> None:
-        r = self.ok("--remove-addon", "nao-existe")
-        self.assertIn("nao-existe", r.stdout + r.stderr)
+    def test_a4_remove_unknown_addon_warns(self) -> None:
+        r = self.ok("--remove-addon", "does-not-exist")
+        self.assertIn("does-not-exist", r.stdout + r.stderr)
 
     # ------------------------------------------------------------ A5
-    def test_a5_mcp_com_nome_do_tenant_recusa_sem_alterar(self) -> None:
+    def test_a5_mcp_with_tenant_name_refused_without_changes(self) -> None:
         self.ok()
-        antes = snapshot(self.user)
-        conflito = self.addon("conflito", mcp="exemplo_ferramentas")
-        r = self.render("--addon", str(conflito))
+        before = snapshot(self.user)
+        conflict = self.addon("conflict", mcp="example_tools")
+        r = self.render("--addon", str(conflict))
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("exemplo_ferramentas", r.stderr)
-        self.assertIn("conflito", r.stderr)
-        self.assertEqual(antes, snapshot(self.user))
+        self.assertIn("example_tools", r.stderr)
+        self.assertIn("conflict", r.stderr)
+        self.assertEqual(before, snapshot(self.user))
 
-    def test_a5_mcp_com_nome_reservado_do_kernel(self) -> None:
-        for nome in ("cerebro", "github", "knowledge", "escritorio"):
-            with self.subTest(nome=nome):
-                r = self.render("--addon", str(self.addon(f"res-{nome}", mcp=nome)))
+    def test_a5_mcp_with_reserved_kernel_name(self) -> None:
+        for name in ("vault", "github", "knowledge", "office"):
+            with self.subTest(name=name):
+                r = self.render("--addon", str(self.addon(f"res-{name}", mcp=name)))
                 self.assertNotEqual(r.returncode, 0)
-                self.assertIn(nome, r.stderr)
+                self.assertIn(name, r.stderr)
                 self.assertFalse(self.home.exists())
 
-    def test_a5_dois_addons_com_mesmo_mcp(self) -> None:
-        a = self.addon("um", mcp="igual")
-        b = self.addon("dois", mcp="igual")
+    def test_a5_two_addons_with_same_mcp(self) -> None:
+        a = self.addon("one", mcp="same")
+        b = self.addon("two", mcp="same")
         r = self.render("--addon", str(a), "--addon", str(b))
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("igual", r.stderr)
+        self.assertIn("same", r.stderr)
         self.assertFalse(self.home.exists())
 
-    def test_a5_skill_com_nome_do_tenant(self) -> None:
-        r = self.render("--addon", str(self.addon("sk", skill="exemplo-ola")))
+    def test_a5_skill_with_tenant_name(self) -> None:
+        r = self.render("--addon", str(self.addon("sk", skill="example-hello")))
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("exemplo-ola", r.stderr)
+        self.assertIn("example-hello", r.stderr)
         self.assertFalse(self.home.exists())
 
     # ------------------------------------------------------------ A6
-    def test_a6_segredo_do_addon(self) -> None:
-        a = self.addon("seg", """\
-            segredos:
+    def test_a6_addon_secret(self) -> None:
+        a = self.addon("sec", """\
+            secrets:
               - name: SEG_ADDON_TOKEN
                 title: Token do add-on
                 description: só para o teste
@@ -233,12 +233,12 @@ class AddonTest(unittest.TestCase):
         self.ok()
         self.ok("--addon", str(a))
         self.assertIn("SEG_ADDON_TOKEN='valor-x'", secrets.read_text(encoding="utf-8"))
-        catalogo = json.loads((self.home / "render" / "secrets.json").read_text(encoding="utf-8"))
-        self.assertIn("SEG_ADDON_TOKEN", json.dumps(catalogo))
+        catalog = json.loads((self.home / "render" / "secrets.json").read_text(encoding="utf-8"))
+        self.assertIn("SEG_ADDON_TOKEN", json.dumps(catalog))
 
-    def test_a6_segredo_ja_declarado_no_tenant_nao_duplica(self) -> None:
+    def test_a6_secret_declared_in_tenant_not_duplicated(self) -> None:
         a = self.addon("dup", """\
-            segredos:
+            secrets:
               - name: EXEMPLO_TOKEN
                 required: false
             """)
@@ -247,7 +247,7 @@ class AddonTest(unittest.TestCase):
         self.assertEqual(text.count("\nEXEMPLO_TOKEN="), 1)
 
     # ------------------------------------------------------------ A7
-    def test_a7_caminhos_relativos_ao_addon(self) -> None:
+    def test_a7_paths_relative_to_addon(self) -> None:
         a = self.addon("rel", mcp="mcp_rel", skill="skill-rel")
         # rodado de outra pasta, para o caminho não resolver por acaso a partir do diretório atual
         cwd = os.getcwd()
@@ -257,62 +257,62 @@ class AddonTest(unittest.TestCase):
         finally:
             os.chdir(cwd)
         entry = self.hermes_mcp()["mcp_rel"]
-        self.assertEqual(entry["args"], [str(self.tmp / "rel" / "servidor.py"), "--flag", str(self.tmp / "fora.txt")])
+        self.assertEqual(entry["args"], [str(self.tmp / "rel" / "server.py"), "--flag", str(self.tmp / "outside.txt")])
         self.assertTrue((self.home / "skills" / "skill-rel" / "SKILL.md").is_file())
-        estado = json.loads((self.home / "addons.json").read_text(encoding="utf-8"))
-        self.assertEqual(estado[0]["path"], str(a))
+        state = json.loads((self.home / "addons.json").read_text(encoding="utf-8"))
+        self.assertEqual(state[0]["path"], str(a))
 
     # ------------------------------------------------------------ A8
-    def test_a8_sem_addon_nada_muda(self) -> None:
+    def test_a8_without_addon_nothing_changes(self) -> None:
         self.ok()
-        sem = snapshot(self.user)
+        without = snapshot(self.user)
         self.assertFalse((self.home / "addons.json").exists())
         self.assertNotIn("add-on", (self.home / "render" / "summary.txt").read_text(encoding="utf-8"))
         # ligar e desligar um add-on volta exatamente ao mesmo resultado
-        self.ok("--addon", str(ADDON_EXEMPLO))
-        self.ok("--remove-addon", "exemplo-addon")
-        self.assertEqual(sem, snapshot(self.user))
+        self.ok("--addon", str(EXAMPLE_ADDON))
+        self.ok("--remove-addon", "example-addon")
+        self.assertEqual(without, snapshot(self.user))
 
     # ------------------------------------------------------------ A9
-    def test_a9_addon_inexistente(self) -> None:
-        r = self.render("--addon", str(self.tmp / "nao" / "addon.yaml"))
+    def test_a9_missing_addon(self) -> None:
+        r = self.render("--addon", str(self.tmp / "missing" / "addon.yaml"))
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("addon.yaml", r.stderr)
         self.assertFalse(self.home.exists())
 
-    def test_a9_addon_invalido(self) -> None:
-        casos = {
-            "yaml-quebrado": "addon: [x\n",
-            "sem-nome": "descricao: falta o nome\n",
-            "nome-ruim": "addon: Nome Com Espaço\n",
-            "campo-desconhecido": "addon: x\ncrons: []\n",
-            "mcp-sem-command": "addon: x\nmcp:\n  - name: m\n    transport: stdio\n",
-            "pack-inexistente": "addon: x\nskills:\n  packs: [nao-tem]\n",
+    def test_a9_invalid_addon(self) -> None:
+        cases = {
+            "broken-yaml": "addon: [x\n",
+            "no-name": "description: falta o nome\n",
+            "bad-name": "addon: Nome Com Espaço\n",
+            "unknown-field": "addon: x\ncrons: []\n",
+            "mcp-without-command": "addon: x\nmcp:\n  - name: m\n    transport: stdio\n",
+            "missing-pack": "addon: x\nskills:\n  packs: [missing]\n",
         }
-        for caso, text in casos.items():
-            with self.subTest(caso=caso):
-                f = write(self.tmp / caso / "addon.yaml", text)
+        for case, text in cases.items():
+            with self.subTest(case=case):
+                f = write(self.tmp / case / "addon.yaml", text)
                 r = self.render("--addon", str(f))
                 self.assertNotEqual(r.returncode, 0, r.stdout)
                 self.assertIn("add-on", r.stderr)
                 self.assertFalse(self.home.exists())
 
-    def test_a9_addon_lembrado_que_sumiu(self) -> None:
-        a = self.addon("some", mcp="mcp_some")
+    def test_a9_remembered_addon_that_vanished(self) -> None:
+        a = self.addon("gone", mcp="mcp_gone")
         self.ok("--addon", str(a))
-        antes = snapshot(self.user)
+        before = snapshot(self.user)
         shutil.rmtree(a.parent)
         r = self.render()
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("--remove-addon some", r.stderr)
-        self.assertEqual(antes, snapshot(self.user))
+        self.assertIn("--remove-addon gone", r.stderr)
+        self.assertEqual(before, snapshot(self.user))
         # e dá para desligar mesmo sem o arquivo
-        self.ok("--remove-addon", "some")
-        self.assertNotIn("mcp_some", self.hermes_mcp())
+        self.ok("--remove-addon", "gone")
+        self.assertNotIn("mcp_gone", self.hermes_mcp())
 
-    def test_a9_dry_run_nao_escreve(self) -> None:
-        r = self.ok("--addon", str(ADDON_EXEMPLO), "--dry-run")
-        self.assertIn("exemplo-addon", r.stdout + r.stderr)
+    def test_a9_dry_run_writes_nothing(self) -> None:
+        r = self.ok("--addon", str(EXAMPLE_ADDON), "--dry-run")
+        self.assertIn("example-addon", r.stdout + r.stderr)
         self.assertFalse(self.home.exists())
 
 

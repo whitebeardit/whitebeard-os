@@ -2,23 +2,23 @@
 # um add-on soma MCPs, skills e segredos ao tenant, sem mexer no jarvis.yaml dele. Serve para uma
 # especialização que mora fora deste repositório (um repositório privado, por exemplo).
 # Caminhos relativos (packs, e command/args que começam com ./ ou ../) valem a partir desta pasta.
-addon: exemplo-addon # nome do add-on: minúsculas, números e hífen; é o que --remove-addon recebe
-descricao: Exemplo de add-on com um MCP, uma skill e um segredo.
+addon: example-addon # nome do add-on: minúsculas, números e hífen; é o que --remove-addon recebe
+description: Exemplo de add-on com um MCP, uma skill e um segredo.
 
 mcp:
-  - name: exemplo_addon # não pode repetir o nome de um MCP do tenant, do kernel ou de outro add-on
+  - name: example_addon # não pode repetir o nome de um MCP do tenant, do kernel ou de outro add-on
     transport: stdio
     command: python3
-    args: ["./ola_mcp.py"]
+    args: ["./hello_mcp.py"]
     env:
-      EXEMPLO_ADDON_TOKEN: "${EXEMPLO_ADDON_TOKEN}"
+      EXAMPLE_ADDON_TOKEN: "${EXAMPLE_ADDON_TOKEN}"
 
 skills:
   packs:
     - skills # cada skill do add-on precisa ter nome diferente das do kernel e do tenant
 
-segredos:
-  - name: EXEMPLO_ADDON_TOKEN
+secrets:
+  - name: EXAMPLE_ADDON_TOKEN
     title: Token do add-on de exemplo
     description: Token fictício; mostra como um add-on declara os próprios segredos.
     required: false

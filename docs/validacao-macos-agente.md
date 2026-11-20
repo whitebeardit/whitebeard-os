@@ -114,7 +114,7 @@ curl -sk -H "Authorization: Bearer $TOKEN" https://localhost:8017/api/config
 ```
 
 Esperado: LaunchAgent ativo, `ui http=200`, `/api/paths` com caminhos dentro de `$HOME` e `/api/config` com
-`tenant: exemplo` e a lista de módulos genéricos. Depois abra a UI para o fundador:
+`tenant: example` e a lista de módulos genéricos. Depois abra a UI para o fundador:
 
 ```sh
 open "https://localhost:8017/?token=$TOKEN"

@@ -64,7 +64,7 @@ depois abra o mesmo endereço com o IP do Mac. O microfone só funciona em HTTPS
 ## 4. Opcional: Hermes
 
 ```sh
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --with-hermes
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --with-hermes
 hermes --version
 ```
 
@@ -77,7 +77,7 @@ Só depois de o desktop estar verde. Instala Hermes upstream e Paperclip, cria a
 rede local e registra os dois como serviços de usuário (launchd):
 
 ```sh
-./bootstrap.sh --tenant tenants/exemplo/jarvis.yaml --role desktop,core
+./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core
 paperclipai service status
 open http://localhost:3100
 ```

@@ -28,12 +28,17 @@ have paperclipai && paperclipai service stop >/dev/null 2>&1 || true
 have hermes && hermes gateway stop >/dev/null 2>&1 || true
 case "$(uname -s)" in
   Darwin)
-    for l in dev.whitebeard.jarvis-web dev.whitebeard.ollama dev.whitebeard.gbrain dev.whitebeard.vault-sync ai.hermes.gateway ing.paperclip.paperclipai; do
+    for l in dev.whitebeard.jarvis-web dev.whitebeard.ollama dev.whitebeard.gbrain dev.whitebeard.vault-sync dev.whitebeard.courier ai.hermes.gateway ing.paperclip.paperclipai; do
       launchctl bootout "gui/$(id -u)/$l" 2>/dev/null || true
       rm -f "$HOME/Library/LaunchAgents/$l.plist"
     done ;;
   Linux)
     for u in jarvis-web hermes-gateway paperclip; do systemctl --user disable --now "$u.service" 2>/dev/null || true; rm -f "$HOME/.config/systemd/user/$u.service"; done
+    # tarefas periódicas (serviço + timer): o carteiro do Escritório e a sincronização do second brain
+    for u in whitebeard-courier whitebeard-vault-sync; do
+      systemctl --user disable --now "$u.timer" 2>/dev/null || true
+      rm -f "$HOME/.config/systemd/user/$u.timer" "$HOME/.config/systemd/user/$u.service"
+    done
     systemctl --user daemon-reload 2>/dev/null || true
     if have docker && [ -d "$JARVIS_HOME/compose/knowledge" ]; then
       if [ "$DELETE_DATA" = 1 ]; then
@@ -64,10 +69,10 @@ done
 
 # ---- o que se guarda do $JARVIS_HOME antes de removê-lo
 keep=$(mktemp -d)
-[ -f "$JARVIS_HOME/.nvm-instalado-pelo-kernel" ] && : > "$keep/.nvm-instalado-pelo-kernel"
+[ -f "$JARVIS_HOME/.nvm-installed-by-kernel" ] && : > "$keep/.nvm-installed-by-kernel"
 if [ "$DELETE_DATA" != 1 ]; then
   [ -f "$JARVIS_HOME/secrets.env" ] && cp -p "$JARVIS_HOME/secrets.env" "$keep/secrets.env"
-  # pasta de dados padrão mora dentro de $JARVIS_HOME; a do tenant (dados:) mora fora e não é tocada
+  # pasta de dados padrão mora dentro de $JARVIS_HOME; a do tenant (data:) mora fora e não é tocada
   case "$data" in "$JARVIS_HOME"/*) [ -d "$data" ] && cp -Rp "$data" "$keep/data" ;; esac
 fi
 
@@ -104,7 +109,7 @@ if [ "$DELETE_DATA" = 1 ]; then
       [ -f "$f" ] && python3 -c 'import json,os,sys; sys.exit(0 if os.path.realpath(json.load(open(sys.argv[1])).get("root",""))==os.path.realpath(sys.argv[2]) else 1)' "$f" "$vault" 2>/dev/null && rm -f "$f"
     done
   fi
-  [ -f "$keep/.nvm-instalado-pelo-kernel" ] && rm -rf "$HOME/.nvm"
+  [ -f "$keep/.nvm-installed-by-kernel" ] && rm -rf "$HOME/.nvm"
   log "removido tudo: dados, second brain, Paperclip, Hermes e cérebro"
 else
   mkdir -p "$JARVIS_HOME"

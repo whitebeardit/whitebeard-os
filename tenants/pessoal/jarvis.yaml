@@ -15,12 +15,6 @@ interface:
 vault:
   path: whitebeard-secondbrain # relativo a $HOME; o instalador cria se não existir (abre no Obsidian)
 
-# Skills opcionais deste tenant: são instaladas, mas só entram num assistente quando marcadas na página
-# ASSISTENTES (ou listadas em `skills:` do assistente). Quem não usa, não vê diferença.
-skills:
-  packs:
-    - skills # relativo a este arquivo; acompanhamento-alunos: evolução de alunos de um curso ou mentoria
-
 hermes:
   provider: anthropic # usa o login do Claude Code; `hermes model` troca, se quiser
   model: claude-sonnet-5-5

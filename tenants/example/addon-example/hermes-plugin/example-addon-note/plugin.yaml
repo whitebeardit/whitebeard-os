@@ -1,0 +1,3 @@
+name: example-addon-note
+version: "1.0"
+description: Exemplo de plugin do Hermes que um add-on traz; só registra no log cada ferramenta chamada.

@@ -14,6 +14,8 @@ Quando mudam as skills do assistente (a lista ou o conteúdo), os MCPs ou o SOUL
 canais são encerradas (como um /reset em cada canal): o gateway, ao reiniciar, descarta essas rotas e a próxima
 mensagem abre uma conversa nova, que já carrega o perfil novo. Sessões que não são de canal (terminal, Paperclip)
 ficam. Na primeira aplicação, nada é encerrado.
+Os plugins do Hermes que os add-ons declaram (render/hermes/plugins.json) são copiados para o perfil e ligados em
+`plugins.enabled`; mudança neles conta como mudança (o gateway reinicia), sem encerrar conversas.
 O que o kernel gerencia é sobrescrito (chaves do config.yaml, variáveis do .env, SOUL.md do kernel,
 links de skills do kernel); o que a pessoa fez à mão fica (SOUL.md editado, outras chaves do .env,
 skills que não são links do kernel). Só stdlib + PyYAML (o bootstrap roda pelo uv, que traz o PyYAML).
@@ -30,6 +32,9 @@ import time
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from jarvis_hermes_plugins import apply_plugins, load_wanted  # noqa: E402
 
 
 CHANNEL_SOURCES = ("discord", "telegram", "whatsapp", "slack", "signal")
@@ -75,7 +80,8 @@ def main() -> int:
         print("uso: jarvis_assistant.py <render-dir> <profile-dir>", file=sys.stderr)
         return 1
     src, pdir = Path(sys.argv[1]), Path(sys.argv[2])
-    jarvis_skills = Path(os.environ.get("JARVIS_HOME", str(Path.home() / ".jarvis"))) / "skills"
+    jarvis_home = Path(os.environ.get("JARVIS_HOME", str(Path.home() / ".jarvis")))
+    jarvis_skills = jarvis_home / "skills"
     name = pdir.name
     changed = False
 
@@ -146,6 +152,14 @@ def main() -> int:
             continue
         p.symlink_to(target)
         changed = True
+
+    # ---- plugins do Hermes que os add-ons trazem: copiados para o perfil e ligados em plugins.enabled
+    try:
+        if apply_plugins(load_wanted(jarvis_home / "render" / "hermes" / "plugins.json"), pdir):
+            print(f"[whitebeard-os] hermes: {name}: plugins dos add-ons atualizados")
+            changed = True
+    except (OSError, ValueError, RuntimeError, yaml.YAMLError) as e:
+        print(f"[whitebeard-os] aviso: plugins do Hermes não aplicados em {name}: {e}")
 
     # ---- conversas abertas: encerradas quando muda o que elas carregam no começo
     fp = fingerprint(wanted.get("mcp_servers"), wanted_skills, jarvis_skills, soul_src)

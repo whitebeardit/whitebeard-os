@@ -284,6 +284,7 @@ def installed_skills_hint(kernel: Path, tenant_dir: Path, data: dict) -> set[str
 # $JARVIS_HOME/addons.json, como o tenant fica em tenant.path; sai com `--remove-addon <nome>`.
 ADDON_STATE = "addons.json"
 ADDON_NAME_RE = r"^[a-z0-9][a-z0-9-]*$"
+HERMES_PLUGIN_NAME_RE = r"^[a-z0-9][a-z0-9_-]*$"  # vira nome de pasta em <home do Hermes>/plugins/
 KERNEL_MCP = ("knowledge", "vault", "github", "office")
 
 
@@ -292,11 +293,30 @@ class AddonError(Exception):
 
 
 def addon_schema(schema: dict) -> dict:
-    """Esquema do addon.yaml: as mesmas regras do jarvis.yaml para mcp, skills e segredos."""
+    """Esquema do addon.yaml: as mesmas regras do jarvis.yaml para mcp, skills e segredos, mais os plugins do
+    Hermes (`hermes.plugins`: pastas com plugin.yaml e __init__.py), que só um add-on traz."""
     p = schema["properties"]
+    hermes = {"type": "object", "additionalProperties": False,
+              "properties": {"plugins": {"type": "array", "items": {"type": "string", "minLength": 1}}}}
     return {"type": "object", "required": ["addon"], "additionalProperties": False, "$defs": schema.get("$defs", {}),
             "properties": {"addon": {"type": "string", "pattern": ADDON_NAME_RE}, "description": {"type": "string"},
-                           "mcp": p["mcp"], "skills": p["skills"], "secrets": p["secrets"]}}
+                           "mcp": p["mcp"], "skills": p["skills"], "secrets": p["secrets"], "hermes": hermes}}
+
+
+def read_hermes_plugin(addon: str, folder: Path) -> dict:
+    """Confere a pasta de um plugin do Hermes (plugin.yaml com `name`, e __init__.py) e devolve nome e caminho."""
+    manifest = folder / "plugin.yaml"
+    if not folder.is_dir() or not manifest.is_file() or not (folder / "__init__.py").is_file():
+        raise AddonError(f"add-on {addon}: plugin do Hermes não encontrado em {folder} (a pasta precisa ter "
+                         "plugin.yaml e __init__.py)")
+    try:
+        meta = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        raise AddonError(f"add-on {addon}: {manifest}: YAML inválido: {e}") from None
+    name = meta.get("name") if isinstance(meta, dict) else None
+    if not isinstance(name, str) or not re.match(HERMES_PLUGIN_NAME_RE, name):
+        raise AddonError(f"add-on {addon}: {manifest}: falta `name` (minúsculas, números, hífen e sublinhado)")
+    return {"name": name, "path": str(folder)}
 
 
 def _rel_addon(base: Path, value: str) -> str:
@@ -331,8 +351,9 @@ def read_addon(path: Path, schema: dict) -> dict:
             m["args"] = [_rel_addon(base, a) for a in m["args"]]
         mcp.append(m)
     skills = sorted(s.name for pack in packs for s in pack.iterdir() if (s / "SKILL.md").is_file())
+    plugins = [read_hermes_plugin(d["addon"], (base / p).resolve()) for p in (d.get("hermes") or {}).get("plugins", []) or []]
     return {"addon": d["addon"], "path": str(path), "packs": [str(p) for p in packs], "mcp": mcp,
-            "secrets": list(d.get("secrets", []) or []), "skills": skills}
+            "secrets": list(d.get("secrets", []) or []), "skills": skills, "hermes_plugins": plugins}
 
 
 def load_addons(home: Path, kernel: Path, tenant_dir: Path, data: dict, schema: dict,
@@ -375,6 +396,13 @@ def load_addons(home: Path, kernel: Path, tenant_dir: Path, data: dict, schema: 
     used_mcp.update({n: "o kernel" for n in KERNEL_MCP})
     used_skills = {n: "o kernel ou o tenant" for n in installed_skills_hint(kernel, tenant_dir, data)}
     secret_names = {s["name"] for s in data.get("secrets", []) or []}
+    used_plugins: dict[str, str] = {}
+    for a in result:  # antes de somar qualquer coisa a `data`: nome de plugin repetido é erro sem escrita
+        for pl in a["hermes_plugins"]:
+            if pl["name"] in used_plugins:
+                raise AddonError(f"add-on {a['addon']}: o plugin do Hermes `{pl['name']}` já vem do add-on "
+                                 f"{used_plugins[pl['name']]}; dê outro nome a ele no plugin.yaml. Nada foi alterado.")
+            used_plugins[pl["name"]] = a["addon"]
     data["mcp"] = list(data.get("mcp", []) or [])
     data["skills"] = dict(data.get("skills") or {})
     data["skills"]["packs"] = list(data["skills"].get("packs", []) or [])
@@ -1154,6 +1182,15 @@ def main() -> int:
                                               ensure_ascii=False, indent=2) + "\n")
         elif addons_state.exists():
             addons_state.unlink()
+    # plugins do Hermes dos add-ons ligados: o bootstrap copia para o home do Hermes e para cada perfil
+    # (jarvis_hermes_plugins.py). Sem plugin nenhum o arquivo some, e o bootstrap tira do Hermes os que o kernel
+    # tinha instalado (ele lembra quais em .whitebeard-plugins, dentro de cada home).
+    hermes_plugins = [pl for a in addons for pl in a["hermes_plugins"]]
+    plugins_file = home / "render" / "hermes" / "plugins.json"
+    if hermes_plugins:
+        w.write(plugins_file, json.dumps(hermes_plugins, ensure_ascii=False, indent=2) + "\n")
+    elif plugins_file.exists() and not args.dry_run:
+        plugins_file.unlink()
 
     # ---- resumo
     summary = [

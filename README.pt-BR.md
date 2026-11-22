@@ -407,7 +407,7 @@ que mora em outro repositório, privado por exemplo, por cima de um tenant públ
 ```sh
 ./bootstrap.sh --tenant tenants/example/jarvis.yaml --addon tenants/example/addon-example/addon.yaml
 ./bootstrap.sh --apply                                # o add-on continua ligado: a instalação lembra
-./bootstrap.sh --apply --remove-addon example-addon   # tira os MCPs, as skills e os segredos dele
+./bootstrap.sh --apply --remove-addon example-addon   # tira os MCPs, as skills, os segredos e os plugins dele
 ```
 
 O `addon.yaml` tem um nome (`addon`, com minúsculas, números e hífen) e os mesmos campos `mcp`, `skills.packs` e
@@ -416,6 +416,11 @@ partir da pasta do add-on. Um MCP ou uma skill do add-on não pode repetir um no
 ou em outro add-on: o render recusa e não altera nada. `--addon` pode ser repetido. Os add-ons ligados ficam em
 `$JARVIS_HOME/addons.json`. Os MCPs stdio de um add-on recebem `JARVIS_TENANT` e `JARVIS_DATA` do kernel; o add-on não
 os troca. Exemplo em `tenants/example/addon-example/`.
+
+Um add-on também pode trazer plugins do Hermes, em `hermes.plugins`: uma lista de pastas, cada uma com `plugin.yaml`
+(com `name`) e `__init__.py`. O kernel copia cada pasta para `plugins/<nome>/` no home do Hermes e no perfil de cada
+assistente, e põe o nome em `plugins.enabled` sem tirar o que já estava lá. Um plugin novo ou alterado reinicia o
+gateway. `--remove-addon` tira a pasta e o nome. Dois add-ons não podem trazer plugin com o mesmo nome.
 
 ## Componentes externos e licenças
 

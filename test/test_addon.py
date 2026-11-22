@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Testes de aceite do mecanismo de add-on do kernel (A1 a A9).
+"""Testes de aceite do mecanismo de add-on do kernel (A1 a A10).
 
 Rodam o jarvis_render.py de verdade, com o tenant de exemplo, numa $HOME temporária. Só biblioteca padrão;
 o render é chamado pelo `uv run`, como o bootstrap faz.
@@ -309,6 +309,50 @@ class AddonTest(unittest.TestCase):
         # e dá para desligar mesmo sem o arquivo
         self.ok("--remove-addon", "gone")
         self.assertNotIn("mcp_gone", self.hermes_mcp())
+
+    # ------------------------------------------------------------ A10: plugins do Hermes
+    def plugin_addon(self, name: str, plugin: str, *, files: bool = True) -> Path:
+        base = self.tmp / name
+        if files:
+            write(base / "hp" / plugin / "plugin.yaml", f"name: {plugin}\nversion: '1.0'\n")
+            write(base / "hp" / plugin / "__init__.py", "def register(ctx):\n    pass\n")
+        return self.addon(name, f"hermes:\n  plugins: [hp/{plugin}]\n")
+
+    def hermes_plugins(self) -> list:
+        return json.loads((self.home / "render" / "hermes" / "plugins.json").read_text(encoding="utf-8"))
+
+    def test_a10_example_addon_lists_its_hermes_plugin(self) -> None:
+        self.ok("--addon", str(EXAMPLE_ADDON))
+        self.assertEqual(self.hermes_plugins(), [{"name": "example-addon-note",
+                                                  "path": str(EXAMPLE_ADDON.parent / "hermes-plugin" / "example-addon-note")}])
+        self.ok()  # lembrado
+        self.assertEqual(len(self.hermes_plugins()), 1)
+
+    def test_a10_removed_addon_takes_the_list_away(self) -> None:
+        self.ok("--addon", str(EXAMPLE_ADDON))
+        self.ok("--remove-addon", "example-addon")
+        # sem a lista, o bootstrap tira do Hermes o que tinha instalado (HP4 e HP8)
+        self.assertFalse((self.home / "render" / "hermes" / "plugins.json").exists())
+
+    def test_a10_without_plugins_no_file(self) -> None:
+        self.ok("--addon", str(self.addon("plain", mcp="mcp_plain")))
+        self.assertFalse((self.home / "render" / "hermes" / "plugins.json").exists())
+
+    def test_a10_same_plugin_name_in_two_addons_refused_without_changes(self) -> None:
+        a = self.plugin_addon("one", "shared-plugin")
+        b = self.plugin_addon("two", "shared-plugin")
+        self.ok("--addon", str(a))
+        before = snapshot(self.home)
+        r = self.render("--addon", str(b))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("shared-plugin", r.stdout + r.stderr)
+        self.assertEqual(snapshot(self.home), before)
+
+    def test_a10_plugin_folder_without_manifest_refused(self) -> None:
+        r = self.render("--addon", str(self.plugin_addon("broken", "missing", files=False)))
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("plugin.yaml", r.stdout + r.stderr)
+        self.assertFalse((self.home / "addons.json").exists())
 
     def test_a9_dry_run_writes_nothing(self) -> None:
         r = self.ok("--addon", str(EXAMPLE_ADDON), "--dry-run")

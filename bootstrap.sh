@@ -733,6 +733,27 @@ print(f"[whitebeard-os] hermes: mcp ({len(applied)}): {', '.join(applied) or '-'
 PY
 }
 
+# Plugins do Hermes que os add-ons declaram (`hermes.plugins` no addon.yaml): o render lista em
+# render/hermes/plugins.json (o arquivo some quando nenhum add-on traz plugin) e aqui eles entram no home do Hermes (pasta copiada para plugins/<nome>/ e o
+# nome em plugins.enabled, sem tirar o que já estava). Os perfis dos assistentes e dos cargos recebem os
+# mesmos plugins pelo jarvis_assistant.py. Plugin novo ou alterado só carrega com o gateway reiniciado.
+apply_hermes_plugins() {
+  [ "$WITH_HERMES" = 1 ] || return 0
+  skipped hermes && return 0
+  plugins_="$JARVIS_HOME/render/hermes/plugins.json"
+  if [ "$DRY_RUN" = 1 ]; then
+    [ -f "$plugins_" ] && log "hermes: aplicaria os plugins dos add-ons de $plugins_"
+    return 0
+  fi
+  # sem o arquivo também roda: é assim que o plugin de um add-on desligado sai (o script lembra o que instalou)
+  [ -f "$plugins_" ] || [ -f "$HERMES_HOME/.whitebeard-plugins" ] || return 0
+  [ -d "$HERMES_HOME" ] || return 0
+  if uv run --quiet "$KERNEL_DIR/bin/jarvis_hermes_plugins.py" "$plugins_" "$HERMES_HOME"; then
+    HERMES_RESTART=1; log "hermes: plugins dos add-ons atualizados"
+  fi
+  return 0
+}
+
 # Assistentes do Telegram do tenant (`assistants:`): um perfil isolado do Hermes por assistente, criado
 # pelo próprio Hermes (`hermes profile create`) e preenchido com o que o render escreveu em
 # render/hermes/assistants/<name>/ (config, variáveis, persona, skills). Idempotente: o que o kernel
@@ -1101,6 +1122,7 @@ apply_knowledge_render() {
   apply_mcp
   apply_hermes_config   # o .env do Hermes ganha GBRAIN_MCP_TOKEN (mescla sem sobrescrever)
   apply_hermes_tenant
+  apply_hermes_plugins
   apply_hermes_assistants   # os assistentes do dono e da equipe também veem o cérebro
   HERMES_RESTART=1
 }
@@ -1430,6 +1452,7 @@ apply_only() {
   apply_claude_plugins
   apply_hermes_config
   apply_hermes_tenant
+  apply_hermes_plugins
   apply_hermes_assistants
   # cargos novos ou editados na página ESCRITÓRIO: o perfil do Hermes e o agente no Paperclip (sem isto, o
   # COLOCAR EM USO da página não punha cargo nenhum em uso)
@@ -1723,6 +1746,7 @@ apply_mcp
 apply_claude_plugins
 apply_hermes_config
 apply_hermes_tenant
+apply_hermes_plugins
 apply_hermes_assistants
 apply_hermes_positions
 install_knowledge

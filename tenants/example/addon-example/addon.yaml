@@ -1,7 +1,7 @@
 # Add-on de exemplo, fictício. Mostra o formato que o kernel aceita em `bootstrap.sh --addon <addon.yaml>`:
-# um add-on soma MCPs, skills e segredos ao tenant, sem mexer no jarvis.yaml dele. Serve para uma
+# um add-on soma MCPs, skills, segredos e plugins do Hermes ao tenant, sem mexer no jarvis.yaml dele. Serve para uma
 # especialização que mora fora deste repositório (um repositório privado, por exemplo).
-# Caminhos relativos (packs, e command/args que começam com ./ ou ../) valem a partir desta pasta.
+# Caminhos relativos (packs, plugins, e command/args que começam com ./ ou ../) valem a partir desta pasta.
 addon: example-addon # nome do add-on: minúsculas, números e hífen; é o que --remove-addon recebe
 description: Exemplo de add-on com um MCP, uma skill e um segredo.
 
@@ -16,6 +16,12 @@ mcp:
 skills:
   packs:
     - skills # cada skill do add-on precisa ter nome diferente das do kernel e do tenant
+
+# Plugins do Hermes (ganchos e ferramentas em Python): cada pasta tem plugin.yaml (com `name`) e __init__.py.
+# O kernel copia a pasta para o home do Hermes e para o perfil de cada assistente e liga o nome em plugins.enabled.
+hermes:
+  plugins:
+    - hermes-plugin/example-addon-note
 
 secrets:
   - name: EXAMPLE_ADDON_TOKEN

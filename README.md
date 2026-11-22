@@ -413,7 +413,7 @@ specialization that lives in another repository, a private one for example, on t
 ```sh
 ./bootstrap.sh --tenant tenants/example/jarvis.yaml --addon tenants/example/addon-example/addon.yaml
 ./bootstrap.sh --apply                                # the add-on stays on: the installation remembers it
-./bootstrap.sh --apply --remove-addon example-addon   # takes out its MCPs, skills and secrets
+./bootstrap.sh --apply --remove-addon example-addon   # takes out its MCPs, skills, secrets and plugins
 ```
 
 The `addon.yaml` has a name (`addon`, lowercase letters, digits and hyphens) and the same `mcp`, `skills.packs` and
@@ -422,6 +422,12 @@ resolved from the add-on's folder. An add-on MCP server or skill can't reuse a n
 kernel, the tenant or another add-on: the render refuses and changes nothing. `--addon` can be repeated. The add-ons
 that are on are listed in `$JARVIS_HOME/addons.json`. An add-on's stdio MCP servers get `JARVIS_TENANT` and
 `JARVIS_DATA` from the kernel; the add-on can't override them. Example in `tenants/example/addon-example/`.
+
+An add-on can also bring Hermes plugins, in `hermes.plugins`: a list of folders, each with a `plugin.yaml` (with a
+`name`) and an `__init__.py`. The kernel copies each folder to `plugins/<name>/` in the Hermes home and in each
+assistant's profile, and adds the name to `plugins.enabled` without removing what was already there. A new or changed
+plugin restarts the gateway. `--remove-addon` takes out the folder and the name. Two add-ons can't bring a plugin with
+the same name.
 
 ## External components and licenses
 

@@ -35,8 +35,10 @@ jobs:
         run: ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core,knowledge --dry-run
       - name: add-on de exemplo (dry-run)
         run: ./bootstrap.sh --tenant tenants/example/jarvis.yaml --role desktop,core,knowledge --dry-run --addon tenants/example/addon-example/addon.yaml
-      - name: testes do mecanismo de add-on (A1 a A9)
+      - name: testes do mecanismo de add-on (A1 a A10)
         run: PATH="$HOME/.local/bin:$PATH" python3 test/test_addon.py
+      - name: plugins do Hermes trazidos por add-on (HP1 a HP8)
+        run: PATH="$HOME/.local/bin:$PATH" python3 test/test_hermes_plugins.py
       - name: testes da migração para a 0.4.0 (nomes em inglês)
         run: PATH="$HOME/.local/bin:$PATH" python3 test/test_migrate_0_4.py
       - name: quem pensa (status rápido com o Hermes lento)

@@ -396,7 +396,8 @@ pelo carteiro (`kernel/bin/jarvis_courier.py`, a cada minuto). O que exigir envi
 O cargo `work` (Assistente de trabalho) existe sempre; outros cargos entram em `office.positions` (ou pela página
 ESCRITÓRIO) e passam a valer depois de "colocar em uso". **Rotinas** (`office.routines` ou pela página) criam a
 tarefa sozinhas no horário (cron de 5 campos, fuso do computador) e publicam a entrega na sua conversa com o JARVIS
-(`where: telegram`) ou no grupo de um assistente (`where: assistant:<nome>`); valem na hora, sem colocar em uso. A rotina
+(`where: telegram`) ou no grupo de um assistente (`where: assistant:<nome>`, ou `assistant:<nome>:<id do canal>` para um dos canais
+dele; ali sai só o texto final da entrega); valem na hora, sem colocar em uso. A rotina
 `weekly-summary` (segunda, 8h) vem por padrão.
 
 ## Add-ons: uma especialização fora do tenant

@@ -242,6 +242,15 @@ def when_text(when: str) -> str:
     return when
 
 
+# onde a rotina publica: a conversa do dono, o primeiro grupo de um assistente ou um canal dele, pelo id
+WHERE_RE = re.compile(r"^assistant:[a-z][a-z0-9-]{1,30}(:-?[0-9]{5,25})?$")
+# a rotina que publica no grupo de um assistente fala com as pessoas de lá, não com o dono: o cargo precisa saber
+PUBLISH_NOTE = ("PUBLICAÇÃO: o texto da sua entrega é publicado tal como está no canal do assistente, para as pessoas "
+                "que estão lá. Escreva na entrega a mensagem final, pronta para ser lida por elas, e nada além dela: "
+                "sem contar o que você fez, sem avisos para o dono e sem dizer que não enviou. Quem envia é o sistema. "
+                "Se faltar algo para escrever a mensagem, peça uma decisão em vez de entregar.")
+
+
 def validate_routine(r: dict, positions: list[dict]) -> str | None:
     """Mensagem de erro para a pessoa, ou None."""
     if not NAME_RE.match(r.get("name") or ""):
@@ -255,8 +264,8 @@ def validate_routine(r: dict, positions: list[dict]) -> str | None:
     except ValueError as e:
         return T("quando: {error}", error=e)
     where = r.get("where") or "telegram"
-    if where != "telegram" and not re.match(r"^assistant:[a-z][a-z0-9-]{1,30}$", where):
-        return T("onde: 'telegram' ou 'assistant:<nome>'")
+    if where != "telegram" and not WHERE_RE.match(where):
+        return T("onde: 'telegram', 'assistant:<nome>' ou 'assistant:<nome>:<id do canal>'")
     if positions and r.get("position") not in {c["name"] for c in positions}:
         return T("cargo desconhecido: {position}", position=r.get("position"))
     return None
@@ -290,7 +299,9 @@ def fire(home: Path, routine: dict, when: datetime | None = None) -> dict:
     if not comp:
         raise RuntimeError(T("nenhuma empresa no Escritório"))
     marker = (when or datetime.now()).strftime("%d/%m/%Y %H:%M")
-    desc = (routine.get("does") or "").strip() + f"\n\n(rotina {routine['name']}, disparada em {marker})\n\n[origin: {routine.get('where') or 'telegram'}]\n[routine: {routine['name']}]"
+    where = routine.get("where") or "telegram"
+    desc = (routine.get("does") or "").strip() + (f"\n\n{PUBLISH_NOTE}" if where.startswith("assistant:") else "") + \
+        f"\n\n(rotina {routine['name']}, disparada em {marker})\n\n[origin: {where}]\n[routine: {routine['name']}]"
     it = api("POST", f"/companies/{comp[0]['id']}/issues",
              {"title": (routine.get("title") or routine["name"])[:200], "description": desc, "status": "todo", "priority": "medium", "assigneeAgentId": position["id"]})
     return {"id": it.get("id"), "number": it.get("identifier"), "title": it.get("title")}

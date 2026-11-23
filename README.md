@@ -402,7 +402,8 @@ chat through the mail carrier (`kernel/bin/jarvis_courier.py`, every minute). An
 stops and asks. The `work` role (work assistant) always exists; other roles go in `office.positions` (or through
 the OFFICE page) and take effect after PUT INTO USE. **Routines** (`office.routines` or through the page)
 create the task by themselves on schedule (5-field cron, the computer's time zone) and post the result to your
-conversation with JARVIS (`where: telegram`) or to an assistant's group (`where: assistant:<name>`); they take effect
+conversation with JARVIS (`where: telegram`) or to an assistant's group (`where: assistant:<name>`, or `assistant:<name>:<channel id>` for one of its
+channels; there only the final text of the delivery is posted); they take effect
 immediately, without putting into use. The `weekly-summary` (weekly summary) routine (Monday, 8 am) comes by default.
 
 ## Add-ons: a specialization outside the tenant

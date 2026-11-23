@@ -41,7 +41,7 @@
   "a rotina precisa de um título": "the routine needs a title",
   "diga o que a rotina faz": "say what the routine does",
   "quando: {error}": "when: {error}",
-  "onde: 'telegram' ou 'assistant:<nome>'": "where: 'telegram' or 'assistant:<name>'",
+  "onde: 'telegram', 'assistant:<nome>' ou 'assistant:<nome>:<id do canal>'": "where: 'telegram', 'assistant:<name>' or 'assistant:<name>:<channel id>'",
   "cargo desconhecido: {position}": "unknown role: {position}",
   "Paperclip respondeu HTTP {code}: {detail}": "Paperclip answered HTTP {code}: {detail}",
   "o Escritório (Paperclip) não está no ar neste computador": "the Office (Paperclip) is not running on this computer",

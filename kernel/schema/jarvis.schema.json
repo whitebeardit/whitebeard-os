@@ -547,7 +547,7 @@
               "where": {
                 "type": "string",
                 "default": "telegram",
-                "description": "onde a entrega é publicada: 'telegram' (sua conversa com o JARVIS) ou 'assistant:<name>' (o grupo de um assistente do Telegram ou do Discord)"
+                "description": "onde a entrega é publicada: 'telegram' (sua conversa com o JARVIS) ou 'assistant:<name>' (o primeiro grupo de um assistente do Telegram ou do Discord) ou 'assistant:<name>:<id>' (um canal dele, pelo id). No grupo do assistente sai só o texto final da entrega"
               },
               "position": {
                 "type": "string",

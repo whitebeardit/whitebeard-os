@@ -54,8 +54,29 @@ def last_comment(issue_id: str) -> str:
     return ""
 
 
+def publishes(it: dict) -> bool:
+    """A tarefa é de uma rotina que publica no grupo de um assistente: o que sai lá é para as pessoas do grupo."""
+    desc = it.get("description") or ""
+    return origin_of(desc).startswith("assistant:") and bool(re.search(r"\[routine:\s*[^\]]+\]", desc))
+
+
+def publication(comment_text: str) -> str:
+    """O texto que vai para o grupo: a entrega sem o prefixo e sem a linha do arquivo, que só interessa ao dono."""
+    body = comment_text[len("DELIVERY:"):] if comment_text.upper().startswith("DELIVERY:") else comment_text
+    return "\n".join(l for l in body.splitlines() if not l.startswith("Arquivo:")).strip()
+
+
+def destination_of(it: dict) -> str:
+    """Para onde vai o aviso desta tarefa. Só a entrega pronta de uma rotina vai para o grupo do assistente;
+    pendência e cancelamento dela são conversa com o dono."""
+    origin = origin_of(it.get("description") or "")
+    return "telegram" if publishes(it) and it.get("status") != "done" else origin
+
+
 def message(it: dict, comment_text: str) -> str:
     state = it.get("status")
+    if state == "done" and publishes(it):
+        return publication(comment_text)
     number = it.get("identifier") or it.get("id", "")[:8]
     title = it.get("title") or ""
     if state == "done":
@@ -69,8 +90,10 @@ def message(it: dict, comment_text: str) -> str:
 
 
 def assistant_destination(home: Path, name: str) -> tuple[str, str] | None:
-    """Para onde um assistente publica: (perfil, alvo do hermes send) = o primeiro grupo/canal onde ele responde.
+    """Para onde um assistente publica: (perfil, alvo do hermes send) = o primeiro grupo/canal onde ele responde,
+    ou o canal pedido (`<nome>:<id>`), desde que seja um dos canais dele. Canal pedido que não é dele: None.
     O canal vem do catálogo do render; os ids dos grupos, do .env do perfil dele (não são segredos)."""
+    name, _, wanted = name.partition(":")
     channel = "telegram"
     try:
         for a in json.loads((home / "render" / "hermes" / "assistants.json").read_text(encoding="utf-8")):
@@ -95,6 +118,8 @@ def assistant_destination(home: Path, name: str) -> tuple[str, str] | None:
         for line in (hermes_home / "profiles" / name / ".env").read_text(encoding="utf-8").splitlines():
             if line.startswith(key + "="):
                 ids = [x.strip() for x in line.split("=", 1)[1].split(",") if x.strip()]
+                if wanted:
+                    return (name, f"{channel}:{wanted}") if wanted in ids else None
                 if ids:
                     return name, f"{channel}:{ids[0]}"
     except OSError:
@@ -107,7 +132,7 @@ def send(destination: str, text: str, dry: bool, log, home: Path | None = None) 
     if destination.startswith("assistant:") and home is not None:
         target = assistant_destination(home, destination.split(":", 1)[1].strip())
         if not target:
-            log(f"[carteiro] não sei onde o {destination} publica (assistente sem grupo reconhecido); aviso vai para o telegram do dono")
+            log(f"[carteiro] não sei onde o {destination} publica (assistente sem grupo reconhecido, ou canal que não é dele); aviso vai para o telegram do dono")
             destination = "telegram"
         else:
             profile, destination = target
@@ -177,7 +202,7 @@ def main() -> int:
                 question = ((p_.get("payload") or {}).get("prompt") or "").strip()
                 number = it.get("identifier") or it.get("id", "")[:8]
                 text = f"⏸ Preciso que você decida: {it.get('title') or ''} ({number})\n{question}\nResponda \"aprovar {number}\" ou \"recusar {number}\". Para pedir um ajuste: \"aprovar {number} com a nota: o que mudar\"."
-                if send(origin_of(it.get("description") or ""), text, a.dry_run, log, home):
+                if send("telegram" if publishes(it) else origin_of(it.get("description") or ""), text, a.dry_run, log, home):
                     notified[key] = "pending"
                     log(f"[carteiro] avisado: {number} PENDÊNCIA")
         if st not in STATES or notified.get(it["id"]) == st:
@@ -196,7 +221,11 @@ def main() -> int:
         except Exception as e:
             log(f"[carteiro] não li a tarefa {it.get('identifier')}: {e.__class__.__name__}")
             continue
-        if send(origin_of(it.get("description") or ""), text, a.dry_run, log, home):
+        if not text:  # rotina que publica e entregou sem texto: nada vai para o grupo
+            log(f"[carteiro] {it.get('identifier')}: entrega sem texto para publicar")
+            notified[it["id"]] = st
+            continue
+        if send(destination_of(it), text, a.dry_run, log, home):
             notified[it["id"]] = st
             log(f"[carteiro] avisado: {it.get('identifier')} {STATES[st]}")
     state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")

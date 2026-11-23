@@ -59,7 +59,7 @@ class PublicationTest(unittest.TestCase):
 
     def test_rp6_where_accepts_a_channel_id(self) -> None:
         base = {"name": "monday", "title": "Recado", "does": "Escreva.", "when": "0 9 * * 1"}
-        for ok in ("telegram", "assistant:tutor", "assistant:tutor:123456789", "assistant:tutor:-1001234567"):
+        for ok in ("telegram", "assistant:tutor", "assistant:tutor:123456789", "assistant:tutor:-" + "1" * 9):
             self.assertIsNone(routines.validate_routine({**base, "where": ok}, []), ok)
         for bad in ("assistant:tutor:", "assistant:tutor:abc", "assistant:tutor:12 34", "discord:123", "assistant:Tutor"):
             self.assertIsNotNone(routines.validate_routine({**base, "where": bad}, []), bad)
